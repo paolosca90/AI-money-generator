@@ -5,8 +5,6 @@ const mt5ServerPort = secret("MT5ServerPort");
 const mt5Login = secret("MT5Login");
 const mt5Password = secret("MT5Password");
 const mt5Server = secret("MT5Server");
-const brokerApiKey = secret("BrokerApiKey");
-const brokerAccountId = secret("BrokerAccountId");
 
 export interface MT5OrderRequest {
   symbol: string;
@@ -33,30 +31,34 @@ export interface MT5AccountInfo {
   currency: string;
 }
 
+export interface MT5Position {
+  ticket: number;
+  symbol: string;
+  type: number; // 0 = BUY, 1 = SELL
+  volume: number;
+  openPrice: number;
+  currentPrice: number;
+  profit: number;
+  swap: number;
+  comment: string;
+}
+
 export async function executeMT5Order(order: MT5OrderRequest): Promise<MT5OrderResult> {
   try {
-    // Try different MT5 connection methods
-    
-    // Method 1: Direct MT5 Python API (if running on Windows/VPS)
+    // Try direct MT5 Python API connection first
     const directResult = await tryDirectMT5Connection(order);
     if (directResult.success) {
       return directResult;
     }
 
-    // Method 2: Custom MT5 REST API (if you have an Expert Advisor running)
+    // Try custom MT5 REST API (Expert Advisor)
     const restResult = await tryMT5RestAPI(order);
     if (restResult.success) {
       return restResult;
     }
 
-    // Method 3: Broker API (if your broker provides REST API)
-    const brokerResult = await tryBrokerAPI(order);
-    if (brokerResult.success) {
-      return brokerResult;
-    }
-
-    // Fallback: Simulation mode
-    console.log("All MT5 connection methods failed, using simulation mode");
+    // Fallback: Simulation mode for testing
+    console.log("MT5 connection methods failed, using simulation mode");
     return await simulateMT5Execution(order);
     
   } catch (error) {
@@ -70,7 +72,7 @@ export async function executeMT5Order(order: MT5OrderRequest): Promise<MT5OrderR
 
 async function tryDirectMT5Connection(order: MT5OrderRequest): Promise<MT5OrderResult> {
   try {
-    // This would connect to a Python service running MetaTrader5 library
+    // Connect to Python service running MetaTrader5 library
     const response = await fetch(`http://${mt5ServerHost()}:${mt5ServerPort()}/execute`, {
       method: "POST",
       headers: {
@@ -80,31 +82,38 @@ async function tryDirectMT5Connection(order: MT5OrderRequest): Promise<MT5OrderR
       body: JSON.stringify({
         login: mt5Login(),
         server: mt5Server(),
+        password: mt5Password(),
         symbol: order.symbol,
         action: order.direction === "LONG" ? "BUY" : "SELL",
         volume: order.lotSize,
         price: order.entryPrice,
         sl: order.stopLoss,
         tp: order.takeProfit,
+        deviation: 20, // Price deviation in points
+        magic: 234000, // Expert Advisor ID
+        comment: "AI Trading Bot",
+        type_time: "GTC", // Good Till Cancelled
+        type_filling: "FOK", // Fill or Kill
       }),
     });
 
     if (!response.ok) {
+      console.error(`MT5 server error: ${response.status} ${response.statusText}`);
       return { success: false, error: "MT5 server connection failed" };
     }
 
     const result = await response.json();
     
-    if (result.success) {
+    if (result.success && result.retcode === 10009) { // TRADE_RETCODE_DONE
       return {
         success: true,
-        orderId: result.order_id,
-        executionPrice: result.execution_price,
+        orderId: result.order,
+        executionPrice: result.price,
       };
     } else {
       return {
         success: false,
-        error: result.error || "MT5 execution failed",
+        error: result.error || `MT5 Error Code: ${result.retcode}`,
       };
     }
   } catch (error) {
@@ -115,7 +124,7 @@ async function tryDirectMT5Connection(order: MT5OrderRequest): Promise<MT5OrderR
 
 async function tryMT5RestAPI(order: MT5OrderRequest): Promise<MT5OrderResult> {
   try {
-    // This would connect to a custom Expert Advisor that exposes REST API
+    // Connect to custom Expert Advisor that exposes REST API
     const response = await fetch(`http://${mt5ServerHost()}:8080/api/trade`, {
       method: "POST",
       headers: {
@@ -124,119 +133,41 @@ async function tryMT5RestAPI(order: MT5OrderRequest): Promise<MT5OrderResult> {
       },
       body: JSON.stringify({
         symbol: order.symbol,
-        type: order.direction === "LONG" ? 0 : 1, // 0 = BUY, 1 = SELL
+        cmd: order.direction === "LONG" ? 0 : 1, // 0 = OP_BUY, 1 = OP_SELL
         volume: order.lotSize,
         price: order.entryPrice,
-        sl: order.stopLoss,
-        tp: order.takeProfit,
-        magic: 12345,
+        slippage: 3,
+        stoploss: order.stopLoss,
+        takeprofit: order.takeProfit,
+        magic: 234000,
         comment: "AI Trading Bot",
+        expiration: 0, // No expiration
       }),
     });
 
     if (!response.ok) {
+      console.error(`MT5 REST API error: ${response.status} ${response.statusText}`);
       return { success: false, error: "MT5 REST API connection failed" };
     }
 
     const result = await response.json();
     
-    if (result.retcode === 10009) { // TRADE_RETCODE_DONE
+    if (result.success && result.ticket > 0) {
       return {
         success: true,
-        orderId: result.order,
-        executionPrice: result.price,
+        orderId: result.ticket,
+        executionPrice: result.open_price,
       };
     } else {
       return {
         success: false,
-        error: `MT5 Error: ${result.comment || result.retcode}`,
+        error: result.error || `MT5 Error: ${result.error_description}`,
       };
     }
   } catch (error) {
     console.error("MT5 REST API connection failed:", error);
     return { success: false, error: "REST API connection failed" };
   }
-}
-
-async function tryBrokerAPI(order: MT5OrderRequest): Promise<MT5OrderResult> {
-  try {
-    // Check if broker API credentials are configured
-    const apiKey = brokerApiKey();
-    const accountId = brokerAccountId();
-    
-    if (!apiKey || !accountId) {
-      console.log("Broker API credentials not configured, skipping broker API method");
-      return { success: false, error: "Broker API not configured" };
-    }
-
-    // Example for OANDA API (replace with your broker's API)
-    const brokerSymbol = convertSymbolForBroker(order.symbol);
-    const units = order.direction === "LONG" ? 
-      Math.floor(order.lotSize * 100000) : 
-      -Math.floor(order.lotSize * 100000);
-
-    const response = await fetch(`https://api-fxtrade.oanda.com/v3/accounts/${accountId}/orders`, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        "Authorization": `Bearer ${apiKey}`,
-      },
-      body: JSON.stringify({
-        order: {
-          type: "MARKET",
-          instrument: brokerSymbol,
-          units: units.toString(),
-          stopLossOnFill: {
-            price: order.stopLoss.toString(),
-          },
-          takeProfitOnFill: {
-            price: order.takeProfit.toString(),
-          },
-        },
-      }),
-    });
-
-    if (!response.ok) {
-      const errorText = await response.text();
-      console.error("Broker API error:", errorText);
-      return { success: false, error: "Broker API connection failed" };
-    }
-
-    const result = await response.json();
-    
-    if (result.orderCreateTransaction) {
-      return {
-        success: true,
-        orderId: parseInt(result.orderCreateTransaction.id),
-        executionPrice: parseFloat(result.orderFillTransaction?.price || order.entryPrice),
-      };
-    } else {
-      return {
-        success: false,
-        error: "Broker order creation failed",
-      };
-    }
-  } catch (error) {
-    console.error("Broker API connection failed:", error);
-    return { success: false, error: "Broker API connection failed" };
-  }
-}
-
-function convertSymbolForBroker(symbol: string): string {
-  // Convert our symbols to broker format (example for OANDA)
-  const symbolMap: { [key: string]: string } = {
-    "EURUSD": "EUR_USD",
-    "GBPUSD": "GBP_USD",
-    "USDJPY": "USD_JPY",
-    "AUDUSD": "AUD_USD",
-    "USDCAD": "USD_CAD",
-    "USDCHF": "USD_CHF",
-    "XAUUSD": "XAU_USD",
-    "BTCUSD": "BTC_USD", // Se il broker supporta crypto
-    "ETHUSD": "ETH_USD",
-  };
-
-  return symbolMap[symbol] || symbol;
 }
 
 async function simulateMT5Execution(order: MT5OrderRequest): Promise<MT5OrderResult> {
@@ -248,6 +179,8 @@ async function simulateMT5Execution(order: MT5OrderRequest): Promise<MT5OrderRes
     const orderId = Math.floor(Math.random() * 1000000) + 100000;
     const slippage = (Math.random() - 0.5) * 0.0001; // Small slippage
     const executionPrice = order.entryPrice + slippage;
+    
+    console.log(`[SIMULATION] Order executed: ${order.symbol} ${order.direction} ${order.lotSize} lots at ${executionPrice}`);
     
     return {
       success: true,
@@ -263,6 +196,7 @@ async function simulateMT5Execution(order: MT5OrderRequest): Promise<MT5OrderRes
       "Price off quotes",
       "Trade disabled",
       "Invalid volume",
+      "No connection",
     ];
     
     return {
@@ -297,7 +231,7 @@ export async function getMT5AccountInfo(): Promise<MT5AccountInfo | null> {
     console.error("Error getting MT5 account info:", error);
   }
 
-  // Return simulated account info
+  // Return simulated account info for demo
   return {
     balance: 10000,
     equity: 10000,
@@ -310,7 +244,7 @@ export async function getMT5AccountInfo(): Promise<MT5AccountInfo | null> {
 
 export async function checkMT5Connection(): Promise<boolean> {
   try {
-    // Check if MT5 terminal is connected
+    // Check if MT5 terminal is connected and logged in
     const response = await fetch(`http://${mt5ServerHost()}:${mt5ServerPort()}/status`, {
       method: "GET",
       headers: {
@@ -319,14 +253,19 @@ export async function checkMT5Connection(): Promise<boolean> {
       timeout: 5000,
     });
 
-    return response.ok;
+    if (response.ok) {
+      const data = await response.json();
+      return data.connected && data.trade_allowed;
+    }
+
+    return false;
   } catch (error) {
     console.error("MT5 connection check failed:", error);
     return false;
   }
 }
 
-export async function getMT5Positions(): Promise<any[]> {
+export async function getMT5Positions(): Promise<MT5Position[]> {
   try {
     const response = await fetch(`http://${mt5ServerHost()}:${mt5ServerPort()}/positions`, {
       method: "GET",
@@ -346,7 +285,7 @@ export async function getMT5Positions(): Promise<any[]> {
   return [];
 }
 
-export async function closeMT5Position(positionId: number): Promise<MT5OrderResult> {
+export async function closeMT5Position(ticket: number): Promise<MT5OrderResult> {
   try {
     const response = await fetch(`http://${mt5ServerHost()}:${mt5ServerPort()}/close`, {
       method: "POST",
@@ -355,7 +294,8 @@ export async function closeMT5Position(positionId: number): Promise<MT5OrderResu
         "Authorization": `Bearer ${mt5Password()}`,
       },
       body: JSON.stringify({
-        position_id: positionId,
+        ticket: ticket,
+        deviation: 20,
       }),
     });
 
@@ -363,8 +303,8 @@ export async function closeMT5Position(positionId: number): Promise<MT5OrderResu
       const result = await response.json();
       return {
         success: result.success,
-        orderId: result.order_id,
-        executionPrice: result.execution_price,
+        orderId: result.order,
+        executionPrice: result.price,
         error: result.error,
       };
     }
@@ -378,102 +318,128 @@ export async function closeMT5Position(positionId: number): Promise<MT5OrderResu
   };
 }
 
-// Additional broker-specific implementations
-
-export async function tryFXCMAPI(order: MT5OrderRequest): Promise<MT5OrderResult> {
+export async function getMT5MarketInfo(symbol: string): Promise<any> {
   try {
-    const apiKey = brokerApiKey();
-    const accountId = brokerAccountId();
-    
-    if (!apiKey || !accountId) {
-      return { success: false, error: "FXCM API not configured" };
-    }
-
-    // FXCM API implementation
-    const response = await fetch(`https://api.fxcm.com/v1/trading/open_trade`, {
+    const response = await fetch(`http://${mt5ServerHost()}:${mt5ServerPort()}/symbol_info`, {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
-        "Authorization": `Bearer ${apiKey}`,
+        "Authorization": `Bearer ${mt5Password()}`,
       },
       body: JSON.stringify({
-        account_id: accountId,
-        symbol: order.symbol,
-        is_buy: order.direction === "LONG",
-        amount: Math.floor(order.lotSize * 1000), // FXCM uses K units
-        rate: order.entryPrice,
-        stop: order.stopLoss,
-        limit: order.takeProfit,
+        symbol: symbol,
       }),
     });
 
     if (response.ok) {
-      const result = await response.json();
-      return {
-        success: true,
-        orderId: result.data.orderId,
-        executionPrice: result.data.open,
-      };
+      const data = await response.json();
+      return data.symbol_info;
     }
-
-    return { success: false, error: "FXCM API execution failed" };
   } catch (error) {
-    console.error("FXCM API error:", error);
-    return { success: false, error: "FXCM API connection failed" };
+    console.error("Error getting MT5 market info:", error);
   }
+
+  return null;
 }
 
-export async function tryInteractiveBrokersAPI(order: MT5OrderRequest): Promise<MT5OrderResult> {
+export async function getMT5Tick(symbol: string): Promise<any> {
   try {
-    const apiKey = brokerApiKey();
-    const accountId = brokerAccountId();
-    
-    if (!apiKey || !accountId) {
-      return { success: false, error: "Interactive Brokers API not configured" };
-    }
-
-    // Interactive Brokers API implementation
-    const response = await fetch(`https://localhost:5000/v1/api/iserver/account/${accountId}/orders`, {
+    const response = await fetch(`http://${mt5ServerHost()}:${mt5ServerPort()}/tick`, {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
-        "Authorization": `Bearer ${apiKey}`,
+        "Authorization": `Bearer ${mt5Password()}`,
       },
       body: JSON.stringify({
-        orders: [{
-          conid: getIBContractId(order.symbol),
-          orderType: "MKT",
-          side: order.direction === "LONG" ? "BUY" : "SELL",
-          quantity: Math.floor(order.lotSize * 100000),
-          tif: "DAY",
-        }]
+        symbol: symbol,
       }),
     });
 
     if (response.ok) {
-      const result = await response.json();
-      return {
-        success: true,
-        orderId: result[0].order_id,
-        executionPrice: order.entryPrice, // IB doesn't return execution price immediately
-      };
+      const data = await response.json();
+      return data.tick;
     }
-
-    return { success: false, error: "Interactive Brokers API execution failed" };
   } catch (error) {
-    console.error("Interactive Brokers API error:", error);
-    return { success: false, error: "Interactive Brokers API connection failed" };
+    console.error("Error getting MT5 tick:", error);
   }
+
+  return null;
 }
 
-function getIBContractId(symbol: string): number {
-  // Interactive Brokers contract IDs (these would need to be looked up)
-  const contractIds: { [key: string]: number } = {
-    "EURUSD": 12087792,
-    "GBPUSD": 12087797,
-    "USDJPY": 12087802,
-    // Add more as needed
+// Utility function to convert symbol format for MT5
+export function convertSymbolForMT5(symbol: string): string {
+  // Most MT5 brokers use these symbol formats
+  const symbolMap: { [key: string]: string } = {
+    "EURUSD": "EURUSD",
+    "GBPUSD": "GBPUSD", 
+    "USDJPY": "USDJPY",
+    "AUDUSD": "AUDUSD",
+    "USDCAD": "USDCAD",
+    "USDCHF": "USDCHF",
+    "NZDUSD": "NZDUSD",
+    "XAUUSD": "XAUUSD", // Gold
+    "BTCUSD": "BTCUSD", // If broker supports crypto
+    "ETHUSD": "ETHUSD",
+    "CRUDE": "CRUDE",   // Oil
+    "BRENT": "BRENT",
   };
-  
-  return contractIds[symbol] || 0;
+
+  return symbolMap[symbol] || symbol;
+}
+
+// Utility function to validate lot size for MT5
+export function validateLotSize(lotSize: number, symbol: string): { valid: boolean; error?: string } {
+  if (lotSize <= 0) {
+    return { valid: false, error: "Lot size must be greater than 0" };
+  }
+
+  // Standard forex lot size validation
+  const minLot = 0.01;
+  const maxLot = 100;
+  const stepLot = 0.01;
+
+  if (lotSize < minLot) {
+    return { valid: false, error: `Minimum lot size is ${minLot}` };
+  }
+
+  if (lotSize > maxLot) {
+    return { valid: false, error: `Maximum lot size is ${maxLot}` };
+  }
+
+  // Check if lot size is a valid step
+  const remainder = (lotSize - minLot) % stepLot;
+  if (Math.abs(remainder) > 0.001) {
+    return { valid: false, error: `Lot size must be in steps of ${stepLot}` };
+  }
+
+  return { valid: true };
+}
+
+// Function to calculate required margin
+export async function calculateRequiredMargin(symbol: string, lotSize: number): Promise<number> {
+  try {
+    const response = await fetch(`http://${mt5ServerHost()}:${mt5ServerPort()}/calc_margin`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "Authorization": `Bearer ${mt5Password()}`,
+      },
+      body: JSON.stringify({
+        symbol: symbol,
+        volume: lotSize,
+        action: "BUY", // Margin is same for BUY/SELL
+      }),
+    });
+
+    if (response.ok) {
+      const data = await response.json();
+      return data.margin || 0;
+    }
+  } catch (error) {
+    console.error("Error calculating margin:", error);
+  }
+
+  // Fallback calculation (approximate)
+  const baseMargin = 1000; // Base margin per lot for major pairs
+  return baseMargin * lotSize;
 }

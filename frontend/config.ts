@@ -82,13 +82,16 @@ export const errorMessages = {
   invalidLotSize: "Invalid lot size. Please enter a valid number.",
   executionFailed: "Trade execution failed. Please check your MT5 connection.",
   predictionFailed: "Failed to generate prediction. Please try again.",
+  mt5NotConnected: "MT5 not connected. Please check your MetaTrader 5 terminal.",
+  insufficientMargin: "Insufficient margin for this trade size.",
 };
 
 // Success Messages
 export const successMessages = {
-  tradeExecuted: "Trade executed successfully!",
+  tradeExecuted: "Trade executed successfully on MT5!",
   signalGenerated: "Trading signal generated successfully!",
   settingsSaved: "Settings saved successfully!",
+  mt5Connected: "MT5 connection established successfully!",
 };
 
 // Validation Rules
@@ -103,4 +106,38 @@ export const validation = {
   // Confidence limits
   minConfidence: 0,
   maxConfidence: 100,
+};
+
+// MT5 Configuration
+export const mt5Config = {
+  // Default connection settings
+  defaultHost: 'localhost',
+  defaultPort: 8080,
+  
+  // Connection timeout (milliseconds)
+  connectionTimeout: 10000,
+  
+  // Retry attempts for failed connections
+  maxRetries: 3,
+  
+  // Order execution settings
+  defaultDeviation: 20, // Price deviation in points
+  defaultMagic: 234000, // Expert Advisor ID
+  
+  // Risk management
+  maxLotSizePerTrade: 10.0,
+  maxDailyTrades: 50,
+  
+  // Supported order types
+  supportedOrderTypes: ['MARKET', 'PENDING', 'STOP', 'LIMIT'],
+  
+  // Common symbol mappings for different brokers
+  symbolMappings: {
+    'BTCUSD': ['BTCUSD', 'BTCUSDm', 'BITCOIN'],
+    'EURUSD': ['EURUSD', 'EURUSDm', 'EUR/USD'],
+    'GBPUSD': ['GBPUSD', 'GBPUSDm', 'GBP/USD'],
+    'USDJPY': ['USDJPY', 'USDJPYm', 'USD/JPY'],
+    'XAUUSD': ['XAUUSD', 'GOLD', 'XAU/USD'],
+    'CRUDE': ['CRUDE', 'WTI', 'OIL'],
+  },
 };
