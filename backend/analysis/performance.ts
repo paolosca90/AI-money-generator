@@ -19,28 +19,28 @@ export const getPerformance = api<void, PerformanceStats>(
     const stats = await analysisDB.queryRow`
       SELECT 
         COUNT(*) as total_trades,
-        COALESCE(AVG(CASE WHEN profit_loss > 0 THEN 1.0 ELSE 0.0 END) * 100, 0) as win_rate,
-        COALESCE(AVG(CASE WHEN profit_loss > 0 THEN profit_loss END), 0) as avg_profit,
-        COALESCE(AVG(CASE WHEN profit_loss < 0 THEN profit_loss END), 0) as avg_loss,
-        COALESCE(MAX(profit_loss), 0) as best_trade,
-        COALESCE(MIN(profit_loss), 0) as worst_trade,
-        COALESCE(AVG(confidence), 0) as avg_confidence
+        COALESCE(CAST(AVG(CASE WHEN profit_loss > 0 THEN 1.0 ELSE 0.0 END) * 100 AS DOUBLE PRECISION), 0) as win_rate,
+        COALESCE(CAST(AVG(CASE WHEN profit_loss > 0 THEN profit_loss END) AS DOUBLE PRECISION), 0) as avg_profit,
+        COALESCE(CAST(AVG(CASE WHEN profit_loss < 0 THEN profit_loss END) AS DOUBLE PRECISION), 0) as avg_loss,
+        COALESCE(CAST(MAX(profit_loss) AS DOUBLE PRECISION), 0) as best_trade,
+        COALESCE(CAST(MIN(profit_loss) AS DOUBLE PRECISION), 0) as worst_trade,
+        COALESCE(CAST(AVG(confidence) AS DOUBLE PRECISION), 0) as avg_confidence
       FROM trading_signals 
       WHERE profit_loss IS NOT NULL
     `;
 
     const totalProfit = await analysisDB.queryRow`
-      SELECT COALESCE(SUM(CASE WHEN profit_loss > 0 THEN profit_loss ELSE 0 END), 0) as total_profit
+      SELECT COALESCE(CAST(SUM(CASE WHEN profit_loss > 0 THEN profit_loss ELSE 0 END) AS DOUBLE PRECISION), 0) as total_profit
       FROM trading_signals WHERE profit_loss IS NOT NULL
     `;
 
     const totalLoss = await analysisDB.queryRow`
-      SELECT COALESCE(ABS(SUM(CASE WHEN profit_loss < 0 THEN profit_loss ELSE 0 END)), 0) as total_loss
+      SELECT COALESCE(CAST(ABS(SUM(CASE WHEN profit_loss < 0 THEN profit_loss ELSE 0 END)) AS DOUBLE PRECISION), 0) as total_loss
       FROM trading_signals WHERE profit_loss IS NOT NULL
     `;
 
     // Handle case where there are no trades yet
-    if (!stats || stats.total_trades === 0) {
+    if (!stats || Number(stats.total_trades) === 0) {
       return {
         totalTrades: 0,
         winRate: 0,
@@ -53,8 +53,8 @@ export const getPerformance = api<void, PerformanceStats>(
       };
     }
 
-    const totalProfitValue = totalProfit?.total_profit || 0;
-    const totalLossValue = totalLoss?.total_loss || 0;
+    const totalProfitValue = Number(totalProfit?.total_profit) || 0;
+    const totalLossValue = Number(totalLoss?.total_loss) || 0;
     const profitFactor = totalLossValue > 0 ? totalProfitValue / totalLossValue : 0;
 
     return {
