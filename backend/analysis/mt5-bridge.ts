@@ -160,19 +160,26 @@ async function tryMT5RestAPI(order: MT5OrderRequest): Promise<MT5OrderResult> {
 
 async function tryBrokerAPI(order: MT5OrderRequest): Promise<MT5OrderResult> {
   try {
-    // Example for OANDA API (replace with your broker's API)
+    // Check if broker API credentials are configured
+    const apiKey = brokerApiKey();
+    const accountId = brokerAccountId();
     
-    // Convert to broker-specific format
+    if (!apiKey || !accountId) {
+      console.log("Broker API credentials not configured, skipping broker API method");
+      return { success: false, error: "Broker API not configured" };
+    }
+
+    // Example for OANDA API (replace with your broker's API)
     const brokerSymbol = convertSymbolForBroker(order.symbol);
     const units = order.direction === "LONG" ? 
       Math.floor(order.lotSize * 100000) : 
       -Math.floor(order.lotSize * 100000);
 
-    const response = await fetch(`https://api-fxtrade.oanda.com/v3/accounts/${brokerAccountId()}/orders`, {
+    const response = await fetch(`https://api-fxtrade.oanda.com/v3/accounts/${accountId}/orders`, {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
-        "Authorization": `Bearer ${brokerApiKey()}`,
+        "Authorization": `Bearer ${apiKey}`,
       },
       body: JSON.stringify({
         order: {
@@ -190,6 +197,8 @@ async function tryBrokerAPI(order: MT5OrderRequest): Promise<MT5OrderResult> {
     });
 
     if (!response.ok) {
+      const errorText = await response.text();
+      console.error("Broker API error:", errorText);
       return { success: false, error: "Broker API connection failed" };
     }
 
@@ -223,6 +232,8 @@ function convertSymbolForBroker(symbol: string): string {
     "USDCAD": "USD_CAD",
     "USDCHF": "USD_CHF",
     "XAUUSD": "XAU_USD",
+    "BTCUSD": "BTC_USD", // Se il broker supporta crypto
+    "ETHUSD": "ETH_USD",
   };
 
   return symbolMap[symbol] || symbol;
@@ -365,4 +376,104 @@ export async function closeMT5Position(positionId: number): Promise<MT5OrderResu
     success: false,
     error: "Failed to close position",
   };
+}
+
+// Additional broker-specific implementations
+
+export async function tryFXCMAPI(order: MT5OrderRequest): Promise<MT5OrderResult> {
+  try {
+    const apiKey = brokerApiKey();
+    const accountId = brokerAccountId();
+    
+    if (!apiKey || !accountId) {
+      return { success: false, error: "FXCM API not configured" };
+    }
+
+    // FXCM API implementation
+    const response = await fetch(`https://api.fxcm.com/v1/trading/open_trade`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "Authorization": `Bearer ${apiKey}`,
+      },
+      body: JSON.stringify({
+        account_id: accountId,
+        symbol: order.symbol,
+        is_buy: order.direction === "LONG",
+        amount: Math.floor(order.lotSize * 1000), // FXCM uses K units
+        rate: order.entryPrice,
+        stop: order.stopLoss,
+        limit: order.takeProfit,
+      }),
+    });
+
+    if (response.ok) {
+      const result = await response.json();
+      return {
+        success: true,
+        orderId: result.data.orderId,
+        executionPrice: result.data.open,
+      };
+    }
+
+    return { success: false, error: "FXCM API execution failed" };
+  } catch (error) {
+    console.error("FXCM API error:", error);
+    return { success: false, error: "FXCM API connection failed" };
+  }
+}
+
+export async function tryInteractiveBrokersAPI(order: MT5OrderRequest): Promise<MT5OrderResult> {
+  try {
+    const apiKey = brokerApiKey();
+    const accountId = brokerAccountId();
+    
+    if (!apiKey || !accountId) {
+      return { success: false, error: "Interactive Brokers API not configured" };
+    }
+
+    // Interactive Brokers API implementation
+    const response = await fetch(`https://localhost:5000/v1/api/iserver/account/${accountId}/orders`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "Authorization": `Bearer ${apiKey}`,
+      },
+      body: JSON.stringify({
+        orders: [{
+          conid: getIBContractId(order.symbol),
+          orderType: "MKT",
+          side: order.direction === "LONG" ? "BUY" : "SELL",
+          quantity: Math.floor(order.lotSize * 100000),
+          tif: "DAY",
+        }]
+      }),
+    });
+
+    if (response.ok) {
+      const result = await response.json();
+      return {
+        success: true,
+        orderId: result[0].order_id,
+        executionPrice: order.entryPrice, // IB doesn't return execution price immediately
+      };
+    }
+
+    return { success: false, error: "Interactive Brokers API execution failed" };
+  } catch (error) {
+    console.error("Interactive Brokers API error:", error);
+    return { success: false, error: "Interactive Brokers API connection failed" };
+  }
+}
+
+function getIBContractId(symbol: string): number {
+  // Interactive Brokers contract IDs (these would need to be looked up)
+  const contractIds: { [key: string]: number } = {
+    "EURUSD": 12087792,
+    "GBPUSD": 12087797,
+    "USDJPY": 12087802,
+    // Add more as needed
+  };
+  
+  return contractIds[symbol] || 0;
 }
