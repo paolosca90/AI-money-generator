@@ -19,38 +19,53 @@ export const getPerformance = api<void, PerformanceStats>(
     const stats = await analysisDB.queryRow`
       SELECT 
         COUNT(*) as total_trades,
-        AVG(CASE WHEN profit_loss > 0 THEN 1 ELSE 0 END) * 100 as win_rate,
-        AVG(CASE WHEN profit_loss > 0 THEN profit_loss END) as avg_profit,
-        AVG(CASE WHEN profit_loss < 0 THEN profit_loss END) as avg_loss,
-        MAX(profit_loss) as best_trade,
-        MIN(profit_loss) as worst_trade,
-        AVG(confidence) as avg_confidence
+        COALESCE(AVG(CASE WHEN profit_loss > 0 THEN 1.0 ELSE 0.0 END) * 100, 0) as win_rate,
+        COALESCE(AVG(CASE WHEN profit_loss > 0 THEN profit_loss END), 0) as avg_profit,
+        COALESCE(AVG(CASE WHEN profit_loss < 0 THEN profit_loss END), 0) as avg_loss,
+        COALESCE(MAX(profit_loss), 0) as best_trade,
+        COALESCE(MIN(profit_loss), 0) as worst_trade,
+        COALESCE(AVG(confidence), 0) as avg_confidence
       FROM trading_signals 
       WHERE profit_loss IS NOT NULL
     `;
 
     const totalProfit = await analysisDB.queryRow`
-      SELECT SUM(CASE WHEN profit_loss > 0 THEN profit_loss ELSE 0 END) as total_profit
+      SELECT COALESCE(SUM(CASE WHEN profit_loss > 0 THEN profit_loss ELSE 0 END), 0) as total_profit
       FROM trading_signals WHERE profit_loss IS NOT NULL
     `;
 
     const totalLoss = await analysisDB.queryRow`
-      SELECT ABS(SUM(CASE WHEN profit_loss < 0 THEN profit_loss ELSE 0 END)) as total_loss
+      SELECT COALESCE(ABS(SUM(CASE WHEN profit_loss < 0 THEN profit_loss ELSE 0 END)), 0) as total_loss
       FROM trading_signals WHERE profit_loss IS NOT NULL
     `;
 
-    const profitFactor = totalLoss?.total_loss > 0 ? 
-      (totalProfit?.total_profit || 0) / (totalLoss?.total_loss || 1) : 0;
+    // Handle case where there are no trades yet
+    if (!stats || stats.total_trades === 0) {
+      return {
+        totalTrades: 0,
+        winRate: 0,
+        avgProfit: 0,
+        avgLoss: 0,
+        profitFactor: 0,
+        bestTrade: 0,
+        worstTrade: 0,
+        avgConfidence: 0,
+      };
+    }
+
+    const totalProfitValue = totalProfit?.total_profit || 0;
+    const totalLossValue = totalLoss?.total_loss || 0;
+    const profitFactor = totalLossValue > 0 ? totalProfitValue / totalLossValue : 0;
 
     return {
-      totalTrades: parseInt(stats?.total_trades || "0"),
-      winRate: parseFloat(stats?.win_rate || "0"),
-      avgProfit: parseFloat(stats?.avg_profit || "0"),
-      avgLoss: parseFloat(stats?.avg_loss || "0"),
-      profitFactor,
-      bestTrade: parseFloat(stats?.best_trade || "0"),
-      worstTrade: parseFloat(stats?.worst_trade || "0"),
-      avgConfidence: parseFloat(stats?.avg_confidence || "0"),
+      totalTrades: Number(stats.total_trades) || 0,
+      winRate: Number(stats.win_rate) || 0,
+      avgProfit: Number(stats.avg_profit) || 0,
+      avgLoss: Number(stats.avg_loss) || 0,
+      profitFactor: Number(profitFactor) || 0,
+      bestTrade: Number(stats.best_trade) || 0,
+      worstTrade: Number(stats.worst_trade) || 0,
+      avgConfidence: Number(stats.avg_confidence) || 0,
     };
   }
 );
