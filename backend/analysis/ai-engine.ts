@@ -1,7 +1,7 @@
 import { secret } from "encore.dev/config";
 import { TimeframeData } from "./market-data";
 
-const openAIKey = secret("OpenAIKey");
+const geminiApiKey = secret("GeminiApiKey");
 
 export interface AIAnalysis {
   direction: "LONG" | "SHORT";
@@ -33,7 +33,10 @@ export async function analyzeWithAI(marketData: TimeframeData): Promise<AIAnalys
   const support = Math.min(data5m.low, data15m.low, data30m.low);
   const resistance = Math.max(data5m.high, data15m.high, data30m.high);
 
-  // Determine overall direction and confidence
+  // Use Gemini AI for enhanced analysis
+  const geminiAnalysis = await analyzeWithGemini(marketData);
+
+  // Combine traditional analysis with AI insights
   const signals = [rsiSignal, macdSignal, priceAction];
   const bullishSignals = signals.filter(s => s > 0).length;
   const bearishSignals = signals.filter(s => s < 0).length;
@@ -41,12 +44,13 @@ export async function analyzeWithAI(marketData: TimeframeData): Promise<AIAnalys
   let direction: "LONG" | "SHORT";
   let confidence: number;
 
-  if (bullishSignals > bearishSignals) {
+  // Apply Gemini AI bias to traditional analysis
+  if (geminiAnalysis.direction === "LONG") {
     direction = "LONG";
-    confidence = Math.min(95, 60 + (bullishSignals * 15));
+    confidence = Math.min(95, Math.max(geminiAnalysis.confidence, 60 + (bullishSignals * 10)));
   } else {
     direction = "SHORT";
-    confidence = Math.min(95, 60 + (bearishSignals * 15));
+    confidence = Math.min(95, Math.max(geminiAnalysis.confidence, 60 + (bearishSignals * 10)));
   }
 
   // Simulate sentiment analysis (in real implementation, this would use news APIs)
@@ -66,6 +70,127 @@ export async function analyzeWithAI(marketData: TimeframeData): Promise<AIAnalys
     sentiment,
     volatility,
   };
+}
+
+async function analyzeWithGemini(marketData: TimeframeData): Promise<{ direction: "LONG" | "SHORT"; confidence: number }> {
+  try {
+    const prompt = createTradingAnalysisPrompt(marketData);
+    
+    const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash-latest:generateContent?key=${geminiApiKey()}`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        contents: [{
+          parts: [{
+            text: prompt
+          }]
+        }],
+        generationConfig: {
+          temperature: 0.1,
+          topK: 1,
+          topP: 1,
+          maxOutputTokens: 200,
+        }
+      })
+    });
+
+    if (!response.ok) {
+      console.error("Gemini API error:", response.statusText);
+      return fallbackAnalysis(marketData);
+    }
+
+    const data = await response.json();
+    const text = data.candidates?.[0]?.content?.parts?.[0]?.text;
+    
+    if (!text) {
+      return fallbackAnalysis(marketData);
+    }
+
+    return parseGeminiResponse(text);
+  } catch (error) {
+    console.error("Error calling Gemini API:", error);
+    return fallbackAnalysis(marketData);
+  }
+}
+
+function createTradingAnalysisPrompt(marketData: TimeframeData): string {
+  const data5m = marketData["5m"];
+  const data15m = marketData["15m"];
+  const data30m = marketData["30m"];
+
+  return `
+You are an expert trading analyst. Analyze the following multi-timeframe market data and provide a trading recommendation.
+
+5-minute timeframe:
+- Price: Open ${data5m.open}, High ${data5m.high}, Low ${data5m.low}, Close ${data5m.close}
+- RSI: ${data5m.indicators.rsi}
+- MACD: ${data5m.indicators.macd}
+- ATR: ${data5m.indicators.atr}
+
+15-minute timeframe:
+- Price: Open ${data15m.open}, High ${data15m.high}, Low ${data15m.low}, Close ${data15m.close}
+- RSI: ${data15m.indicators.rsi}
+- MACD: ${data15m.indicators.macd}
+- ATR: ${data15m.indicators.atr}
+
+30-minute timeframe:
+- Price: Open ${data30m.open}, High ${data30m.high}, Low ${data30m.low}, Close ${data30m.close}
+- RSI: ${data30m.indicators.rsi}
+- MACD: ${data30m.indicators.macd}
+- ATR: ${data30m.indicators.atr}
+
+Based on this technical analysis, provide your recommendation in this exact format:
+DIRECTION: [LONG or SHORT]
+CONFIDENCE: [number between 60-95]
+
+Consider:
+- Multi-timeframe alignment
+- RSI levels (oversold <30, overbought >70)
+- MACD signals
+- Price action patterns
+- Overall market momentum
+`;
+}
+
+function parseGeminiResponse(text: string): { direction: "LONG" | "SHORT"; confidence: number } {
+  try {
+    const directionMatch = text.match(/DIRECTION:\s*(LONG|SHORT)/i);
+    const confidenceMatch = text.match(/CONFIDENCE:\s*(\d+)/i);
+
+    const direction = directionMatch?.[1]?.toUpperCase() as "LONG" | "SHORT" || "LONG";
+    const confidence = confidenceMatch ? parseInt(confidenceMatch[1]) : 70;
+
+    return {
+      direction,
+      confidence: Math.max(60, Math.min(95, confidence))
+    };
+  } catch (error) {
+    console.error("Error parsing Gemini response:", error);
+    return { direction: "LONG", confidence: 70 };
+  }
+}
+
+function fallbackAnalysis(marketData: TimeframeData): { direction: "LONG" | "SHORT"; confidence: number } {
+  // Fallback to traditional analysis if Gemini fails
+  const data5m = marketData["5m"];
+  const data15m = marketData["15m"];
+  const data30m = marketData["30m"];
+
+  const rsiSignal = analyzeRSI(data5m.indicators.rsi, data15m.indicators.rsi, data30m.indicators.rsi);
+  const macdSignal = analyzeMacd(data5m.indicators.macd, data15m.indicators.macd, data30m.indicators.macd);
+  const priceAction = analyzePriceAction(data5m, data15m, data30m);
+
+  const signals = [rsiSignal, macdSignal, priceAction];
+  const bullishSignals = signals.filter(s => s > 0).length;
+  const bearishSignals = signals.filter(s => s < 0).length;
+
+  if (bullishSignals > bearishSignals) {
+    return { direction: "LONG", confidence: Math.min(85, 60 + (bullishSignals * 10)) };
+  } else {
+    return { direction: "SHORT", confidence: Math.min(85, 60 + (bearishSignals * 10)) };
+  }
 }
 
 function analyzeRSI(rsi5m: number, rsi15m: number, rsi30m: number): number {

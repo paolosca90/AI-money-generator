@@ -4,6 +4,7 @@ import { generateTradeId } from "./utils";
 import { fetchMarketData } from "./market-data";
 import { analyzeWithAI } from "./ai-engine";
 import { generateChart } from "./chart-generator";
+import { analyzeSentiment } from "./sentiment-analyzer";
 
 interface PredictRequest {
   symbol: string;
@@ -29,6 +30,7 @@ export interface TradingSignal {
     sentiment: {
       score: number;
       sources: string[];
+      summary?: string;
     };
     volatility: {
       hourly: number;
@@ -47,8 +49,11 @@ export const predict = api<PredictRequest, TradingSignal>(
     // Fetch multi-timeframe market data
     const marketData = await fetchMarketData(symbol, ["5m", "15m", "30m"]);
     
-    // Perform AI analysis
+    // Perform AI analysis with Gemini
     const aiAnalysis = await analyzeWithAI(marketData);
+    
+    // Perform sentiment analysis
+    const sentimentAnalysis = await analyzeSentiment(symbol);
     
     // Generate chart
     const chartUrl = await generateChart(symbol, marketData, aiAnalysis);
@@ -88,7 +93,11 @@ export const predict = api<PredictRequest, TradingSignal>(
           support: aiAnalysis.support,
           resistance: aiAnalysis.resistance,
         },
-        sentiment: aiAnalysis.sentiment,
+        sentiment: {
+          score: sentimentAnalysis.score,
+          sources: sentimentAnalysis.sources,
+          summary: sentimentAnalysis.summary,
+        },
         volatility: aiAnalysis.volatility,
       },
     };
