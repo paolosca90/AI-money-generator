@@ -1,7 +1,7 @@
 import { api } from "encore.dev/api";
 import { secret } from "encore.dev/config";
 import { telegramDB } from "./db";
-import { processMessage } from "./message-processor";
+import { processMessage, processCallbackQuery } from "./message-processor";
 
 const telegramBotToken = secret("TelegramBotToken");
 
@@ -22,6 +22,24 @@ interface TelegramUpdate {
     date: number;
     text?: string;
   };
+  callback_query?: {
+    id: string;
+    from: {
+      id: number;
+      is_bot: boolean;
+      first_name: string;
+      username?: string;
+    };
+    message?: {
+      message_id: number;
+      chat: {
+        id: number;
+        type: string;
+      };
+      date: number;
+    };
+    data?: string;
+  };
 }
 
 interface WebhookResponse {
@@ -32,24 +50,37 @@ interface WebhookResponse {
 export const webhook = api<TelegramUpdate, WebhookResponse>(
   { expose: true, method: "POST", path: "/telegram/webhook" },
   async (update) => {
-    if (!update.message || !update.message.text) {
+    try {
+      if (update.message && update.message.text) {
+        const message = update.message;
+        const chatId = message.chat.id;
+        const userId = message.from.id;
+        const text = message.text;
+
+        // Store user interaction
+        await telegramDB.exec`
+          INSERT INTO user_interactions (user_id, chat_id, message_text, created_at)
+          VALUES (${userId}, ${chatId}, ${text}, NOW())
+        `;
+
+        // Process the message
+        await processMessage(chatId, userId, text);
+      } else if (update.callback_query) {
+        const callbackQuery = update.callback_query;
+        const chatId = callbackQuery.message?.chat.id;
+        const userId = callbackQuery.from.id;
+        const callbackData = callbackQuery.data;
+
+        if (chatId && callbackData) {
+          // Process the callback query
+          await processCallbackQuery(chatId, userId, callbackData);
+        }
+      }
+
       return { ok: true };
+    } catch (error) {
+      console.error("Webhook processing error:", error);
+      return { ok: true }; // Always return ok to prevent Telegram retries
     }
-
-    const message = update.message;
-    const chatId = message.chat.id;
-    const userId = message.from.id;
-    const text = message.text;
-
-    // Store user interaction
-    await telegramDB.exec`
-      INSERT INTO user_interactions (user_id, chat_id, message_text, created_at)
-      VALUES (${userId}, ${chatId}, ${text}, NOW())
-    `;
-
-    // Process the message
-    await processMessage(chatId, userId, text);
-
-    return { ok: true };
   }
 );

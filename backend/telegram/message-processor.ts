@@ -1,5 +1,6 @@
 import { sendMessage, sendPhoto, createInlineKeyboard } from "./telegram-client";
 import { analysis } from "~encore/clients";
+import { handleVPSCommand, handleVPSSetup, handleVPSSetupCallback } from "./vps-manager";
 
 export async function processMessage(chatId: number, userId: number, text: string): Promise<void> {
   const command = text.toLowerCase().trim();
@@ -19,12 +20,69 @@ export async function processMessage(chatId: number, userId: number, text: strin
       await handlePerformanceCommand(chatId);
     } else if (command.startsWith("/symbols")) {
       await handleSymbolsCommand(chatId);
+    } else if (command.startsWith("/vps")) {
+      await handleVPSCommand(chatId, userId, command);
+    } else if (command === "/vps_setup") {
+      await handleVPSSetup(chatId, userId);
     } else {
-      await handleUnknownCommand(chatId, text);
+      // Check if user is in VPS setup mode
+      await handleVPSSetup(chatId, userId, text);
     }
   } catch (error) {
     console.error("Error processing message:", error);
     await sendMessage(chatId, "❌ An error occurred while processing your request. Please try again.");
+  }
+}
+
+export async function processCallbackQuery(chatId: number, userId: number, callbackData: string): Promise<void> {
+  try {
+    if (callbackData.startsWith("vps_")) {
+      await handleVPSSetupCallback(chatId, userId, callbackData);
+    } else if (callbackData.startsWith("execute_")) {
+      const parts = callbackData.split("_");
+      const tradeId = parts[1];
+      const lotSize = parseFloat(parts[2]);
+      await executeTradeFromCallback(chatId, tradeId, lotSize);
+    } else if (callbackData === "new_analysis") {
+      await sendMessage(chatId, "📊 Use `/predict SYMBOL` to generate a new analysis.\n\nExample: `/predict EURUSD`");
+    } else if (callbackData === "show_performance") {
+      await handlePerformanceCommand(chatId);
+    } else if (callbackData.startsWith("predict_")) {
+      const symbol = callbackData.replace("predict_", "");
+      await handlePredictCommand(chatId, `/predict ${symbol}`);
+    } else if (callbackData === "show_help") {
+      await handleHelpCommand(chatId);
+    }
+  } catch (error) {
+    console.error("Error processing callback query:", error);
+    await sendMessage(chatId, "❌ An error occurred while processing your request. Please try again.");
+  }
+}
+
+async function executeTradeFromCallback(chatId: number, tradeId: string, lotSize: number): Promise<void> {
+  try {
+    await sendMessage(chatId, `⚡ Executing trade ${tradeId} with ${lotSize} lots...`);
+    
+    const result = await analysis.execute({ tradeId, lotSize });
+    
+    if (result.success) {
+      const message = `
+✅ **Trade Executed Successfully**
+
+🆔 Trade ID: \`${tradeId}\`
+📋 MT5 Order: #${result.orderId}
+💰 Lot Size: ${lotSize}
+💵 Entry Price: ${result.executionPrice}
+
+🎯 Your trade is now active on MT5!
+      `;
+      await sendMessage(chatId, message);
+    } else {
+      await sendMessage(chatId, `❌ **Trade execution failed**\n\n🚫 Error: ${result.error}\n\nPlease check your MT5 connection and try again.`);
+    }
+  } catch (error) {
+    console.error("Execution error:", error);
+    await sendMessage(chatId, "❌ Error executing trade. Please check your MT5 connection and try again.");
   }
 }
 
@@ -146,6 +204,10 @@ I'm your intelligent trading assistant powered by advanced AI! Here's what I can
 ⚡ **Execution Commands:**
 • \`/execute TRADE_ID LOT_SIZE\` - Execute trade on MT5
 
+🖥️ **VPS Management:**
+• \`/vps\` - Manage your VPS and MT5 setup
+• \`/vps_setup\` - Configure new VPS automatically
+
 📈 **Information Commands:**
 • \`/status\` - Check bot and MT5 status
 • \`/performance\` - View trading performance
@@ -155,15 +217,16 @@ I'm your intelligent trading assistant powered by advanced AI! Here's what I can
 • \`/help\` - Show detailed help
 
 🚀 **Quick Start:**
-Try \`/predict BTCUSD\` to get your first AI trading signal!
+1. Use \`/vps_setup\` to configure your VPS and MT5
+2. Try \`/predict BTCUSD\` to get your first AI trading signal!
 
 💡 **Tip:** Use higher confidence signals (>75%) for better results.
   `;
   
   const keyboard = createInlineKeyboard([
     [
-      { text: "📊 Analyze BTCUSD", callback_data: "predict_BTCUSD" },
-      { text: "📊 Analyze EURUSD", callback_data: "predict_EURUSD" }
+      { text: "🖥️ Setup VPS", callback_data: "vps_setup" },
+      { text: "📊 Analyze BTCUSD", callback_data: "predict_BTCUSD" }
     ],
     [
       { text: "📈 Performance", callback_data: "show_performance" },
@@ -188,6 +251,13 @@ async function handleHelpCommand(chatId: number): Promise<void> {
 • \`/execute BTC-001 0.1\` - Execute with 0.1 lots
 • \`/execute EUR-002 0.05\` - Execute with 0.05 lots
 
+**🖥️ VPS Management:**
+• \`/vps\` - VPS dashboard and management
+• \`/vps_setup\` - Automatic VPS configuration
+• \`/vps_status\` - Check VPS and MT5 status
+• \`/vps_restart\` - Restart trading bot on VPS
+• \`/vps_logs\` - View recent VPS logs
+
 **📊 Information Commands:**
 • \`/status\` - Bot and MT5 connection status
 • \`/performance\` - Trading statistics
@@ -198,14 +268,16 @@ async function handleHelpCommand(chatId: number): Promise<void> {
 • AI-powered predictions with Gemini
 • Real-time sentiment analysis
 • Automatic chart generation
-• Direct MT5 execution
+• Direct MT5 execution via VPS
 • Risk management with SL/TP
+• Automatic VPS setup and management
 
 **💡 Trading Tips:**
 • Use signals with >75% confidence
 • Start with small lot sizes (0.01-0.1)
 • Always check market conditions
 • Monitor your trades actively
+• Keep your VPS running 24/7
 
 **⚠️ Risk Warning:**
 Trading involves substantial risk. Never trade money you can't afford to lose.
@@ -227,6 +299,7 @@ async function handleStatusCommand(chatId: number): Promise<void> {
 📰 **News API:** ✅ Active
 📊 **Market Data:** ✅ Streaming
 ⚡ **MT5 Bridge:** ✅ Connected
+🖥️ **VPS Manager:** ✅ Active
 
 💰 **Account Info:**
 • Balance: $10,000.00
@@ -236,6 +309,8 @@ async function handleStatusCommand(chatId: number): Promise<void> {
 🕐 **Last Update:** ${new Date().toLocaleString()}
 
 All systems operational! 🚀
+
+Use \`/vps\` to manage your VPS and MT5 connection.
     `;
     
     await sendMessage(chatId, message);
@@ -303,23 +378,6 @@ async function handleSymbolsCommand(chatId: number): Promise<void> {
 **Example:** \`/predict EURUSD\`
 
 More symbols coming soon! 🚀
-  `;
-  
-  await sendMessage(chatId, message);
-}
-
-async function handleUnknownCommand(chatId: number, text: string): Promise<void> {
-  const message = `
-❓ **Unknown Command**
-
-I didn't understand: "${text}"
-
-**Quick Commands:**
-• \`/predict BTCUSD\` - Get trading signal
-• \`/help\` - Show all commands
-• \`/start\` - Main menu
-
-Try one of these commands! 🚀
   `;
   
   await sendMessage(chatId, message);
