@@ -22,7 +22,7 @@ export async function analyzeSentiment(symbol: string): Promise<SentimentAnalysi
       };
     }
 
-    // Use Gemini to analyze sentiment
+    // Use Gemini to analyze sentiment with better error handling
     const sentimentScore = await analyzeNewsWithGemini(news, symbol);
     
     return {
@@ -42,19 +42,30 @@ export async function analyzeSentiment(symbol: string): Promise<SentimentAnalysi
 
 async function fetchRecentNews(symbol: string): Promise<Array<{ title: string; description: string; source: string }>> {
   try {
+    const apiKey = newsApiKey();
+    if (!apiKey || apiKey === "your_news_api_key") {
+      console.log("News API key not configured, skipping news analysis");
+      return [];
+    }
+
     // Map trading symbols to search terms
     const searchTerms = getSearchTermsForSymbol(symbol);
     
     const response = await fetch(
-      `https://newsapi.org/v2/everything?q=${encodeURIComponent(searchTerms)}&sortBy=publishedAt&pageSize=10&apiKey=${newsApiKey()}`
+      `https://newsapi.org/v2/everything?q=${encodeURIComponent(searchTerms)}&sortBy=publishedAt&pageSize=10&apiKey=${apiKey}`
     );
 
     if (!response.ok) {
-      console.error("News API error:", response.statusText);
+      console.error("News API error:", response.status, response.statusText);
       return [];
     }
 
     const data = await response.json();
+    
+    if (data.status === "error") {
+      console.error("News API error:", data.message);
+      return [];
+    }
     
     return data.articles?.slice(0, 5).map((article: any) => ({
       title: article.title || "",
@@ -84,6 +95,12 @@ function getSearchTermsForSymbol(symbol: string): string {
 
 async function analyzeNewsWithGemini(news: Array<{ title: string; description: string; source: string }>, symbol: string): Promise<number> {
   try {
+    const apiKey = geminiApiKey();
+    if (!apiKey || apiKey === "your_gemini_key") {
+      console.log("Gemini API key not configured for sentiment analysis");
+      return 0;
+    }
+
     const newsText = news.map(n => `${n.title} - ${n.description}`).join("\n\n");
     
     const prompt = `
@@ -111,7 +128,7 @@ Consider factors like:
 
 Sentiment Score:`;
 
-    const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash-latest:generateContent?key=${geminiApiKey()}`, {
+    const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash-latest:generateContent?key=${apiKey}`, {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
@@ -132,14 +149,22 @@ Sentiment Score:`;
     });
 
     if (!response.ok) {
-      console.error("Gemini sentiment API error:", response.statusText);
+      const errorText = await response.text();
+      console.error(`Gemini sentiment API error: ${response.status} ${response.statusText} - ${errorText}`);
       return 0;
     }
 
     const data = await response.json();
+    
+    if (data.error) {
+      console.error("Gemini sentiment API response error:", data.error);
+      return 0;
+    }
+    
     const text = data.candidates?.[0]?.content?.parts?.[0]?.text;
     
     if (!text) {
+      console.log("No sentiment response from Gemini");
       return 0;
     }
 

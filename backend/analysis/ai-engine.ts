@@ -33,7 +33,7 @@ export async function analyzeWithAI(marketData: TimeframeData): Promise<AIAnalys
   const support = Math.min(data5m.low, data15m.low, data30m.low);
   const resistance = Math.max(data5m.high, data15m.high, data30m.high);
 
-  // Use Gemini AI for enhanced analysis
+  // Use Gemini AI for enhanced analysis with better error handling
   const geminiAnalysis = await analyzeWithGemini(marketData);
 
   // Combine traditional analysis with AI insights
@@ -44,7 +44,7 @@ export async function analyzeWithAI(marketData: TimeframeData): Promise<AIAnalys
   let direction: "LONG" | "SHORT";
   let confidence: number;
 
-  // Apply Gemini AI bias to traditional analysis
+  // Apply Gemini AI bias to traditional analysis if available
   if (geminiAnalysis.direction === "LONG") {
     direction = "LONG";
     confidence = Math.min(95, Math.max(geminiAnalysis.confidence, 60 + (bullishSignals * 10)));
@@ -74,9 +74,15 @@ export async function analyzeWithAI(marketData: TimeframeData): Promise<AIAnalys
 
 async function analyzeWithGemini(marketData: TimeframeData): Promise<{ direction: "LONG" | "SHORT"; confidence: number }> {
   try {
+    const apiKey = geminiApiKey();
+    if (!apiKey || apiKey === "your_gemini_key") {
+      console.log("Gemini API key not configured, using fallback analysis");
+      return fallbackAnalysis(marketData);
+    }
+
     const prompt = createTradingAnalysisPrompt(marketData);
     
-    const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash-latest:generateContent?key=${geminiApiKey()}`, {
+    const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash-latest:generateContent?key=${apiKey}`, {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
@@ -97,17 +103,37 @@ async function analyzeWithGemini(marketData: TimeframeData): Promise<{ direction
     });
 
     if (!response.ok) {
-      console.error("Gemini API error:", response.statusText);
+      const errorText = await response.text();
+      console.error(`Gemini API error: ${response.status} ${response.statusText} - ${errorText}`);
+      
+      // Check for specific error types
+      if (response.status === 503) {
+        console.log("Gemini service temporarily unavailable, using fallback");
+      } else if (response.status === 429) {
+        console.log("Gemini rate limit exceeded, using fallback");
+      } else if (response.status === 401) {
+        console.log("Gemini API key invalid, using fallback");
+      }
+      
       return fallbackAnalysis(marketData);
     }
 
     const data = await response.json();
+    
+    // Check for API errors in response
+    if (data.error) {
+      console.error("Gemini API response error:", data.error);
+      return fallbackAnalysis(marketData);
+    }
+    
     const text = data.candidates?.[0]?.content?.parts?.[0]?.text;
     
     if (!text) {
+      console.log("No text response from Gemini, using fallback");
       return fallbackAnalysis(marketData);
     }
 
+    console.log("Gemini analysis successful");
     return parseGeminiResponse(text);
   } catch (error) {
     console.error("Error calling Gemini API:", error);
