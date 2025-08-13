@@ -6,7 +6,7 @@ import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useToast } from "@/components/ui/use-toast";
-import { TrendingUp, TrendingDown, Target, Shield, Zap, Clock, BarChart3 } from "lucide-react";
+import { TrendingUp, TrendingDown, Target, Shield, Zap, Clock, BarChart3, AlertTriangle } from "lucide-react";
 import backend from "~backend/client";
 import type { TradingSignal } from "~backend/analysis/predict";
 
@@ -50,6 +50,8 @@ export default function TradingSignals() {
           title: "Trade Eseguito",
           description: `Ordine ${data.strategy} #${data.orderId} eseguito con successo`,
         });
+        // Clear the current signal after successful execution
+        queryClient.setQueryData(["currentSignal"], null);
       } else {
         toast({
           title: "Esecuzione Fallita",
@@ -60,9 +62,25 @@ export default function TradingSignals() {
     },
     onError: (error: Error) => {
       console.error("Errore esecuzione:", error);
+      
+      // Handle specific error cases
+      let errorMessage = "Impossibile eseguire il trade. Controlla la tua connessione MT5.";
+      
+      if (error.message.includes("not found")) {
+        errorMessage = "Il segnale di trading non è più disponibile. Potrebbe essere scaduto o già eseguito.";
+        // Clear the current signal if it's not found
+        queryClient.setQueryData(["currentSignal"], null);
+      } else if (error.message.includes("already executed")) {
+        errorMessage = "Questo segnale è già stato eseguito in precedenza.";
+        // Clear the current signal if it's already executed
+        queryClient.setQueryData(["currentSignal"], null);
+      } else if (error.message.includes("Invalid lot size")) {
+        errorMessage = "Dimensione lotto non valida. Inserisci un valore tra 0.01 e 100.";
+      }
+      
       toast({
         title: "Errore",
-        description: error.message || "Impossibile eseguire il trade. Controlla la tua connessione MT5.",
+        description: errorMessage,
         variant: "destructive",
       });
     },
@@ -104,6 +122,9 @@ export default function TradingSignals() {
       return;
     }
 
+    // Clear any existing signal before generating a new one
+    queryClient.setQueryData(["currentSignal"], null);
+
     predictMutation.mutate({
       symbol: symbol.toUpperCase(),
       strategy,
@@ -113,13 +134,20 @@ export default function TradingSignals() {
   };
 
   const handleExecute = () => {
-    if (!currentSignal) return;
-    
-    const lot = parseFloat(lotSize);
-    if (isNaN(lot) || lot <= 0) {
+    if (!currentSignal) {
       toast({
         title: "Errore",
-        description: "Inserisci una dimensione lotto valida",
+        description: "Nessun segnale disponibile per l'esecuzione",
+        variant: "destructive",
+      });
+      return;
+    }
+    
+    const lot = parseFloat(lotSize);
+    if (isNaN(lot) || lot <= 0 || lot > 100) {
+      toast({
+        title: "Errore",
+        description: "Inserisci una dimensione lotto valida (0.01 - 100)",
         variant: "destructive",
       });
       return;
@@ -451,6 +479,16 @@ export default function TradingSignals() {
 
             <div className="border-t pt-4">
               <h4 className="font-semibold mb-3">Esegui Trade</h4>
+              
+              {/* Warning about signal expiration */}
+              <div className="mb-4 p-3 bg-yellow-50 border border-yellow-200 rounded-lg">
+                <div className="flex items-center gap-2 text-yellow-800 text-sm">
+                  <AlertTriangle className="h-4 w-4" />
+                  <span className="font-medium">Attenzione:</span>
+                  <span>I segnali possono essere eseguiti una sola volta. Assicurati di controllare i parametri prima dell'esecuzione.</span>
+                </div>
+              </div>
+
               <div className="flex gap-4 items-end">
                 <div className="flex-1">
                   <label className="block text-sm font-medium text-gray-700 mb-1">
@@ -460,12 +498,13 @@ export default function TradingSignals() {
                     type="number"
                     step="0.01"
                     min="0.01"
+                    max="100"
                     placeholder={currentSignal.recommendedLotSize.toString()}
                     value={lotSize}
                     onChange={(e) => setLotSize(e.target.value)}
                   />
                   <div className="text-xs text-gray-500 mt-1">
-                    Consigliato: {currentSignal.recommendedLotSize} lotti
+                    Consigliato: {currentSignal.recommendedLotSize} lotti (Range: 0.01 - 100)
                   </div>
                 </div>
                 <Button 

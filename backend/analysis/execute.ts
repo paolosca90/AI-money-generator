@@ -24,27 +24,46 @@ export const execute = api<ExecuteRequest, ExecuteResponse>(
   async (req) => {
     const { tradeId, lotSize: requestedLotSize, strategy: requestedStrategy } = req;
 
-    // Fetch the trading signal from database
-    const signal = await analysisDB.queryRow`
-      SELECT * FROM trading_signals 
-      WHERE trade_id = ${tradeId} AND executed_at IS NULL
-    `;
-
-    if (!signal) {
-      throw APIError.notFound("Trading signal not found or already executed");
+    if (!tradeId || tradeId.trim() === "") {
+      throw APIError.invalidArgument("Trade ID is required");
     }
 
-    // Use requested lot size or recommended lot size from signal
-    const lotSize = requestedLotSize || signal.recommended_lot_size || 0.1;
-    
-    // Use requested strategy or strategy from signal
-    const strategy = requestedStrategy || signal.strategy || "INTRADAY";
-
     try {
-      // Validate lot size
-      if (isNaN(lotSize) || lotSize <= 0) {
-        throw APIError.invalidArgument("Invalid lot size provided");
+      // Fetch the trading signal from database with better error handling
+      const signal = await analysisDB.queryRow`
+        SELECT * FROM trading_signals 
+        WHERE trade_id = ${tradeId}
+      `;
+
+      if (!signal) {
+        console.error(`Trading signal not found: ${tradeId}`);
+        throw APIError.notFound(`Trading signal ${tradeId} not found. The signal may have expired or been removed.`);
       }
+
+      // Check if signal has already been executed
+      if (signal.executed_at) {
+        console.error(`Trading signal already executed: ${tradeId} at ${signal.executed_at}`);
+        throw APIError.alreadyExists(`Trading signal ${tradeId} has already been executed at ${new Date(signal.executed_at).toLocaleString()}`);
+      }
+
+      // Validate signal data
+      if (!signal.symbol || !signal.direction || !signal.entry_price) {
+        console.error(`Invalid signal data for ${tradeId}:`, signal);
+        throw APIError.invalidArgument("Trading signal contains invalid data");
+      }
+
+      // Use requested lot size or recommended lot size from signal
+      const lotSize = requestedLotSize || signal.recommended_lot_size || 0.1;
+      
+      // Use requested strategy or strategy from signal
+      const strategy = requestedStrategy || signal.strategy || "INTRADAY";
+
+      // Validate lot size
+      if (isNaN(lotSize) || lotSize <= 0 || lotSize > 100) {
+        throw APIError.invalidArgument(`Invalid lot size: ${lotSize}. Must be between 0.01 and 100.`);
+      }
+
+      console.log(`Executing ${strategy} trade ${tradeId}: ${signal.direction} ${signal.symbol} ${lotSize} lots`);
 
       // Execute the order on MT5 with strategy-specific comment
       const result = await executeMT5Order({
@@ -61,16 +80,23 @@ export const execute = api<ExecuteRequest, ExecuteResponse>(
         // Convert max_holding_hours to number for database update
         const maxHoldingHours = Number(signal.max_holding_hours || 8);
         
-        // Update the signal as executed with strategy information
-        await analysisDB.exec`
-          UPDATE trading_signals 
-          SET executed_at = NOW(), 
-              mt5_order_id = ${result.orderId},
-              execution_price = ${result.executionPrice},
-              lot_size = ${lotSize},
-              strategy = ${strategy}
-          WHERE trade_id = ${tradeId}
-        `;
+        try {
+          // Update the signal as executed with strategy information
+          await analysisDB.exec`
+            UPDATE trading_signals 
+            SET executed_at = NOW(), 
+                mt5_order_id = ${result.orderId || null},
+                execution_price = ${result.executionPrice || signal.entry_price},
+                lot_size = ${lotSize},
+                strategy = ${strategy}
+            WHERE trade_id = ${tradeId} AND executed_at IS NULL
+          `;
+
+          console.log(`Successfully updated signal ${tradeId} as executed`);
+        } catch (dbError) {
+          console.error(`Database update failed for ${tradeId}:`, dbError);
+          // Don't throw here as the trade was executed successfully
+        }
 
         // Calculate estimated holding time based on strategy
         const estimatedHoldingTime = getEstimatedHoldingTime(strategy, maxHoldingHours);
@@ -83,17 +109,27 @@ export const execute = api<ExecuteRequest, ExecuteResponse>(
           estimatedHoldingTime,
         };
       } else {
+        console.error(`MT5 execution failed for ${tradeId}:`, result.error);
         return {
           success: false,
-          error: result.error,
+          error: result.error || "MT5 execution failed for unknown reason",
         };
       }
     } catch (error) {
-      console.error("MT5 execution error:", error);
-      return {
-        success: false,
-        error: "Failed to execute order on MT5",
-      };
+      console.error(`Error executing trade ${tradeId}:`, error);
+      
+      // If it's already an APIError, re-throw it
+      if (error.code) {
+        throw error;
+      }
+      
+      // For database errors or other unexpected errors
+      if (error.message?.includes("relation") || error.message?.includes("column")) {
+        throw APIError.internal("Database error occurred while executing trade");
+      }
+      
+      // Generic error
+      throw APIError.internal(`Failed to execute trade: ${error.message || "Unknown error"}`);
     }
   }
 );

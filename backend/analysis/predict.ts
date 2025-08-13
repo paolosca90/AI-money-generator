@@ -89,6 +89,19 @@ export const predict = api<PredictRequest, TradingSignal>(
       accountBalance = 10000 
     } = req;
     
+    // Validate input parameters
+    if (!symbol || symbol.trim() === "") {
+      throw APIError.invalidArgument("Symbol is required");
+    }
+
+    if (riskPercentage <= 0 || riskPercentage > 10) {
+      throw APIError.invalidArgument("Risk percentage must be between 0.1% and 10%");
+    }
+
+    if (accountBalance <= 0) {
+      throw APIError.invalidArgument("Account balance must be greater than 0");
+    }
+    
     const tradeId = generateTradeId(symbol);
 
     try {
@@ -234,22 +247,29 @@ export const predict = api<PredictRequest, TradingSignal>(
         },
       };
 
-      // Store the signal in database with strategy information
-      console.log(`Storing ${optimalStrategy} signal ${tradeId} in database`);
-      await analysisDB.exec`
-        INSERT INTO trading_signals (
-          trade_id, symbol, direction, strategy, entry_price, take_profit, stop_loss, 
-          confidence, risk_reward_ratio, recommended_lot_size, max_holding_hours,
-          analysis_data, created_at
-        ) VALUES (
-          ${tradeId}, ${symbol}, ${aiAnalysis.direction}, ${optimalStrategy}, 
-          ${priceTargets.entryPrice}, ${priceTargets.takeProfit}, ${priceTargets.stopLoss}, 
-          ${confidenceInt}, ${priceTargets.riskRewardRatio}, ${recommendedLotSize},
-          ${maxHoldingTimeHours}, ${JSON.stringify(signal.analysis)}, NOW()
-        )
-      `;
+      try {
+        // Store the signal in database with strategy information
+        console.log(`Storing ${optimalStrategy} signal ${tradeId} in database`);
+        await analysisDB.exec`
+          INSERT INTO trading_signals (
+            trade_id, symbol, direction, strategy, entry_price, take_profit, stop_loss, 
+            confidence, risk_reward_ratio, recommended_lot_size, max_holding_hours,
+            analysis_data, created_at
+          ) VALUES (
+            ${tradeId}, ${symbol}, ${aiAnalysis.direction}, ${optimalStrategy}, 
+            ${priceTargets.entryPrice}, ${priceTargets.takeProfit}, ${priceTargets.stopLoss}, 
+            ${confidenceInt}, ${priceTargets.riskRewardRatio}, ${recommendedLotSize},
+            ${maxHoldingTimeHours}, ${JSON.stringify(signal.analysis)}, NOW()
+          )
+        `;
 
-      console.log(`✅ Successfully generated ${optimalStrategy} signal ${tradeId} for ${symbol}`);
+        console.log(`✅ Successfully generated ${optimalStrategy} signal ${tradeId} for ${symbol}`);
+      } catch (dbError) {
+        console.error(`Database error storing signal ${tradeId}:`, dbError);
+        // Don't throw here - return the signal even if database storage fails
+        console.log(`⚠️ Signal generated but not stored in database: ${tradeId}`);
+      }
+
       return signal;
 
     } catch (error) {
