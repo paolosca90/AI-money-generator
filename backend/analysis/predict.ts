@@ -67,7 +67,7 @@ export const predict = api<PredictRequest, TradingSignal>(
     
     // Check if we received all necessary data from MT5
     if (!marketData["5m"] || !marketData["15m"] || !marketData["30m"]) {
-      throw APIError.unavailable(
+      throw APIError.failedPrecondition(
         "Could not fetch complete market data from MT5. Please check your MT5 connection and server logs."
       );
     }
@@ -292,9 +292,9 @@ function getSymbolCharacteristics(symbol: string) {
   // Default characteristics for unknown symbols
   return characteristics[symbol] || {
     volatilityMultiplier: 2.0,
-    minMovement: currentPrice * 0.01,  // 1% of current price
-    maxMovement: currentPrice * 0.05,  // 5% of current price
-    supportResistanceSpacing: currentPrice * 0.02,
+    minMovement: 0.01,  // 1% of current price
+    maxMovement: 0.05,  // 5% of current price
+    supportResistanceSpacing: 0.02,
     riskRewardRatio: 2.0,
     confidenceBonus: 1.0
   };

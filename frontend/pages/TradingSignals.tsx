@@ -24,11 +24,11 @@ export default function TradingSignals() {
       });
       queryClient.setQueryData(["currentSignal"], data);
     },
-    onError: (error) => {
+    onError: (error: Error) => {
       console.error("Prediction error:", error);
       toast({
-        title: "Error",
-        description: "Failed to generate trading signal",
+        title: "Prediction Failed",
+        description: error.message || "An unknown error occurred. Please check the connection to the MT5 server.",
         variant: "destructive",
       });
     },
@@ -46,16 +46,16 @@ export default function TradingSignals() {
       } else {
         toast({
           title: "Execution Failed",
-          description: data.error,
+          description: data.error || "An unknown error occurred.",
           variant: "destructive",
         });
       }
     },
-    onError: (error) => {
+    onError: (error: Error) => {
       console.error("Execution error:", error);
       toast({
         title: "Error",
-        description: "Failed to execute trade",
+        description: error.message || "Failed to execute trade. Please check your MT5 connection.",
         variant: "destructive",
       });
     },
