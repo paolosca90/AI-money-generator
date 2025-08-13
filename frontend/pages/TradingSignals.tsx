@@ -212,13 +212,13 @@ export default function TradingSignals() {
                 <div>
                   <div className="text-gray-600">Support</div>
                   <div className="font-medium">
-                    {currentSignal.analysis?.technical?.support || 'N/A'}
+                    {currentSignal.analysis?.technical?.support?.toFixed(5) || 'N/A'}
                   </div>
                 </div>
                 <div>
                   <div className="text-gray-600">Resistance</div>
                   <div className="font-medium">
-                    {currentSignal.analysis?.technical?.resistance || 'N/A'}
+                    {currentSignal.analysis?.technical?.resistance?.toFixed(5) || 'N/A'}
                   </div>
                 </div>
               </div>
@@ -263,7 +263,7 @@ export default function TradingSignals() {
                   <div>
                     <div className="text-gray-600">Risk/Reward</div>
                     <div className="font-medium">
-                      1:{currentSignal.analysis.professional.riskReward?.toFixed(1) || 'N/A'}
+                      1:{currentSignal.analysis?.professional?.riskReward?.toFixed(1) || 'N/A'}
                     </div>
                   </div>
                   <div>

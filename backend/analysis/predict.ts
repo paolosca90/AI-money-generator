@@ -27,6 +27,9 @@ export interface TradingSignal {
       breakoutProbability: number;
       support: number;
       resistance: number;
+      rsi: number;
+      macd: number;
+      atr: number;
     };
     smartMoney: {
       institutionalFlow: string;
@@ -140,6 +143,9 @@ export const predict = api<PredictRequest, TradingSignal>(
           breakoutProbability: aiAnalysis.priceAction.breakoutProbability,
           support: aiAnalysis.support,
           resistance: aiAnalysis.resistance,
+          rsi: aiAnalysis.technical.rsi,
+          macd: aiAnalysis.technical.macd,
+          atr: aiAnalysis.technical.atr,
         },
         smartMoney: {
           institutionalFlow: aiAnalysis.smartMoney.institutionalFlow,
