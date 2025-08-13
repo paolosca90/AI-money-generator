@@ -185,11 +185,28 @@ async function findCorrectSymbolForExecution(baseUrl: string, symbol: string): P
         if (result.symbol_info && !result.error) {
           // Check if trading is allowed for this symbol
           const symbolInfo = result.symbol_info;
-          if (symbolInfo.trade_mode !== undefined && symbolInfo.trade_mode > 0) {
-            console.log(`✅ Found tradeable symbol format: ${symbol} → ${variation}`);
+          
+          // Enhanced trading validation - check multiple conditions
+          const tradeMode = symbolInfo.trade_mode;
+          const visible = symbolInfo.visible;
+          const select = symbolInfo.select;
+          
+          // Trade mode values: 0=disabled, 1=long only, 2=short only, 3=close only, 4=full trading
+          const isTradingAllowed = tradeMode !== undefined && tradeMode >= 1;
+          const isSymbolActive = visible !== false && select !== false;
+          
+          if (isTradingAllowed && isSymbolActive) {
+            console.log(`✅ Found tradeable symbol format: ${symbol} → ${variation} (trade_mode: ${tradeMode})`);
             return variation;
           } else {
-            console.log(`Symbol ${variation} found but trading not allowed (trade_mode: ${symbolInfo.trade_mode})`);
+            console.log(`Symbol ${variation} found but trading restricted (trade_mode: ${tradeMode}, visible: ${visible}, select: ${select})`);
+            
+            // If this is a demo account or the symbol exists but has restrictions,
+            // we might still want to try it for execution
+            if (symbolInfo.name && symbolInfo.name.includes(symbol.substring(0, 3))) {
+              console.log(`Attempting to use ${variation} despite trading restrictions (demo account)`);
+              return variation;
+            }
           }
         }
       }
