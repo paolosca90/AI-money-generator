@@ -74,56 +74,31 @@ export const predict = api<PredictRequest, TradingSignal>(
     // Generate chart
     const chartUrl = await generateChart(symbol, marketData, aiAnalysis);
     
-    // Calculate entry, TP, and SL based on professional risk management
+    // Calculate entry, TP, and SL based on professional risk management with improved calculations
     const currentPrice = marketData["5m"].close;
     const atr = marketData["5m"].indicators.atr;
+    
+    // Calculate realistic price targets based on market structure and volatility
+    const priceTargets = calculateRealisticPriceTargets(
+      currentPrice, 
+      atr, 
+      aiAnalysis, 
+      marketData, 
+      symbol
+    );
     
     let entryPrice: number;
     let takeProfit: number;
     let stopLoss: number;
     
-    // Professional risk management: Use ATR and key levels
     if (aiAnalysis.direction === "LONG") {
       entryPrice = currentPrice;
-      
-      // Take profit at next resistance or 2-3 ATR
-      const nextResistance = aiAnalysis.smartMoney.liquidityZones
-        .filter(zone => zone > currentPrice)
-        .sort((a, b) => a - b)[0];
-      
-      takeProfit = nextResistance && (nextResistance - currentPrice) < (atr * 4) 
-        ? nextResistance * 0.999  // Just before resistance
-        : currentPrice + (atr * aiAnalysis.professionalAnalysis.riskReward);
-      
-      // Stop loss below support or 1.5 ATR
-      const nearestSupport = aiAnalysis.smartMoney.liquidityZones
-        .filter(zone => zone < currentPrice)
-        .sort((a, b) => b - a)[0];
-      
-      stopLoss = nearestSupport && (currentPrice - nearestSupport) < (atr * 2)
-        ? nearestSupport * 0.999  // Just below support
-        : currentPrice - (atr * 1.5);
-        
+      takeProfit = priceTargets.longTakeProfit;
+      stopLoss = priceTargets.longStopLoss;
     } else {
       entryPrice = currentPrice;
-      
-      // Take profit at next support or 2-3 ATR
-      const nextSupport = aiAnalysis.smartMoney.liquidityZones
-        .filter(zone => zone < currentPrice)
-        .sort((a, b) => b - a)[0];
-      
-      takeProfit = nextSupport && (currentPrice - nextSupport) < (atr * 4)
-        ? nextSupport * 1.001  // Just above support
-        : currentPrice - (atr * aiAnalysis.professionalAnalysis.riskReward);
-      
-      // Stop loss above resistance or 1.5 ATR
-      const nearestResistance = aiAnalysis.smartMoney.liquidityZones
-        .filter(zone => zone > currentPrice)
-        .sort((a, b) => a - b)[0];
-      
-      stopLoss = nearestResistance && (nearestResistance - currentPrice) < (atr * 2)
-        ? nearestResistance * 1.001  // Just above resistance
-        : currentPrice + (atr * 1.5);
+      takeProfit = priceTargets.shortTakeProfit;
+      stopLoss = priceTargets.shortStopLoss;
     }
 
     const signal: TradingSignal = {
@@ -183,3 +158,374 @@ export const predict = api<PredictRequest, TradingSignal>(
     return signal;
   }
 );
+
+function calculateRealisticPriceTargets(
+  currentPrice: number,
+  atr: number,
+  aiAnalysis: any,
+  marketData: any,
+  symbol: string
+) {
+  // Get symbol-specific volatility and movement characteristics
+  const symbolCharacteristics = getSymbolCharacteristics(symbol);
+  
+  // Calculate enhanced ATR based on multiple timeframes
+  const enhancedATR = calculateEnhancedATR(marketData, symbolCharacteristics);
+  
+  // Calculate dynamic multipliers based on confidence and market conditions
+  const multipliers = calculateDynamicMultipliers(aiAnalysis, symbolCharacteristics);
+  
+  // Calculate support and resistance levels with better spacing
+  const keyLevels = calculateEnhancedKeyLevels(currentPrice, marketData, symbolCharacteristics);
+  
+  // Calculate realistic targets based on market structure
+  const longTakeProfit = calculateLongTakeProfit(
+    currentPrice, 
+    enhancedATR, 
+    keyLevels, 
+    multipliers, 
+    aiAnalysis
+  );
+  
+  const longStopLoss = calculateLongStopLoss(
+    currentPrice, 
+    enhancedATR, 
+    keyLevels, 
+    multipliers, 
+    aiAnalysis
+  );
+  
+  const shortTakeProfit = calculateShortTakeProfit(
+    currentPrice, 
+    enhancedATR, 
+    keyLevels, 
+    multipliers, 
+    aiAnalysis
+  );
+  
+  const shortStopLoss = calculateShortStopLoss(
+    currentPrice, 
+    enhancedATR, 
+    keyLevels, 
+    multipliers, 
+    aiAnalysis
+  );
+  
+  return {
+    longTakeProfit,
+    longStopLoss,
+    shortTakeProfit,
+    shortStopLoss
+  };
+}
+
+function getSymbolCharacteristics(symbol: string) {
+  const characteristics = {
+    "BTCUSD": {
+      volatilityMultiplier: 3.0,
+      minMovement: 500,      // Minimum meaningful movement in price units
+      maxMovement: 5000,     // Maximum realistic movement
+      supportResistanceSpacing: 1000,
+      riskRewardRatio: 2.5,
+      confidenceBonus: 1.2
+    },
+    "ETHUSD": {
+      volatilityMultiplier: 2.8,
+      minMovement: 50,
+      maxMovement: 500,
+      supportResistanceSpacing: 100,
+      riskRewardRatio: 2.3,
+      confidenceBonus: 1.1
+    },
+    "EURUSD": {
+      volatilityMultiplier: 1.5,
+      minMovement: 0.0050,   // 50 pips
+      maxMovement: 0.0200,   // 200 pips
+      supportResistanceSpacing: 0.0100,
+      riskRewardRatio: 2.0,
+      confidenceBonus: 1.0
+    },
+    "GBPUSD": {
+      volatilityMultiplier: 1.8,
+      minMovement: 0.0080,   // 80 pips
+      maxMovement: 0.0300,   // 300 pips
+      supportResistanceSpacing: 0.0150,
+      riskRewardRatio: 2.2,
+      confidenceBonus: 1.1
+    },
+    "USDJPY": {
+      volatilityMultiplier: 1.6,
+      minMovement: 0.50,     // 50 pips
+      maxMovement: 2.00,     // 200 pips
+      supportResistanceSpacing: 1.00,
+      riskRewardRatio: 2.1,
+      confidenceBonus: 1.0
+    },
+    "XAUUSD": {
+      volatilityMultiplier: 2.2,
+      minMovement: 10.0,     // $10
+      maxMovement: 50.0,     // $50
+      supportResistanceSpacing: 20.0,
+      riskRewardRatio: 2.4,
+      confidenceBonus: 1.2
+    },
+    "CRUDE": {
+      volatilityMultiplier: 2.5,
+      minMovement: 2.0,      // $2
+      maxMovement: 8.0,      // $8
+      supportResistanceSpacing: 3.0,
+      riskRewardRatio: 2.3,
+      confidenceBonus: 1.1
+    }
+  };
+  
+  // Default characteristics for unknown symbols
+  return characteristics[symbol] || {
+    volatilityMultiplier: 2.0,
+    minMovement: currentPrice * 0.01,  // 1% of current price
+    maxMovement: currentPrice * 0.05,  // 5% of current price
+    supportResistanceSpacing: currentPrice * 0.02,
+    riskRewardRatio: 2.0,
+    confidenceBonus: 1.0
+  };
+}
+
+function calculateEnhancedATR(marketData: any, characteristics: any) {
+  const atr5m = marketData["5m"].indicators.atr;
+  const atr15m = marketData["15m"].indicators.atr;
+  const atr30m = marketData["30m"].indicators.atr;
+  
+  // Weighted average ATR with emphasis on longer timeframes for more stable readings
+  const weightedATR = (atr5m * 0.2 + atr15m * 0.3 + atr30m * 0.5);
+  
+  // Apply symbol-specific volatility multiplier
+  return weightedATR * characteristics.volatilityMultiplier;
+}
+
+function calculateDynamicMultipliers(aiAnalysis: any, characteristics: any) {
+  // Base multipliers
+  let takeProfitMultiplier = characteristics.riskRewardRatio;
+  let stopLossMultiplier = 1.0;
+  
+  // Adjust based on confidence level
+  const confidenceBonus = (aiAnalysis.confidence - 70) / 100 * characteristics.confidenceBonus;
+  takeProfitMultiplier += confidenceBonus;
+  
+  // Adjust based on trend strength
+  if (aiAnalysis.priceAction.trend !== "SIDEWAYS") {
+    takeProfitMultiplier *= 1.3; // Stronger moves in trending markets
+  }
+  
+  // Adjust based on breakout probability
+  if (aiAnalysis.priceAction.breakoutProbability > 70) {
+    takeProfitMultiplier *= 1.4; // Larger moves expected on breakouts
+    stopLossMultiplier *= 0.8;   // Tighter stops on high probability setups
+  }
+  
+  // Adjust based on market structure
+  if (aiAnalysis.priceAction.structure === "BULLISH" || aiAnalysis.priceAction.structure === "BEARISH") {
+    takeProfitMultiplier *= 1.2;
+  }
+  
+  // Adjust based on smart money flow
+  if (aiAnalysis.smartMoney.institutionalFlow !== "NEUTRAL") {
+    takeProfitMultiplier *= 1.25; // Follow smart money for larger moves
+  }
+  
+  return {
+    takeProfit: Math.max(1.5, Math.min(4.0, takeProfitMultiplier)), // Clamp between 1.5x and 4x
+    stopLoss: Math.max(0.5, Math.min(1.5, stopLossMultiplier))      // Clamp between 0.5x and 1.5x
+  };
+}
+
+function calculateEnhancedKeyLevels(currentPrice: number, marketData: any, characteristics: any) {
+  const data5m = marketData["5m"];
+  const data15m = marketData["15m"];
+  const data30m = marketData["30m"];
+  
+  // Calculate multiple support and resistance levels
+  const levels = [];
+  
+  // Recent highs and lows from different timeframes
+  levels.push(data30m.high, data30m.low);
+  levels.push(data15m.high, data15m.low);
+  levels.push(data5m.high, data5m.low);
+  
+  // Psychological levels (round numbers)
+  const roundNumberSpacing = characteristics.supportResistanceSpacing;
+  const nearestRound = Math.round(currentPrice / roundNumberSpacing) * roundNumberSpacing;
+  levels.push(
+    nearestRound,
+    nearestRound + roundNumberSpacing,
+    nearestRound - roundNumberSpacing,
+    nearestRound + (roundNumberSpacing * 2),
+    nearestRound - (roundNumberSpacing * 2)
+  );
+  
+  // VWAP-based levels
+  const vwap = (data5m.close + data15m.close + data30m.close) / 3;
+  levels.push(vwap);
+  
+  // Fibonacci-like levels based on recent range
+  const recentHigh = Math.max(data5m.high, data15m.high, data30m.high);
+  const recentLow = Math.min(data5m.low, data15m.low, data30m.low);
+  const range = recentHigh - recentLow;
+  
+  if (range > 0) {
+    levels.push(
+      recentLow + (range * 0.236),
+      recentLow + (range * 0.382),
+      recentLow + (range * 0.618),
+      recentLow + (range * 0.786)
+    );
+  }
+  
+  // Remove duplicates and sort
+  const uniqueLevels = [...new Set(levels)].sort((a, b) => a - b);
+  
+  // Separate into support and resistance
+  const support = uniqueLevels.filter(level => level < currentPrice);
+  const resistance = uniqueLevels.filter(level => level > currentPrice);
+  
+  return { support, resistance };
+}
+
+function calculateLongTakeProfit(
+  currentPrice: number,
+  enhancedATR: number,
+  keyLevels: any,
+  multipliers: any,
+  aiAnalysis: any
+) {
+  // Calculate ATR-based target
+  const atrTarget = currentPrice + (enhancedATR * multipliers.takeProfit);
+  
+  // Find next significant resistance level
+  const nextResistance = keyLevels.resistance.find(level => level > currentPrice + (enhancedATR * 0.5));
+  
+  // Choose the more conservative target (closer to current price) but ensure minimum movement
+  let takeProfit = atrTarget;
+  
+  if (nextResistance && nextResistance < atrTarget) {
+    // Use resistance level but with small buffer
+    takeProfit = nextResistance * 0.995; // 0.5% before resistance
+  }
+  
+  // Ensure minimum meaningful movement
+  const symbolChar = getSymbolCharacteristics(getSymbolFromPrice(currentPrice));
+  const minTarget = currentPrice + symbolChar.minMovement;
+  const maxTarget = currentPrice + symbolChar.maxMovement;
+  
+  // Apply bounds
+  takeProfit = Math.max(minTarget, Math.min(maxTarget, takeProfit));
+  
+  return takeProfit;
+}
+
+function calculateLongStopLoss(
+  currentPrice: number,
+  enhancedATR: number,
+  keyLevels: any,
+  multipliers: any,
+  aiAnalysis: any
+) {
+  // Calculate ATR-based stop
+  const atrStop = currentPrice - (enhancedATR * multipliers.stopLoss);
+  
+  // Find nearest support level
+  const nearestSupport = keyLevels.support
+    .filter(level => level < currentPrice - (enhancedATR * 0.3))
+    .sort((a, b) => b - a)[0]; // Closest support below current price
+  
+  // Choose the more conservative stop (further from current price)
+  let stopLoss = atrStop;
+  
+  if (nearestSupport && nearestSupport < atrStop) {
+    // Use support level with small buffer
+    stopLoss = nearestSupport * 0.998; // 0.2% below support
+  }
+  
+  // Ensure reasonable stop loss (not too tight, not too wide)
+  const maxStop = currentPrice * 0.95; // Maximum 5% stop loss
+  const minStop = currentPrice * 0.98; // Minimum 2% stop loss
+  
+  stopLoss = Math.max(maxStop, Math.min(minStop, stopLoss));
+  
+  return stopLoss;
+}
+
+function calculateShortTakeProfit(
+  currentPrice: number,
+  enhancedATR: number,
+  keyLevels: any,
+  multipliers: any,
+  aiAnalysis: any
+) {
+  // Calculate ATR-based target
+  const atrTarget = currentPrice - (enhancedATR * multipliers.takeProfit);
+  
+  // Find next significant support level
+  const nextSupport = keyLevels.support
+    .filter(level => level < currentPrice - (enhancedATR * 0.5))
+    .sort((a, b) => b - a)[0]; // Closest support below
+  
+  // Choose the more conservative target
+  let takeProfit = atrTarget;
+  
+  if (nextSupport && nextSupport > atrTarget) {
+    // Use support level with small buffer
+    takeProfit = nextSupport * 1.005; // 0.5% above support
+  }
+  
+  // Ensure minimum meaningful movement
+  const symbolChar = getSymbolCharacteristics(getSymbolFromPrice(currentPrice));
+  const minTarget = currentPrice - symbolChar.minMovement;
+  const maxTarget = currentPrice - symbolChar.maxMovement;
+  
+  // Apply bounds
+  takeProfit = Math.min(minTarget, Math.max(maxTarget, takeProfit));
+  
+  return takeProfit;
+}
+
+function calculateShortStopLoss(
+  currentPrice: number,
+  enhancedATR: number,
+  keyLevels: any,
+  multipliers: any,
+  aiAnalysis: any
+) {
+  // Calculate ATR-based stop
+  const atrStop = currentPrice + (enhancedATR * multipliers.stopLoss);
+  
+  // Find nearest resistance level
+  const nearestResistance = keyLevels.resistance
+    .filter(level => level > currentPrice + (enhancedATR * 0.3))
+    .sort((a, b) => a - b)[0]; // Closest resistance above current price
+  
+  // Choose the more conservative stop
+  let stopLoss = atrStop;
+  
+  if (nearestResistance && nearestResistance > atrStop) {
+    // Use resistance level with small buffer
+    stopLoss = nearestResistance * 1.002; // 0.2% above resistance
+  }
+  
+  // Ensure reasonable stop loss
+  const maxStop = currentPrice * 1.05; // Maximum 5% stop loss
+  const minStop = currentPrice * 1.02; // Minimum 2% stop loss
+  
+  stopLoss = Math.min(maxStop, Math.max(minStop, stopLoss));
+  
+  return stopLoss;
+}
+
+function getSymbolFromPrice(price: number): string {
+  // Simple heuristic to guess symbol from price range
+  if (price > 10000) return "BTCUSD";
+  if (price > 1000) return "ETHUSD";
+  if (price > 100) return "USDJPY";
+  if (price > 10) return "CRUDE";
+  if (price > 1) return "EURUSD";
+  return "EURUSD"; // Default
+}
