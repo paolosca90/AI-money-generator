@@ -81,14 +81,17 @@ async function tryDirectMT5Connection(order: MT5OrderRequest): Promise<MT5OrderR
       return { success: false, error: "MT5 server not configured" };
     }
 
+    // Fix: Construct URL properly without duplicate port
+    const baseUrl = host.includes(':') ? `http://${host}` : `http://${host}:${port}`;
+
     // Find the correct symbol format for this broker
-    const correctSymbol = await findCorrectSymbolForExecution(host, port, order.symbol);
+    const correctSymbol = await findCorrectSymbolForExecution(baseUrl, order.symbol);
     if (!correctSymbol) {
       return { success: false, error: `Symbol ${order.symbol} not found on this broker` };
     }
 
     // Connect to Python service running MetaTrader5 library
-    const response = await fetch(`http://${host}:${port}/execute`, {
+    const response = await fetch(`${baseUrl}/execute`, {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
@@ -138,7 +141,7 @@ async function tryDirectMT5Connection(order: MT5OrderRequest): Promise<MT5OrderR
   }
 }
 
-async function findCorrectSymbolForExecution(host: string, port: string, symbol: string): Promise<string | null> {
+async function findCorrectSymbolForExecution(baseUrl: string, symbol: string): Promise<string | null> {
   // Get possible symbol variations for this broker
   const symbolVariations = getSymbolVariations(symbol);
   
@@ -147,11 +150,10 @@ async function findCorrectSymbolForExecution(host: string, port: string, symbol:
   // Try each variation until we find one that works
   for (const variation of symbolVariations) {
     try {
-      const response = await fetch(`http://${host}:${port}/symbol_info`, {
+      const response = await fetch(`${baseUrl}/symbol_info`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ symbol: variation }),
-        timeout: 5000,
       });
 
       if (response.ok) {
@@ -226,8 +228,14 @@ function getBrokerSpecificMappings(symbol: string): string[] {
 
 async function tryMT5RestAPI(order: MT5OrderRequest): Promise<MT5OrderResult> {
   try {
+    const host = mt5ServerHost();
+    const port = mt5ServerPort();
+    
+    // Fix: Construct URL properly without duplicate port
+    const baseUrl = host.includes(':') ? `http://${host}` : `http://${host}:${port}`;
+    
     // Connect to custom Expert Advisor that exposes REST API
-    const response = await fetch(`http://${mt5ServerHost()}:8080/api/trade`, {
+    const response = await fetch(`${baseUrl}/api/trade`, {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
@@ -310,8 +318,14 @@ async function simulateMT5Execution(order: MT5OrderRequest): Promise<MT5OrderRes
 
 export async function getMT5AccountInfo(): Promise<MT5AccountInfo | null> {
   try {
+    const host = mt5ServerHost();
+    const port = mt5ServerPort();
+    
+    // Fix: Construct URL properly without duplicate port
+    const baseUrl = host.includes(':') ? `http://${host}` : `http://${host}:${port}`;
+    
     // Try to get account info from MT5
-    const response = await fetch(`http://${mt5ServerHost()}:${mt5ServerPort()}/account`, {
+    const response = await fetch(`${baseUrl}/account`, {
       method: "GET",
       headers: {
         "Authorization": `Bearer ${mt5Password()}`,
@@ -346,13 +360,18 @@ export async function getMT5AccountInfo(): Promise<MT5AccountInfo | null> {
 
 export async function checkMT5Connection(): Promise<boolean> {
   try {
+    const host = mt5ServerHost();
+    const port = mt5ServerPort();
+    
+    // Fix: Construct URL properly without duplicate port
+    const baseUrl = host.includes(':') ? `http://${host}` : `http://${host}:${port}`;
+    
     // Check if MT5 terminal is connected and logged in
-    const response = await fetch(`http://${mt5ServerHost()}:${mt5ServerPort()}/status`, {
+    const response = await fetch(`${baseUrl}/status`, {
       method: "GET",
       headers: {
         "Authorization": `Bearer ${mt5Password()}`,
       },
-      timeout: 5000,
     });
 
     if (response.ok) {
@@ -369,7 +388,13 @@ export async function checkMT5Connection(): Promise<boolean> {
 
 export async function getMT5Positions(): Promise<MT5Position[]> {
   try {
-    const response = await fetch(`http://${mt5ServerHost()}:${mt5ServerPort()}/positions`, {
+    const host = mt5ServerHost();
+    const port = mt5ServerPort();
+    
+    // Fix: Construct URL properly without duplicate port
+    const baseUrl = host.includes(':') ? `http://${host}` : `http://${host}:${port}`;
+    
+    const response = await fetch(`${baseUrl}/positions`, {
       method: "GET",
       headers: {
         "Authorization": `Bearer ${mt5Password()}`,
@@ -389,7 +414,13 @@ export async function getMT5Positions(): Promise<MT5Position[]> {
 
 export async function closeMT5Position(ticket: number): Promise<MT5OrderResult> {
   try {
-    const response = await fetch(`http://${mt5ServerHost()}:${mt5ServerPort()}/close`, {
+    const host = mt5ServerHost();
+    const port = mt5ServerPort();
+    
+    // Fix: Construct URL properly without duplicate port
+    const baseUrl = host.includes(':') ? `http://${host}` : `http://${host}:${port}`;
+    
+    const response = await fetch(`${baseUrl}/close`, {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
@@ -422,17 +453,21 @@ export async function closeMT5Position(ticket: number): Promise<MT5OrderResult> 
 
 export async function getMT5MarketInfo(symbol: string): Promise<any> {
   try {
-    // Find the correct symbol format first
     const host = mt5ServerHost();
     const port = mt5ServerPort();
-    const correctSymbol = await findCorrectSymbolForExecution(host, port, symbol);
+    
+    // Fix: Construct URL properly without duplicate port
+    const baseUrl = host.includes(':') ? `http://${host}` : `http://${host}:${port}`;
+    
+    // Find the correct symbol format first
+    const correctSymbol = await findCorrectSymbolForExecution(baseUrl, symbol);
     
     if (!correctSymbol) {
       console.error(`Symbol ${symbol} not found on this broker`);
       return null;
     }
 
-    const response = await fetch(`http://${host}:${port}/symbol_info`, {
+    const response = await fetch(`${baseUrl}/symbol_info`, {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
@@ -456,17 +491,21 @@ export async function getMT5MarketInfo(symbol: string): Promise<any> {
 
 export async function getMT5Tick(symbol: string): Promise<any> {
   try {
-    // Find the correct symbol format first
     const host = mt5ServerHost();
     const port = mt5ServerPort();
-    const correctSymbol = await findCorrectSymbolForExecution(host, port, symbol);
+    
+    // Fix: Construct URL properly without duplicate port
+    const baseUrl = host.includes(':') ? `http://${host}` : `http://${host}:${port}`;
+    
+    // Find the correct symbol format first
+    const correctSymbol = await findCorrectSymbolForExecution(baseUrl, symbol);
     
     if (!correctSymbol) {
       console.error(`Symbol ${symbol} not found on this broker`);
       return null;
     }
 
-    const response = await fetch(`http://${host}:${port}/tick`, {
+    const response = await fetch(`${baseUrl}/tick`, {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
@@ -541,17 +580,21 @@ export function validateLotSize(lotSize: number, symbol: string): { valid: boole
 // Function to calculate required margin
 export async function calculateRequiredMargin(symbol: string, lotSize: number): Promise<number> {
   try {
-    // Find the correct symbol format first
     const host = mt5ServerHost();
     const port = mt5ServerPort();
-    const correctSymbol = await findCorrectSymbolForExecution(host, port, symbol);
+    
+    // Fix: Construct URL properly without duplicate port
+    const baseUrl = host.includes(':') ? `http://${host}` : `http://${host}:${port}`;
+    
+    // Find the correct symbol format first
+    const correctSymbol = await findCorrectSymbolForExecution(baseUrl, symbol);
     
     if (!correctSymbol) {
       console.error(`Symbol ${symbol} not found on this broker`);
       return 0;
     }
 
-    const response = await fetch(`http://${host}:${port}/calc_margin`, {
+    const response = await fetch(`${baseUrl}/calc_margin`, {
       method: "POST",
       headers: {
         "Content-Type": "application/json",

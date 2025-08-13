@@ -31,7 +31,10 @@ export async function fetchMarketData(symbol: string, timeframes: string[]): Pro
     const port = mt5ServerPort();
     
     if (host && port && host !== "localhost" && host !== "your_vps_ip") {
-      const statusResponse = await fetchWithTimeout(`http://${host}:${port}/status`, {
+      // Fix: Construct URL properly without duplicate port
+      const baseUrl = host.includes(':') ? `http://${host}` : `http://${host}:${port}`;
+      
+      const statusResponse = await fetchWithTimeout(`${baseUrl}/status`, {
         method: "GET",
       }, 5000);
       
@@ -88,15 +91,18 @@ async function fetchMT5Data(symbol: string, timeframe: string): Promise<MarketDa
       return null;
     }
 
+    // Fix: Construct URL properly without duplicate port
+    const baseUrl = host.includes(':') ? `http://${host}` : `http://${host}:${port}`;
+
     // Try to find the correct symbol format for this broker
-    const correctSymbol = await findCorrectSymbolFormat(host, port, symbol);
+    const correctSymbol = await findCorrectSymbolFormat(baseUrl, symbol);
     if (!correctSymbol) {
       console.log(`Symbol ${symbol} not found in any format on this broker`);
       return null;
     }
 
     // Fetch rates data with the correct symbol and longer timeout
-    const response = await fetchWithTimeout(`http://${host}:${port}/rates`, {
+    const response = await fetchWithTimeout(`${baseUrl}/rates`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
@@ -183,7 +189,7 @@ async function fetchWithTimeout(url: string, options: RequestInit, timeoutMs: nu
   }
 }
 
-async function findCorrectSymbolFormat(host: string, port: string, symbol: string): Promise<string | null> {
+async function findCorrectSymbolFormat(baseUrl: string, symbol: string): Promise<string | null> {
   // Get possible symbol variations for this broker
   const symbolVariations = getSymbolVariations(symbol);
   
@@ -192,7 +198,7 @@ async function findCorrectSymbolFormat(host: string, port: string, symbol: strin
   // Try each variation until we find one that works
   for (const variation of symbolVariations) {
     try {
-      const response = await fetchWithTimeout(`http://${host}:${port}/symbol_info`, {
+      const response = await fetchWithTimeout(`${baseUrl}/symbol_info`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ symbol: variation }),
