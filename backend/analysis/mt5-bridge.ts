@@ -46,24 +46,23 @@ export interface MT5Position {
 
 export async function executeMT5Order(order: MT5OrderRequest): Promise<MT5OrderResult> {
   try {
+    console.log(`🔄 Attempting to execute ${order.direction} order for ${order.symbol}`);
+    
     // Try direct MT5 Python API connection first
     const directResult = await tryDirectMT5Connection(order);
     if (directResult.success) {
+      console.log(`✅ Direct MT5 execution successful for ${order.symbol}`);
       return directResult;
     }
 
-    // Try custom MT5 REST API (Expert Advisor)
-    const restResult = await tryMT5RestAPI(order);
-    if (restResult.success) {
-      return restResult;
-    }
-
+    console.log(`⚠️ Direct MT5 connection failed: ${directResult.error}`);
+    
     // Fallback: Simulation mode for testing
-    console.log("MT5 connection methods failed, using simulation mode");
+    console.log("🔄 Using simulation mode for order execution");
     return await simulateMT5Execution(order);
     
   } catch (error) {
-    console.error("MT5 execution error:", error);
+    console.error("❌ MT5 execution error:", error);
     return {
       success: false,
       error: "Failed to connect to MT5 terminal",
@@ -77,49 +76,92 @@ async function tryDirectMT5Connection(order: MT5OrderRequest): Promise<MT5OrderR
     const port = mt5ServerPort();
 
     // Check if MT5 server configuration is available
-    if (!host || !port || host === "your_vps_ip" || host === "localhost") {
-      console.log("MT5 server not configured for execution");
+    if (!host || !port) {
+      console.log("⚠️ MT5 server not configured. Please set MT5ServerHost and MT5ServerPort in Infrastructure settings.");
       return { success: false, error: "MT5 server not configured" };
     }
 
-    // Fix: Construct URL properly without duplicate port
-    const baseUrl = host.includes(':') ? `http://${host}` : `http://${host}:${port}`;
-
-    // Find the correct symbol format for this broker with enhanced error handling
-    const correctSymbol = await findCorrectSymbolForExecution(baseUrl, order.symbol);
-    if (!correctSymbol) {
-      console.log(`Symbol ${order.symbol} not found on this broker - trying alternative execution methods`);
-      return { success: false, error: `Symbol ${order.symbol} not available for trading on this broker` };
+    // Check for common misconfiguration
+    if (host === "your_vps_ip" || host === "localhost") {
+      console.log("⚠️ MT5ServerHost is set to 'localhost' or placeholder value.");
+      console.log("💡 If you're using a VPS, update MT5ServerHost to your VPS IP address");
+      console.log("💡 Go to Infrastructure tab → Secrets → Update MT5ServerHost");
+      return { success: false, error: "MT5 server host needs configuration" };
     }
 
-    // Connect to Python service running MetaTrader5 library
+    // Construct URL properly
+    const baseUrl = host.includes(':') ? `http://${host}` : `http://${host}:${port}`;
+    console.log(`🔗 Attempting connection to MT5 server: ${baseUrl}`);
+
+    // Test connection first
+    const statusResponse = await fetchWithTimeout(`${baseUrl}/status`, {
+      method: "GET",
+    }, 5000);
+
+    if (!statusResponse.ok) {
+      console.error(`❌ MT5 server status check failed: ${statusResponse.status} ${statusResponse.statusText}`);
+      return { 
+        success: false, 
+        error: `MT5 server not responding (${statusResponse.status})` 
+      };
+    }
+
+    const statusData = await statusResponse.json();
+    if (!statusData.connected) {
+      console.error("❌ MT5 terminal not connected");
+      return { 
+        success: false, 
+        error: "MT5 terminal not connected to broker" 
+      };
+    }
+
+    if (!statusData.trade_allowed) {
+      console.error("❌ Trading not allowed on MT5 account");
+      return { 
+        success: false, 
+        error: "Trading not allowed on this MT5 account" 
+      };
+    }
+
+    console.log(`✅ MT5 server connected. Account: ${statusData.login}, Balance: ${statusData.balance}`);
+
+    // Find the correct symbol format for this broker
+    const correctSymbol = await findCorrectSymbolForExecution(baseUrl, order.symbol);
+    if (!correctSymbol) {
+      console.log(`❌ Symbol ${order.symbol} not found on this broker`);
+      return { 
+        success: false, 
+        error: `Symbol ${order.symbol} not available for trading on this broker` 
+      };
+    }
+
+    console.log(`📊 Using symbol format: ${order.symbol} → ${correctSymbol}`);
+
+    // Execute the order
     const response = await fetchWithTimeout(`${baseUrl}/execute`, {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
-        "Authorization": `Bearer ${mt5Password()}`,
       },
       body: JSON.stringify({
-        login: mt5Login(),
-        server: mt5Server(),
-        password: mt5Password(),
-        symbol: correctSymbol, // Use the correct symbol format
+        symbol: correctSymbol,
         action: order.direction === "LONG" ? "BUY" : "SELL",
         volume: order.lotSize,
-        price: order.entryPrice,
+        price: 0, // Use market price
         sl: order.stopLoss,
         tp: order.takeProfit,
-        deviation: 20, // Price deviation in points
-        magic: 234000, // Expert Advisor ID
+        deviation: 20,
+        magic: 234000,
         comment: order.comment || "AI Trading Bot",
-        type_time: "GTC", // Good Till Cancelled
-        type_filling: "FOK", // Fill or Kill
       }),
-    }, 15000); // 15 second timeout
+    }, 15000);
 
     if (!response.ok) {
-      console.error(`MT5 server error: ${response.status} ${response.statusText}`);
-      return { success: false, error: `MT5 server connection failed: ${response.status}` };
+      console.error(`❌ MT5 execution request failed: ${response.status} ${response.statusText}`);
+      return { 
+        success: false, 
+        error: `MT5 execution failed: ${response.status}` 
+      };
     }
 
     const result = await response.json();
@@ -132,15 +174,40 @@ async function tryDirectMT5Connection(order: MT5OrderRequest): Promise<MT5OrderR
         executionPrice: result.price,
       };
     } else {
-      console.log(`MT5 execution failed: ${result.error || `Error Code: ${result.retcode}`}`);
+      console.log(`❌ MT5 execution failed: ${result.error || `Error Code: ${result.retcode}`}`);
       return {
         success: false,
         error: result.error || `MT5 Error Code: ${result.retcode}`,
       };
     }
   } catch (error) {
-    console.error("Direct MT5 connection failed:", error);
-    return { success: false, error: "Direct connection failed" };
+    console.error("❌ Direct MT5 connection failed:", error);
+    
+    // Provide helpful error messages based on error type
+    if (error.message.includes("fetch failed") || error.message.includes("ECONNREFUSED")) {
+      console.log("💡 MT5 Connection Help:");
+      console.log("1. Make sure your VPS/computer is running");
+      console.log("2. Ensure MT5 Python server is started: python mt5-python-server.py");
+      console.log("3. Check that the correct port is open");
+      console.log("4. Verify MT5ServerHost and MT5ServerPort in Infrastructure settings");
+      console.log("5. If using VPS, MT5ServerHost should be your VPS IP, not 'localhost'");
+      
+      return { 
+        success: false, 
+        error: "Cannot connect to MT5 server - check VPS and Python server status" 
+      };
+    } else if (error.message.includes("timeout") || error.message.includes("aborted")) {
+      console.log("💡 Connection timeout - check your network connection");
+      return { 
+        success: false, 
+        error: "MT5 server connection timeout" 
+      };
+    }
+    
+    return { 
+      success: false, 
+      error: `Connection failed: ${error.message}` 
+    };
   }
 }
 
@@ -169,7 +236,7 @@ async function findCorrectSymbolForExecution(baseUrl: string, symbol: string): P
   // Get possible symbol variations for this broker
   const symbolVariations = getSymbolVariations(symbol);
   
-  console.log(`Finding correct symbol format for execution: ${symbol}. Testing variations: ${symbolVariations.join(', ')}`);
+  console.log(`🔍 Finding correct symbol format for execution: ${symbol}. Testing variations: ${symbolVariations.slice(0, 5).join(', ')}...`);
   
   // Try each variation until we find one that works for trading
   for (const variation of symbolVariations) {
@@ -178,7 +245,7 @@ async function findCorrectSymbolForExecution(baseUrl: string, symbol: string): P
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ symbol: variation }),
-      }, 5000);
+      }, 3000);
 
       if (response.ok) {
         const result = await response.json();
@@ -186,27 +253,18 @@ async function findCorrectSymbolForExecution(baseUrl: string, symbol: string): P
           // Check if trading is allowed for this symbol
           const symbolInfo = result.symbol_info;
           
-          // Enhanced trading validation - check multiple conditions
+          // Trade mode values: 0=disabled, 1=long only, 2=short only, 3=close only, 4=full trading
           const tradeMode = symbolInfo.trade_mode;
           const visible = symbolInfo.visible;
-          const select = symbolInfo.select;
           
-          // Trade mode values: 0=disabled, 1=long only, 2=short only, 3=close only, 4=full trading
           const isTradingAllowed = tradeMode !== undefined && tradeMode >= 1;
-          const isSymbolActive = visible !== false && select !== false;
+          const isSymbolActive = visible !== false;
           
           if (isTradingAllowed && isSymbolActive) {
             console.log(`✅ Found tradeable symbol format: ${symbol} → ${variation} (trade_mode: ${tradeMode})`);
             return variation;
           } else {
-            console.log(`Symbol ${variation} found but trading restricted (trade_mode: ${tradeMode}, visible: ${visible}, select: ${select})`);
-            
-            // If this is a demo account or the symbol exists but has restrictions,
-            // we might still want to try it for execution
-            if (symbolInfo.name && symbolInfo.name.includes(symbol.substring(0, 3))) {
-              console.log(`Attempting to use ${variation} despite trading restrictions (demo account)`);
-              return variation;
-            }
+            console.log(`⚠️ Symbol ${variation} found but trading restricted (trade_mode: ${tradeMode}, visible: ${visible})`);
           }
         }
       }
@@ -225,7 +283,7 @@ function getSymbolVariations(symbol: string): string[] {
   const variations = [symbol]; // Start with the original symbol
   
   // Common suffixes used by different brokers
-  const suffixes = ['m', 'pm', 'pro', 'ecn', 'raw', 'c', 'i', '.', '_m', '_pro'];
+  const suffixes = ['m', 'pm', 'pro', 'ecn', 'raw', 'c', 'i', '.', '_m', '_pro', '.m', '.ecn', '.pro'];
   
   // Add variations with suffixes
   suffixes.forEach(suffix => {
@@ -269,60 +327,6 @@ function getBrokerSpecificMappings(symbol: string): string[] {
   return mappings[symbol] || [];
 }
 
-async function tryMT5RestAPI(order: MT5OrderRequest): Promise<MT5OrderResult> {
-  try {
-    const host = mt5ServerHost();
-    const port = mt5ServerPort();
-    
-    // Fix: Construct URL properly without duplicate port
-    const baseUrl = host.includes(':') ? `http://${host}` : `http://${host}:${port}`;
-    
-    // Connect to custom Expert Advisor that exposes REST API
-    const response = await fetchWithTimeout(`${baseUrl}/api/trade`, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        "X-API-Key": mt5Password(),
-      },
-      body: JSON.stringify({
-        symbol: order.symbol,
-        cmd: order.direction === "LONG" ? 0 : 1, // 0 = OP_BUY, 1 = OP_SELL
-        volume: order.lotSize,
-        price: order.entryPrice,
-        slippage: 3,
-        stoploss: order.stopLoss,
-        takeprofit: order.takeProfit,
-        magic: 234000,
-        comment: order.comment || "AI Trading Bot",
-        expiration: 0, // No expiration
-      }),
-    }, 10000);
-
-    if (!response.ok) {
-      console.error(`MT5 REST API error: ${response.status} ${response.statusText}`);
-      return { success: false, error: "MT5 REST API connection failed" };
-    }
-
-    const result = await response.json();
-    
-    if (result.success && result.ticket > 0) {
-      return {
-        success: true,
-        orderId: result.ticket,
-        executionPrice: result.open_price,
-      };
-    } else {
-      return {
-        success: false,
-        error: result.error || `MT5 Error: ${result.error_description}`,
-      };
-    }
-  } catch (error) {
-    console.error("MT5 REST API connection failed:", error);
-    return { success: false, error: "REST API connection failed" };
-  }
-}
-
 async function simulateMT5Execution(order: MT5OrderRequest): Promise<MT5OrderResult> {
   // Simulate network delay
   await new Promise(resolve => setTimeout(resolve, 1000 + Math.random() * 2000));
@@ -335,6 +339,7 @@ async function simulateMT5Execution(order: MT5OrderRequest): Promise<MT5OrderRes
     
     console.log(`[SIMULATION] Order executed: ${order.symbol} ${order.direction} ${order.lotSize} lots at ${executionPrice}`);
     console.log(`[SIMULATION] Comment: ${order.comment || "AI Trading Bot"}`);
+    console.log(`[SIMULATION] Take Profit: ${order.takeProfit}, Stop Loss: ${order.stopLoss}`);
     
     return {
       success: true,
@@ -353,9 +358,12 @@ async function simulateMT5Execution(order: MT5OrderRequest): Promise<MT5OrderRes
       "No connection",
     ];
     
+    const error = errors[Math.floor(Math.random() * errors.length)];
+    console.log(`[SIMULATION] Order failed: ${error}`);
+    
     return {
       success: false,
-      error: errors[Math.floor(Math.random() * errors.length)],
+      error,
     };
   }
 }
@@ -365,33 +373,39 @@ export async function getMT5AccountInfo(): Promise<MT5AccountInfo | null> {
     const host = mt5ServerHost();
     const port = mt5ServerPort();
     
-    // Fix: Construct URL properly without duplicate port
+    if (!host || !port) {
+      console.log("MT5 server not configured for account info");
+      return getSimulatedAccountInfo();
+    }
+    
     const baseUrl = host.includes(':') ? `http://${host}` : `http://${host}:${port}`;
     
-    // Try to get account info from MT5
-    const response = await fetchWithTimeout(`${baseUrl}/account`, {
+    const response = await fetchWithTimeout(`${baseUrl}/status`, {
       method: "GET",
-      headers: {
-        "Authorization": `Bearer ${mt5Password()}`,
-      },
-    }, 10000);
+    }, 5000);
 
     if (response.ok) {
       const data = await response.json();
-      return {
-        balance: data.balance || 10000,
-        equity: data.equity || 10000,
-        margin: data.margin || 500,
-        freeMargin: data.free_margin || 9500,
-        marginLevel: data.margin_level || 2000,
-        currency: data.currency || "USD",
-      };
+      if (data.connected) {
+        return {
+          balance: data.balance || 10000,
+          equity: data.equity || 10000,
+          margin: data.margin || 500,
+          freeMargin: data.free_margin || 9500,
+          marginLevel: data.margin_level || 2000,
+          currency: data.currency || "USD",
+        };
+      }
     }
   } catch (error) {
     console.error("Error getting MT5 account info:", error);
   }
 
-  // Return simulated account info for demo
+  // Return simulated account info
+  return getSimulatedAccountInfo();
+}
+
+function getSimulatedAccountInfo(): MT5AccountInfo {
   return {
     balance: 10000,
     equity: 10000,
@@ -407,20 +421,22 @@ export async function checkMT5Connection(): Promise<boolean> {
     const host = mt5ServerHost();
     const port = mt5ServerPort();
     
-    // Fix: Construct URL properly without duplicate port
+    if (!host || !port || host === "localhost" || host === "your_vps_ip") {
+      console.log("MT5 server configuration incomplete");
+      return false;
+    }
+    
     const baseUrl = host.includes(':') ? `http://${host}` : `http://${host}:${port}`;
     
-    // Check if MT5 terminal is connected and logged in
     const response = await fetchWithTimeout(`${baseUrl}/status`, {
       method: "GET",
-      headers: {
-        "Authorization": `Bearer ${mt5Password()}`,
-      },
     }, 5000);
 
     if (response.ok) {
       const data = await response.json();
-      return data.connected && data.trade_allowed;
+      const isConnected = data.connected && data.trade_allowed;
+      console.log(`MT5 connection status: ${isConnected ? 'Connected' : 'Disconnected'}`);
+      return isConnected;
     }
 
     return false;
@@ -435,14 +451,14 @@ export async function getMT5Positions(): Promise<MT5Position[]> {
     const host = mt5ServerHost();
     const port = mt5ServerPort();
     
-    // Fix: Construct URL properly without duplicate port
+    if (!host || !port) {
+      return [];
+    }
+    
     const baseUrl = host.includes(':') ? `http://${host}` : `http://${host}:${port}`;
     
     const response = await fetchWithTimeout(`${baseUrl}/positions`, {
       method: "GET",
-      headers: {
-        "Authorization": `Bearer ${mt5Password()}`,
-      },
     }, 10000);
 
     if (response.ok) {
@@ -461,14 +477,19 @@ export async function closeMT5Position(ticket: number): Promise<MT5OrderResult> 
     const host = mt5ServerHost();
     const port = mt5ServerPort();
     
-    // Fix: Construct URL properly without duplicate port
+    if (!host || !port) {
+      return {
+        success: false,
+        error: "MT5 server not configured",
+      };
+    }
+    
     const baseUrl = host.includes(':') ? `http://${host}` : `http://${host}:${port}`;
     
     const response = await fetchWithTimeout(`${baseUrl}/close`, {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
-        "Authorization": `Bearer ${mt5Password()}`,
       },
       body: JSON.stringify({
         ticket: ticket,
@@ -493,104 +514,6 @@ export async function closeMT5Position(ticket: number): Promise<MT5OrderResult> 
     success: false,
     error: "Failed to close position",
   };
-}
-
-export async function getMT5MarketInfo(symbol: string): Promise<any> {
-  try {
-    const host = mt5ServerHost();
-    const port = mt5ServerPort();
-    
-    // Fix: Construct URL properly without duplicate port
-    const baseUrl = host.includes(':') ? `http://${host}` : `http://${host}:${port}`;
-    
-    // Find the correct symbol format first
-    const correctSymbol = await findCorrectSymbolForExecution(baseUrl, symbol);
-    
-    if (!correctSymbol) {
-      console.error(`Symbol ${symbol} not found on this broker`);
-      return null;
-    }
-
-    const response = await fetchWithTimeout(`${baseUrl}/symbol_info`, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        "Authorization": `Bearer ${mt5Password()}`,
-      },
-      body: JSON.stringify({
-        symbol: correctSymbol,
-      }),
-    }, 10000);
-
-    if (response.ok) {
-      const data = await response.json();
-      return data.symbol_info;
-    }
-  } catch (error) {
-    console.error("Error getting MT5 market info:", error);
-  }
-
-  return null;
-}
-
-export async function getMT5Tick(symbol: string): Promise<any> {
-  try {
-    const host = mt5ServerHost();
-    const port = mt5ServerPort();
-    
-    // Fix: Construct URL properly without duplicate port
-    const baseUrl = host.includes(':') ? `http://${host}` : `http://${host}:${port}`;
-    
-    // Find the correct symbol format first
-    const correctSymbol = await findCorrectSymbolForExecution(baseUrl, symbol);
-    
-    if (!correctSymbol) {
-      console.error(`Symbol ${symbol} not found on this broker`);
-      return null;
-    }
-
-    const response = await fetchWithTimeout(`${baseUrl}/tick`, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        "Authorization": `Bearer ${mt5Password()}`,
-      },
-      body: JSON.stringify({
-        symbol: correctSymbol,
-      }),
-    }, 5000);
-
-    if (response.ok) {
-      const data = await response.json();
-      return data.tick;
-    }
-  } catch (error) {
-    console.error("Error getting MT5 tick:", error);
-  }
-
-  return null;
-}
-
-// Utility function to convert symbol format for MT5
-export function convertSymbolForMT5(symbol: string): string {
-  // This function is now deprecated in favor of dynamic symbol detection
-  // But we keep it for backward compatibility
-  const symbolMap: { [key: string]: string } = {
-    "EURUSD": "EURUSD",
-    "GBPUSD": "GBPUSD", 
-    "USDJPY": "USDJPY",
-    "AUDUSD": "AUDUSD",
-    "USDCAD": "USDCAD",
-    "USDCHF": "USDCHF",
-    "NZDUSD": "NZDUSD",
-    "XAUUSD": "XAUUSD", // Gold
-    "BTCUSD": "BTCUSD", // If broker supports crypto
-    "ETHUSD": "ETHUSD",
-    "CRUDE": "CRUDE",   // Oil
-    "BRENT": "BRENT",
-  };
-
-  return symbolMap[symbol] || symbol;
 }
 
 // Utility function to validate lot size for MT5
@@ -627,25 +550,19 @@ export async function calculateRequiredMargin(symbol: string, lotSize: number): 
     const host = mt5ServerHost();
     const port = mt5ServerPort();
     
-    // Fix: Construct URL properly without duplicate port
+    if (!host || !port) {
+      return estimateMargin(symbol, lotSize);
+    }
+    
     const baseUrl = host.includes(':') ? `http://${host}` : `http://${host}:${port}`;
     
-    // Find the correct symbol format first
-    const correctSymbol = await findCorrectSymbolForExecution(baseUrl, symbol);
-    
-    if (!correctSymbol) {
-      console.error(`Symbol ${symbol} not found on this broker`);
-      return 0;
-    }
-
     const response = await fetchWithTimeout(`${baseUrl}/calc_margin`, {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
-        "Authorization": `Bearer ${mt5Password()}`,
       },
       body: JSON.stringify({
-        symbol: correctSymbol,
+        symbol: symbol,
         volume: lotSize,
         action: "BUY", // Margin is same for BUY/SELL
       }),
@@ -653,13 +570,32 @@ export async function calculateRequiredMargin(symbol: string, lotSize: number): 
 
     if (response.ok) {
       const data = await response.json();
-      return data.margin || 0;
+      return data.margin || estimateMargin(symbol, lotSize);
     }
   } catch (error) {
     console.error("Error calculating margin:", error);
   }
 
-  // Fallback calculation (approximate)
-  const baseMargin = 1000; // Base margin per lot for major pairs
+  // Fallback calculation
+  return estimateMargin(symbol, lotSize);
+}
+
+function estimateMargin(symbol: string, lotSize: number): number {
+  // Approximate margin calculation based on symbol type
+  const marginEstimates = {
+    "EURUSD": 1000,
+    "GBPUSD": 1000,
+    "USDJPY": 1000,
+    "AUDUSD": 1000,
+    "USDCAD": 1000,
+    "USDCHF": 1000,
+    "XAUUSD": 1000,
+    "BTCUSD": 5000,
+    "ETHUSD": 2000,
+    "CRUDE": 500,
+    "BRENT": 500,
+  };
+  
+  const baseMargin = marginEstimates[symbol] || 1000;
   return baseMargin * lotSize;
 }
