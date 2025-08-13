@@ -94,12 +94,19 @@ async function fetchMT5Data(symbol: string, timeframe: string): Promise<MarketDa
       return null;
     }
 
-    // Fetch rates data
+    // Try to find the correct symbol format for this broker
+    const correctSymbol = await findCorrectSymbolFormat(host, port, symbol);
+    if (!correctSymbol) {
+      console.log(`Symbol ${symbol} not found in any format on this broker`);
+      return null;
+    }
+
+    // Fetch rates data with the correct symbol
     const response = await fetch(`http://${host}:${port}/rates`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
-        symbol: convertSymbolForMT5(symbol),
+        symbol: correctSymbol,
         timeframe: timeframe,
         count: 50 // Fetch last 50 bars for indicator calculation
       }),
@@ -125,7 +132,7 @@ async function fetchMT5Data(symbol: string, timeframe: string): Promise<MarketDa
     // Calculate indicators based on the fetched rates
     const indicators = calculateIndicatorsFromRates(result.rates);
 
-    console.log(`Successfully fetched MT5 data for ${symbol} ${timeframe} - Close: ${close}`);
+    console.log(`Successfully fetched MT5 data for ${symbol} (${correctSymbol}) ${timeframe} - Close: ${close}`);
 
     return {
       timestamp: time * 1000,
@@ -154,6 +161,88 @@ async function fetchMT5Data(symbol: string, timeframe: string): Promise<MarketDa
     
     return null;
   }
+}
+
+async function findCorrectSymbolFormat(host: string, port: string, symbol: string): Promise<string | null> {
+  // Get possible symbol variations for this broker
+  const symbolVariations = getSymbolVariations(symbol);
+  
+  console.log(`Trying to find correct symbol format for ${symbol}. Testing variations: ${symbolVariations.join(', ')}`);
+  
+  // Try each variation until we find one that works
+  for (const variation of symbolVariations) {
+    try {
+      const response = await fetch(`http://${host}:${port}/symbol_info`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ symbol: variation }),
+        timeout: 5000,
+      });
+
+      if (response.ok) {
+        const result = await response.json();
+        if (result.symbol_info && !result.error) {
+          console.log(`✅ Found correct symbol format: ${symbol} → ${variation}`);
+          return variation;
+        }
+      }
+    } catch (error) {
+      // Continue to next variation
+      continue;
+    }
+  }
+  
+  console.log(`❌ No valid symbol format found for ${symbol} on this broker`);
+  return null;
+}
+
+function getSymbolVariations(symbol: string): string[] {
+  // Common symbol variations used by different brokers
+  const variations = [symbol]; // Start with the original symbol
+  
+  // Common suffixes used by different brokers
+  const suffixes = ['m', 'pm', 'pro', 'ecn', 'raw', 'c', 'i', '.', '_m', '_pro'];
+  
+  // Add variations with suffixes
+  suffixes.forEach(suffix => {
+    variations.push(symbol + suffix);
+  });
+  
+  // Add variations with prefixes (less common but some brokers use them)
+  const prefixes = ['m', 'pro', 'ecn'];
+  prefixes.forEach(prefix => {
+    variations.push(prefix + symbol);
+  });
+  
+  // Specific broker mappings for known cases
+  const brokerSpecificMappings = getBrokerSpecificMappings(symbol);
+  variations.push(...brokerSpecificMappings);
+  
+  // Remove duplicates and return
+  return [...new Set(variations)];
+}
+
+function getBrokerSpecificMappings(symbol: string): string[] {
+  // Known broker-specific symbol mappings
+  const mappings: { [key: string]: string[] } = {
+    "EURUSD": ["EURUSDpm", "EURUSD.m", "EURUSD_m", "EURUSDpro", "EURUSDc", "EURUSDi", "EURUSD.pro", "EURUSD.ecn"],
+    "GBPUSD": ["GBPUSDpm", "GBPUSD.m", "GBPUSD_m", "GBPUSDpro", "GBPUSDc", "GBPUSDi", "GBPUSD.pro", "GBPUSD.ecn"],
+    "USDJPY": ["USDJPYpm", "USDJPY.m", "USDJPY_m", "USDJPYpro", "USDJPYc", "USDJPYi", "USDJPY.pro", "USDJPY.ecn"],
+    "AUDUSD": ["AUDUSDpm", "AUDUSD.m", "AUDUSD_m", "AUDUSDpro", "AUDUSDc", "AUDUSDi", "AUDUSD.pro", "AUDUSD.ecn"],
+    "USDCAD": ["USDCADpm", "USDCAD.m", "USDCAD_m", "USDCADpro", "USDCADc", "USDCADi", "USDCAD.pro", "USDCAD.ecn"],
+    "USDCHF": ["USDCHFpm", "USDCHF.m", "USDCHF_m", "USDCHFpro", "USDCHFc", "USDCHFi", "USDCHF.pro", "USDCHF.ecn"],
+    "NZDUSD": ["NZDUSDpm", "NZDUSD.m", "NZDUSD_m", "NZDUSDpro", "NZDUSDc", "NZDUSDi", "NZDUSD.pro", "NZDUSD.ecn"],
+    "EURGBP": ["EURGBPpm", "EURGBP.m", "EURGBP_m", "EURGBPpro", "EURGBPc", "EURGBPi", "EURGBP.pro", "EURGBP.ecn"],
+    "EURJPY": ["EURJPYpm", "EURJPY.m", "EURJPY_m", "EURJPYpro", "EURJPYc", "EURJPYi", "EURJPY.pro", "EURJPY.ecn"],
+    "GBPJPY": ["GBPJPYpm", "GBPJPY.m", "GBPJPY_m", "GBPJPYpro", "GBPJPYc", "GBPJPYi", "GBPJPY.pro", "GBPJPY.ecn"],
+    "XAUUSD": ["XAUUSDpm", "XAUUSD.m", "XAUUSD_m", "XAUUSDpro", "XAUUSDc", "XAUUSDi", "GOLD", "GOLDpm", "GOLD.m", "XAUUSD.pro", "XAUUSD.ecn"],
+    "BTCUSD": ["BTCUSDpm", "BTCUSD.m", "BTCUSD_m", "BTCUSDpro", "BTCUSDc", "BTCUSDi", "BITCOIN", "BTC", "BTCUSD.pro", "BTCUSD.ecn"],
+    "ETHUSD": ["ETHUSDpm", "ETHUSD.m", "ETHUSD_m", "ETHUSDpro", "ETHUSDc", "ETHUSDi", "ETHEREUM", "ETH", "ETHUSD.pro", "ETHUSD.ecn"],
+    "CRUDE": ["CRUDEpm", "CRUDE.m", "CRUDE_m", "CRUDEpro", "CRUDEc", "CRUDEi", "WTI", "WTIpm", "WTI.m", "USOIL", "USOILpm", "CRUDE.pro", "CRUDE.ecn"],
+    "BRENT": ["BRENTpm", "BRENT.m", "BRENT_m", "BRENTpro", "BRENTc", "BRENTi", "UKOIL", "UKOILpm", "UKOIL.m", "BRENT.pro", "BRENT.ecn"],
+  };
+  
+  return mappings[symbol] || [];
 }
 
 function calculateIndicatorsFromRates(rates: any[]): { rsi: number; macd: number; atr: number } {
@@ -208,7 +297,8 @@ function calculateEMA(data: number[], period: number): number[] {
 }
 
 function convertSymbolForMT5(symbol: string): string {
-  // Most MT5 brokers use these symbol formats
+  // This function is now deprecated in favor of dynamic symbol detection
+  // But we keep it for backward compatibility
   const symbolMap: { [key: string]: string } = {
     "EURUSD": "EURUSD",
     "GBPUSD": "GBPUSD", 

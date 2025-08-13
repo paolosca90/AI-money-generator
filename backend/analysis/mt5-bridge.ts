@@ -72,8 +72,23 @@ export async function executeMT5Order(order: MT5OrderRequest): Promise<MT5OrderR
 
 async function tryDirectMT5Connection(order: MT5OrderRequest): Promise<MT5OrderResult> {
   try {
+    const host = mt5ServerHost();
+    const port = mt5ServerPort();
+
+    // Check if MT5 server configuration is available
+    if (!host || !port || host === "your_vps_ip" || host === "localhost") {
+      console.log("MT5 server not configured for execution");
+      return { success: false, error: "MT5 server not configured" };
+    }
+
+    // Find the correct symbol format for this broker
+    const correctSymbol = await findCorrectSymbolForExecution(host, port, order.symbol);
+    if (!correctSymbol) {
+      return { success: false, error: `Symbol ${order.symbol} not found on this broker` };
+    }
+
     // Connect to Python service running MetaTrader5 library
-    const response = await fetch(`http://${mt5ServerHost()}:${mt5ServerPort()}/execute`, {
+    const response = await fetch(`http://${host}:${port}/execute`, {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
@@ -83,7 +98,7 @@ async function tryDirectMT5Connection(order: MT5OrderRequest): Promise<MT5OrderR
         login: mt5Login(),
         server: mt5Server(),
         password: mt5Password(),
-        symbol: order.symbol,
+        symbol: correctSymbol, // Use the correct symbol format
         action: order.direction === "LONG" ? "BUY" : "SELL",
         volume: order.lotSize,
         price: order.entryPrice,
@@ -105,6 +120,7 @@ async function tryDirectMT5Connection(order: MT5OrderRequest): Promise<MT5OrderR
     const result = await response.json();
     
     if (result.success && result.retcode === 10009) { // TRADE_RETCODE_DONE
+      console.log(`✅ Order executed successfully: ${order.symbol} (${correctSymbol}) ${order.direction} ${order.lotSize} lots`);
       return {
         success: true,
         orderId: result.order,
@@ -120,6 +136,92 @@ async function tryDirectMT5Connection(order: MT5OrderRequest): Promise<MT5OrderR
     console.error("Direct MT5 connection failed:", error);
     return { success: false, error: "Direct connection failed" };
   }
+}
+
+async function findCorrectSymbolForExecution(host: string, port: string, symbol: string): Promise<string | null> {
+  // Get possible symbol variations for this broker
+  const symbolVariations = getSymbolVariations(symbol);
+  
+  console.log(`Finding correct symbol format for execution: ${symbol}. Testing variations: ${symbolVariations.join(', ')}`);
+  
+  // Try each variation until we find one that works
+  for (const variation of symbolVariations) {
+    try {
+      const response = await fetch(`http://${host}:${port}/symbol_info`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ symbol: variation }),
+        timeout: 5000,
+      });
+
+      if (response.ok) {
+        const result = await response.json();
+        if (result.symbol_info && !result.error) {
+          // Check if trading is allowed for this symbol
+          const symbolInfo = result.symbol_info;
+          if (symbolInfo.trade_mode !== undefined && symbolInfo.trade_mode > 0) {
+            console.log(`✅ Found tradeable symbol format: ${symbol} → ${variation}`);
+            return variation;
+          }
+        }
+      }
+    } catch (error) {
+      // Continue to next variation
+      continue;
+    }
+  }
+  
+  console.log(`❌ No tradeable symbol format found for ${symbol} on this broker`);
+  return null;
+}
+
+function getSymbolVariations(symbol: string): string[] {
+  // Common symbol variations used by different brokers
+  const variations = [symbol]; // Start with the original symbol
+  
+  // Common suffixes used by different brokers
+  const suffixes = ['m', 'pm', 'pro', 'ecn', 'raw', 'c', 'i', '.', '_m', '_pro'];
+  
+  // Add variations with suffixes
+  suffixes.forEach(suffix => {
+    variations.push(symbol + suffix);
+  });
+  
+  // Add variations with prefixes (less common but some brokers use them)
+  const prefixes = ['m', 'pro', 'ecn'];
+  prefixes.forEach(prefix => {
+    variations.push(prefix + symbol);
+  });
+  
+  // Specific broker mappings for known cases
+  const brokerSpecificMappings = getBrokerSpecificMappings(symbol);
+  variations.push(...brokerSpecificMappings);
+  
+  // Remove duplicates and return
+  return [...new Set(variations)];
+}
+
+function getBrokerSpecificMappings(symbol: string): string[] {
+  // Known broker-specific symbol mappings
+  const mappings: { [key: string]: string[] } = {
+    "EURUSD": ["EURUSDpm", "EURUSD.m", "EURUSD_m", "EURUSDpro", "EURUSDc", "EURUSDi", "EURUSD.pro", "EURUSD.ecn"],
+    "GBPUSD": ["GBPUSDpm", "GBPUSD.m", "GBPUSD_m", "GBPUSDpro", "GBPUSDc", "GBPUSDi", "GBPUSD.pro", "GBPUSD.ecn"],
+    "USDJPY": ["USDJPYpm", "USDJPY.m", "USDJPY_m", "USDJPYpro", "USDJPYc", "USDJPYi", "USDJPY.pro", "USDJPY.ecn"],
+    "AUDUSD": ["AUDUSDpm", "AUDUSD.m", "AUDUSD_m", "AUDUSDpro", "AUDUSDc", "AUDUSDi", "AUDUSD.pro", "AUDUSD.ecn"],
+    "USDCAD": ["USDCADpm", "USDCAD.m", "USDCAD_m", "USDCADpro", "USDCADc", "USDCADi", "USDCAD.pro", "USDCAD.ecn"],
+    "USDCHF": ["USDCHFpm", "USDCHF.m", "USDCHF_m", "USDCHFpro", "USDCHFc", "USDCHFi", "USDCHF.pro", "USDCHF.ecn"],
+    "NZDUSD": ["NZDUSDpm", "NZDUSD.m", "NZDUSD_m", "NZDUSDpro", "NZDUSDc", "NZDUSDi", "NZDUSD.pro", "NZDUSD.ecn"],
+    "EURGBP": ["EURGBPpm", "EURGBP.m", "EURGBP_m", "EURGBPpro", "EURGBPc", "EURGBPi", "EURGBP.pro", "EURGBP.ecn"],
+    "EURJPY": ["EURJPYpm", "EURJPY.m", "EURJPY_m", "EURJPYpro", "EURJPYc", "EURJPYi", "EURJPY.pro", "EURJPY.ecn"],
+    "GBPJPY": ["GBPJPYpm", "GBPJPY.m", "GBPJPY_m", "GBPJPYpro", "GBPJPYc", "GBPJPYi", "GBPJPY.pro", "GBPJPY.ecn"],
+    "XAUUSD": ["XAUUSDpm", "XAUUSD.m", "XAUUSD_m", "XAUUSDpro", "XAUUSDc", "XAUUSDi", "GOLD", "GOLDpm", "GOLD.m", "XAUUSD.pro", "XAUUSD.ecn"],
+    "BTCUSD": ["BTCUSDpm", "BTCUSD.m", "BTCUSD_m", "BTCUSDpro", "BTCUSDc", "BTCUSDi", "BITCOIN", "BTC", "BTCUSD.pro", "BTCUSD.ecn"],
+    "ETHUSD": ["ETHUSDpm", "ETHUSD.m", "ETHUSD_m", "ETHUSDpro", "ETHUSDc", "ETHUSDi", "ETHEREUM", "ETH", "ETHUSD.pro", "ETHUSD.ecn"],
+    "CRUDE": ["CRUDEpm", "CRUDE.m", "CRUDE_m", "CRUDEpro", "CRUDEc", "CRUDEi", "WTI", "WTIpm", "WTI.m", "USOIL", "USOILpm", "CRUDE.pro", "CRUDE.ecn"],
+    "BRENT": ["BRENTpm", "BRENT.m", "BRENT_m", "BRENTpro", "BRENTc", "BRENTi", "UKOIL", "UKOILpm", "UKOIL.m", "BRENT.pro", "BRENT.ecn"],
+  };
+  
+  return mappings[symbol] || [];
 }
 
 async function tryMT5RestAPI(order: MT5OrderRequest): Promise<MT5OrderResult> {
@@ -320,14 +422,24 @@ export async function closeMT5Position(ticket: number): Promise<MT5OrderResult> 
 
 export async function getMT5MarketInfo(symbol: string): Promise<any> {
   try {
-    const response = await fetch(`http://${mt5ServerHost()}:${mt5ServerPort()}/symbol_info`, {
+    // Find the correct symbol format first
+    const host = mt5ServerHost();
+    const port = mt5ServerPort();
+    const correctSymbol = await findCorrectSymbolForExecution(host, port, symbol);
+    
+    if (!correctSymbol) {
+      console.error(`Symbol ${symbol} not found on this broker`);
+      return null;
+    }
+
+    const response = await fetch(`http://${host}:${port}/symbol_info`, {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
         "Authorization": `Bearer ${mt5Password()}`,
       },
       body: JSON.stringify({
-        symbol: symbol,
+        symbol: correctSymbol,
       }),
     });
 
@@ -344,14 +456,24 @@ export async function getMT5MarketInfo(symbol: string): Promise<any> {
 
 export async function getMT5Tick(symbol: string): Promise<any> {
   try {
-    const response = await fetch(`http://${mt5ServerHost()}:${mt5ServerPort()}/tick`, {
+    // Find the correct symbol format first
+    const host = mt5ServerHost();
+    const port = mt5ServerPort();
+    const correctSymbol = await findCorrectSymbolForExecution(host, port, symbol);
+    
+    if (!correctSymbol) {
+      console.error(`Symbol ${symbol} not found on this broker`);
+      return null;
+    }
+
+    const response = await fetch(`http://${host}:${port}/tick`, {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
         "Authorization": `Bearer ${mt5Password()}`,
       },
       body: JSON.stringify({
-        symbol: symbol,
+        symbol: correctSymbol,
       }),
     });
 
@@ -368,7 +490,8 @@ export async function getMT5Tick(symbol: string): Promise<any> {
 
 // Utility function to convert symbol format for MT5
 export function convertSymbolForMT5(symbol: string): string {
-  // Most MT5 brokers use these symbol formats
+  // This function is now deprecated in favor of dynamic symbol detection
+  // But we keep it for backward compatibility
   const symbolMap: { [key: string]: string } = {
     "EURUSD": "EURUSD",
     "GBPUSD": "GBPUSD", 
@@ -418,14 +541,24 @@ export function validateLotSize(lotSize: number, symbol: string): { valid: boole
 // Function to calculate required margin
 export async function calculateRequiredMargin(symbol: string, lotSize: number): Promise<number> {
   try {
-    const response = await fetch(`http://${mt5ServerHost()}:${mt5ServerPort()}/calc_margin`, {
+    // Find the correct symbol format first
+    const host = mt5ServerHost();
+    const port = mt5ServerPort();
+    const correctSymbol = await findCorrectSymbolForExecution(host, port, symbol);
+    
+    if (!correctSymbol) {
+      console.error(`Symbol ${symbol} not found on this broker`);
+      return 0;
+    }
+
+    const response = await fetch(`http://${host}:${port}/calc_margin`, {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
         "Authorization": `Bearer ${mt5Password()}`,
       },
       body: JSON.stringify({
-        symbol: symbol,
+        symbol: correctSymbol,
         volume: lotSize,
         action: "BUY", // Margin is same for BUY/SELL
       }),
