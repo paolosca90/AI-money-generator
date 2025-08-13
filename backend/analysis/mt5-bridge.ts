@@ -125,24 +125,18 @@ async function tryDirectMT5Connection(order: MT5OrderRequest): Promise<MT5OrderR
 
     console.log(`✅ MT5 server connected. Account: ${statusData.login}, Balance: ${statusData.balance}`);
 
-    // Find the correct symbol format for this broker
-    const correctSymbol = await findCorrectSymbolForExecution(baseUrl, order.symbol);
-    if (!correctSymbol) {
-      console.log(`❌ Symbol ${order.symbol} not found on this broker`);
-      
-      // Provide helpful suggestions for common symbols
-      const suggestions = getSymbolSuggestions(order.symbol);
-      const errorMessage = suggestions.length > 0 
-        ? `Symbol ${order.symbol} not available for trading on this broker. Try: ${suggestions.join(', ')}`
-        : `Symbol ${order.symbol} not available for trading on this broker`;
-      
+    // Find the correct symbol format for this broker with enhanced validation
+    const symbolResult = await findTradableSymbolForExecution(baseUrl, order.symbol);
+    if (!symbolResult.success) {
+      console.log(`❌ ${symbolResult.error}`);
       return { 
         success: false, 
-        error: errorMessage
+        error: symbolResult.error
       };
     }
 
-    console.log(`📊 Using symbol format: ${order.symbol} → ${correctSymbol}`);
+    const correctSymbol = symbolResult.symbol;
+    console.log(`📊 Using tradable symbol format: ${order.symbol} → ${correctSymbol}`);
 
     // Execute the order
     const response = await fetchWithTimeout(`${baseUrl}/execute`, {
@@ -191,7 +185,7 @@ async function tryDirectMT5Connection(order: MT5OrderRequest): Promise<MT5OrderR
     console.error("❌ Direct MT5 connection failed:", error);
     
     // Provide helpful error messages based on error type
-    if (error.message.includes("fetch failed") || error.message.includes("ECONNREFUSED")) {
+    if (error.message && error.message.includes("fetch failed") || error.message && error.message.includes("ECONNREFUSED")) {
       console.log("💡 MT5 Connection Help:");
       console.log("1. Make sure your VPS/computer is running");
       console.log("2. Ensure MT5 Python server is started: python mt5-python-server.py");
@@ -203,7 +197,7 @@ async function tryDirectMT5Connection(order: MT5OrderRequest): Promise<MT5OrderR
         success: false, 
         error: "Cannot connect to MT5 server - check VPS and Python server status" 
       };
-    } else if (error.message.includes("timeout") || error.message.includes("aborted")) {
+    } else if (error.message && (error.message.includes("timeout") || error.message.includes("aborted"))) {
       console.log("💡 Connection timeout - check your network connection");
       return { 
         success: false, 
@@ -213,7 +207,7 @@ async function tryDirectMT5Connection(order: MT5OrderRequest): Promise<MT5OrderR
     
     return { 
       success: false, 
-      error: `Connection failed: ${error.message}` 
+      error: `Connection failed: ${error.message || 'Unknown error'}` 
     };
   }
 }
@@ -239,192 +233,365 @@ async function fetchWithTimeout(url: string, options: RequestInit, timeoutMs: nu
   }
 }
 
-async function findCorrectSymbolForExecution(baseUrl: string, symbol: string): Promise<string | null> {
-  // Get possible symbol variations for this broker
-  const symbolVariations = getSymbolVariations(symbol);
-  
-  console.log(`🔍 Finding correct symbol format for execution: ${symbol}. Testing variations: ${symbolVariations.slice(0, 5).join(', ')}...`);
-  
-  // Try each variation until we find one that works for trading
-  for (const variation of symbolVariations) {
-    try {
-      const response = await fetchWithTimeout(`${baseUrl}/symbol_info`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ symbol: variation }),
-      }, 3000);
+interface SymbolValidationResult {
+  success: boolean;
+  symbol?: string;
+  error?: string;
+}
 
-      if (response.ok) {
-        const result = await response.json();
-        if (result.symbol_info && !result.error) {
-          // Check if trading is allowed for this symbol
-          const symbolInfo = result.symbol_info;
+async function findTradableSymbolForExecution(baseUrl: string, symbol: string): Promise<SymbolValidationResult> {
+  try {
+    // Get possible symbol variations for this broker
+    const symbolVariations = getSymbolVariations(symbol);
+    
+    console.log(`🔍 Finding tradable symbol format for execution: ${symbol}. Testing variations: ${symbolVariations.slice(0, 5).join(', ')}...`);
+    
+    const foundSymbols: Array<{symbol: string, tradable: boolean, reason?: string}> = [];
+    
+    // Try each variation until we find one that works for trading
+    for (const variation of symbolVariations) {
+      try {
+        const response = await fetchWithTimeout(`${baseUrl}/symbol_info`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ symbol: variation }),
+        }, 3000);
+
+        if (response.ok) {
+          const result = await response.json();
+          if (result && result.symbol_info && !result.error) {
+            const symbolInfo = result.symbol_info;
+            
+            // Enhanced trading validation with safe property access
+            const validation = validateSymbolForTrading(symbolInfo, variation);
+            foundSymbols.push({
+              symbol: variation,
+              tradable: validation.tradable,
+              reason: validation.reason
+            });
+            
+            if (validation.tradable) {
+              console.log(`✅ Found tradable symbol: ${symbol} → ${variation} (${validation.reason})`);
+              return { success: true, symbol: variation };
+            } else {
+              console.log(`⚠️ Symbol ${variation} found but not tradable: ${validation.reason}`);
+            }
+          }
+        }
+      } catch (error) {
+        // Continue to next variation on any error
+        console.log(`⚠️ Error checking symbol ${variation}: ${error.message || 'Unknown error'}`);
+        continue;
+      }
+    }
+    
+    // If we found symbols but none are tradable, provide detailed feedback
+    if (foundSymbols.length > 0) {
+      const symbolList = foundSymbols.map(s => `${s.symbol} (${s.reason || 'unknown'})`).join(', ');
+      const errorMessage = `Symbol ${symbol} found in formats [${symbolList}] but none are available for trading. This broker may not offer ${symbol} for trading, or your account type may have restrictions.`;
+      
+      // Provide broker-specific suggestions
+      const suggestions = getBrokerSpecificSuggestions(symbol);
+      const fullError = suggestions.length > 0 
+        ? `${errorMessage} Try these alternatives: ${suggestions.join(', ')}`
+        : errorMessage;
+      
+      return { success: false, error: fullError };
+    }
+    
+    // No symbols found at all
+    console.log(`❌ No symbol variations found for ${symbol} on this broker`);
+    
+    // Try to get all available symbols to provide better suggestions
+    try {
+      const symbolsResponse = await fetchWithTimeout(`${baseUrl}/symbols`, {
+        method: "GET",
+      }, 5000);
+      
+      if (symbolsResponse.ok) {
+        const symbolsData = await symbolsResponse.json();
+        if (symbolsData && symbolsData.symbols && Array.isArray(symbolsData.symbols) && symbolsData.symbols.length > 0) {
+          const availableSymbols = symbolsData.symbols
+            .filter(s => s && s.visible && s.name && s.name.includes(symbol.substring(0, 3)))
+            .map(s => s.name)
+            .slice(0, 5);
           
-          // Trade mode values: 0=disabled, 1=long only, 2=short only, 3=close only, 4=full trading
-          const tradeMode = symbolInfo.trade_mode;
-          const visible = symbolInfo.visible;
-          
-          // More robust checking for trading availability
-          const isTradingAllowed = tradeMode !== undefined && tradeMode !== null && tradeMode >= 1;
-          const isSymbolActive = visible !== false;
-          
-          console.log(`🔍 Symbol ${variation}: trade_mode=${tradeMode}, visible=${visible}, trading_allowed=${isTradingAllowed}`);
-          
-          if (isTradingAllowed && isSymbolActive) {
-            console.log(`✅ Found tradeable symbol format: ${symbol} → ${variation} (trade_mode: ${tradeMode})`);
-            return variation;
-          } else {
-            console.log(`⚠️ Symbol ${variation} found but trading restricted (trade_mode: ${tradeMode}, visible: ${visible})`);
+          if (availableSymbols.length > 0) {
+            console.log(`💡 Similar symbols available on this broker: ${availableSymbols.join(', ')}`);
+            return { 
+              success: false, 
+              error: `Symbol ${symbol} not found. Similar symbols available: ${availableSymbols.join(', ')}` 
+            };
           }
         }
       }
     } catch (error) {
-      // Continue to next variation
-      continue;
+      // Ignore error, just continue
+      console.log(`⚠️ Error fetching available symbols: ${error.message || 'Unknown error'}`);
     }
-  }
-  
-  console.log(`❌ No tradeable symbol format found for ${symbol} on this broker`);
-  
-  // Try to get all available symbols to provide better suggestions
-  try {
-    const symbolsResponse = await fetchWithTimeout(`${baseUrl}/symbols`, {
-      method: "GET",
-    }, 5000);
     
-    if (symbolsResponse.ok) {
-      const symbolsData = await symbolsResponse.json();
-      if (symbolsData.symbols && symbolsData.symbols.length > 0) {
-        const availableSymbols = symbolsData.symbols
-          .filter(s => s.visible && s.name.includes(symbol.substring(0, 3)))
-          .map(s => s.name)
-          .slice(0, 5);
-        
-        if (availableSymbols.length > 0) {
-          console.log(`💡 Similar symbols available on this broker: ${availableSymbols.join(', ')}`);
-        }
-      }
-    }
+    // Provide general suggestions based on symbol type
+    const generalSuggestions = getGeneralSymbolSuggestions(symbol);
+    return { 
+      success: false, 
+      error: `Symbol ${symbol} not available on this broker. Try these common alternatives: ${generalSuggestions.join(', ')}` 
+    };
   } catch (error) {
-    // Ignore error, just continue
+    console.error(`❌ Error in findTradableSymbolForExecution: ${error.message || 'Unknown error'}`);
+    return {
+      success: false,
+      error: `Failed to validate symbol ${symbol}: ${error.message || 'Unknown error'}`
+    };
   }
-  
-  return null;
+}
+
+interface SymbolTradingValidation {
+  tradable: boolean;
+  reason: string;
+}
+
+function validateSymbolForTrading(symbolInfo: any, symbolName: string): SymbolTradingValidation {
+  try {
+    // Check if symbol info has the required fields
+    if (!symbolInfo || typeof symbolInfo !== 'object') {
+      return { tradable: false, reason: "No symbol information available" };
+    }
+
+    // Check visibility with safe property access
+    const visible = symbolInfo.visible;
+    if (visible === false) {
+      return { tradable: false, reason: "Symbol not visible in Market Watch" };
+    }
+
+    // Check trade mode - this is the most important check
+    const tradeMode = symbolInfo.trade_mode;
+    
+    // Trade mode values:
+    // 0 = SYMBOL_TRADE_MODE_DISABLED (trading disabled)
+    // 1 = SYMBOL_TRADE_MODE_LONGONLY (only long positions allowed)
+    // 2 = SYMBOL_TRADE_MODE_SHORTONLY (only short positions allowed)  
+    // 3 = SYMBOL_TRADE_MODE_CLOSEONLY (only close positions allowed)
+    // 4 = SYMBOL_TRADE_MODE_FULL (full trading allowed)
+    
+    if (tradeMode === undefined || tradeMode === null) {
+      return { tradable: false, reason: "Trade mode information not available" };
+    }
+    
+    // Convert to number if it's a string
+    const tradeModeNum = typeof tradeMode === 'string' ? parseInt(tradeMode, 10) : tradeMode;
+    
+    if (isNaN(tradeModeNum)) {
+      return { tradable: false, reason: `Invalid trade mode: ${tradeMode}` };
+    }
+    
+    if (tradeModeNum === 0) {
+      return { tradable: false, reason: "Trading disabled for this symbol" };
+    }
+    
+    if (tradeModeNum === 3) {
+      return { tradable: false, reason: "Only position closing allowed" };
+    }
+    
+    if (tradeModeNum >= 1 && tradeModeNum <= 4) {
+      const modeDescriptions: { [key: number]: string } = {
+        1: "Long positions only",
+        2: "Short positions only", 
+        4: "Full trading allowed"
+      };
+      return { 
+        tradable: true, 
+        reason: modeDescriptions[tradeModeNum] || `Trade mode ${tradeModeNum}` 
+      };
+    }
+    
+    return { tradable: false, reason: `Unknown trade mode: ${tradeModeNum}` };
+  } catch (error) {
+    console.error(`Error validating symbol ${symbolName}:`, error);
+    return { tradable: false, reason: `Validation error: ${error.message || 'Unknown error'}` };
+  }
 }
 
 function getSymbolVariations(symbol: string): string[] {
-  // Common symbol variations used by different brokers
-  const variations = [symbol]; // Start with the original symbol
-  
-  // Common suffixes used by different brokers
-  const suffixes = ['m', 'pm', 'pro', 'ecn', 'raw', 'c', 'i', '.', '_m', '_pro', '.m', '.ecn', '.pro', 'micro'];
-  
-  // Add variations with suffixes
-  suffixes.forEach(suffix => {
-    variations.push(symbol + suffix);
-  });
-  
-  // Add variations with prefixes (less common but some brokers use them)
-  const prefixes = ['m', 'pro', 'ecn', 'mini'];
-  prefixes.forEach(prefix => {
-    variations.push(prefix + symbol);
-  });
-  
-  // Specific broker mappings for known cases
-  const brokerSpecificMappings = getBrokerSpecificMappings(symbol);
-  variations.push(...brokerSpecificMappings);
-  
-  // Remove duplicates and return
-  return [...new Set(variations)];
+  try {
+    if (!symbol || typeof symbol !== 'string') {
+      return [];
+    }
+
+    // Common symbol variations used by different brokers
+    const variations = [symbol]; // Start with the original symbol
+    
+    // Common suffixes used by different brokers
+    const suffixes = ['m', 'pm', 'pro', 'ecn', 'raw', 'c', 'i', '.', '_m', '_pro', '.m', '.ecn', '.pro', 'micro'];
+    
+    // Add variations with suffixes
+    suffixes.forEach(suffix => {
+      if (suffix) {
+        variations.push(symbol + suffix);
+      }
+    });
+    
+    // Add variations with prefixes (less common but some brokers use them)
+    const prefixes = ['m', 'pro', 'ecn', 'mini'];
+    prefixes.forEach(prefix => {
+      if (prefix) {
+        variations.push(prefix + symbol);
+      }
+    });
+    
+    // Specific broker mappings for known cases
+    const brokerSpecificMappings = getBrokerSpecificMappings(symbol);
+    if (Array.isArray(brokerSpecificMappings)) {
+      variations.push(...brokerSpecificMappings);
+    }
+    
+    // Remove duplicates and filter out empty strings
+    return [...new Set(variations)].filter(v => v && typeof v === 'string' && v.length > 0);
+  } catch (error) {
+    console.error(`Error generating symbol variations for ${symbol}:`, error);
+    return [symbol]; // Return at least the original symbol
+  }
 }
 
 function getBrokerSpecificMappings(symbol: string): string[] {
-  // Known broker-specific symbol mappings
-  const mappings: { [key: string]: string[] } = {
-    "EURUSD": ["EURUSDpm", "EURUSD.m", "EURUSD_m", "EURUSDpro", "EURUSDc", "EURUSDi", "EURUSD.pro", "EURUSD.ecn"],
-    "GBPUSD": ["GBPUSDpm", "GBPUSD.m", "GBPUSD_m", "GBPUSDpro", "GBPUSDc", "GBPUSDi", "GBPUSD.pro", "GBPUSD.ecn"],
-    "USDJPY": ["USDJPYpm", "USDJPY.m", "USDJPY_m", "USDJPYpro", "USDJPYc", "USDJPYi", "USDJPY.pro", "USDJPY.ecn"],
-    "AUDUSD": ["AUDUSDpm", "AUDUSD.m", "AUDUSD_m", "AUDUSDpro", "AUDUSDc", "AUDUSDi", "AUDUSD.pro", "AUDUSD.ecn"],
-    "USDCAD": ["USDCADpm", "USDCAD.m", "USDCAD_m", "USDCADpro", "USDCADc", "USDCADi", "USDCAD.pro", "USDCAD.ecn"],
-    "USDCHF": ["USDCHFpm", "USDCHF.m", "USDCHF_m", "USDCHFpro", "USDCHFc", "USDCHFi", "USDCHF.pro", "USDCHF.ecn"],
-    "NZDUSD": ["NZDUSDpm", "NZDUSD.m", "NZDUSD_m", "NZDUSDpro", "NZDUSDc", "NZDUSDi", "NZDUSD.pro", "NZDUSD.ecn"],
-    "EURGBP": ["EURGBPpm", "EURGBP.m", "EURGBP_m", "EURGBPpro", "EURGBPc", "EURGBPi", "EURGBP.pro", "EURGBP.ecn"],
-    "EURJPY": ["EURJPYpm", "EURJPY.m", "EURJPY_m", "EURJPYpro", "EURJPYc", "EURJPYi", "EURJPY.pro", "EURJPY.ecn"],
-    "GBPJPY": ["GBPJPYpm", "GBPJPY.m", "GBPJPY_m", "GBPJPYpro", "GBPJPYc", "GBPJPYi", "GBPJPY.pro", "GBPJPY.ecn"],
-    "XAUUSD": ["XAUUSDpm", "XAUUSD.m", "XAUUSD_m", "XAUUSDpro", "XAUUSDc", "XAUUSDi", "GOLD", "GOLDpm", "GOLD.m", "XAUUSD.pro", "XAUUSD.ecn"],
-    "BTCUSD": [
-      // Standard crypto variations
-      "BTCUSDpm", "BTCUSD.m", "BTCUSD_m", "BTCUSDpro", "BTCUSDc", "BTCUSDi", "BTCUSD.pro", "BTCUSD.ecn",
-      // Alternative names
-      "BITCOIN", "BTC", "BTCUSDT", "BTCEUR", "BTCGBP",
-      // Broker-specific variations
-      "BTC/USD", "BTC-USD", "Bitcoin", "BitcoinUSD", "BTC_USD",
-      // CFD variations
-      "BTCUSD_CFD", "BTC_CFD", "BITCOIN_CFD",
-      // Futures variations
-      "BTCUSDF", "BTCF", "BTCFUT"
-    ],
-    "ETHUSD": [
-      "ETHUSDpm", "ETHUSD.m", "ETHUSD_m", "ETHUSDpro", "ETHUSDc", "ETHUSDi", "ETHEREUM", "ETH", "ETHUSD.pro", "ETHUSD.ecn",
-      "ETHUSDT", "ETHEUR", "ETHGBP", "ETH/USD", "ETH-USD", "Ethereum", "EthereumUSD", "ETH_USD",
-      "ETHUSD_CFD", "ETH_CFD", "ETHEREUM_CFD", "ETHUSDF", "ETHF", "ETHFUT"
-    ],
-    "CRUDE": ["CRUDEpm", "CRUDE.m", "CRUDE_m", "CRUDEpro", "CRUDEc", "CRUDEi", "WTI", "WTIpm", "WTI.m", "USOIL", "USOILpm", "CRUDE.pro", "CRUDE.ecn"],
-    "BRENT": ["BRENTpm", "BRENT.m", "BRENT_m", "BRENTpro", "BRENTc", "BRENTi", "UKOIL", "UKOILpm", "UKOIL.m", "BRENT.pro", "BRENT.ecn"],
-  };
-  
-  return mappings[symbol] || [];
+  try {
+    if (!symbol || typeof symbol !== 'string') {
+      return [];
+    }
+
+    // Known broker-specific symbol mappings
+    const mappings: { [key: string]: string[] } = {
+      "EURUSD": ["EURUSDpm", "EURUSD.m", "EURUSD_m", "EURUSDpro", "EURUSDc", "EURUSDi", "EURUSD.pro", "EURUSD.ecn"],
+      "GBPUSD": ["GBPUSDpm", "GBPUSD.m", "GBPUSD_m", "GBPUSDpro", "GBPUSDc", "GBPUSDi", "GBPUSD.pro", "GBPUSD.ecn"],
+      "USDJPY": ["USDJPYpm", "USDJPY.m", "USDJPY_m", "USDJPYpro", "USDJPYc", "USDJPYi", "USDJPY.pro", "USDJPY.ecn"],
+      "AUDUSD": ["AUDUSDpm", "AUDUSD.m", "AUDUSD_m", "AUDUSDpro", "AUDUSDc", "AUDUSDi", "AUDUSD.pro", "AUDUSD.ecn"],
+      "USDCAD": ["USDCADpm", "USDCAD.m", "USDCAD_m", "USDCADpro", "USDCADc", "USDCADi", "USDCAD.pro", "USDCAD.ecn"],
+      "USDCHF": ["USDCHFpm", "USDCHF.m", "USDCHF_m", "USDCHFpro", "USDCHFc", "USDCHFi", "USDCHF.pro", "USDCHF.ecn"],
+      "NZDUSD": ["NZDUSDpm", "NZDUSD.m", "NZDUSD_m", "NZDUSDpro", "NZDUSDc", "NZDUSDi", "NZDUSD.pro", "NZDUSD.ecn"],
+      "EURGBP": ["EURGBPpm", "EURGBP.m", "EURGBP_m", "EURGBPpro", "EURGBPc", "EURGBPi", "EURGBP.pro", "EURGBP.ecn"],
+      "EURJPY": ["EURJPYpm", "EURJPY.m", "EURJPY_m", "EURJPYpro", "EURJPYc", "EURJPYi", "EURJPY.pro", "EURJPY.ecn"],
+      "GBPJPY": ["GBPJPYpm", "GBPJPY.m", "GBPJPY_m", "GBPJPYpro", "GBPJPYc", "GBPJPYi", "GBPJPY.pro", "GBPJPY.ecn"],
+      "XAUUSD": ["XAUUSDpm", "XAUUSD.m", "XAUUSD_m", "XAUUSDpro", "XAUUSDc", "XAUUSDi", "GOLD", "GOLDpm", "GOLD.m", "XAUUSD.pro", "XAUUSD.ecn"],
+      "BTCUSD": [
+        "BTCUSDpm", "BTCUSD.m", "BTCUSD_m", "BTCUSDpro", "BTCUSDc", "BTCUSDi", "BTCUSD.pro", "BTCUSD.ecn",
+        "BITCOIN", "BTC", "BTCUSDT", "BTCEUR", "BTCGBP",
+        "BTC/USD", "BTC-USD", "Bitcoin", "BitcoinUSD", "BTC_USD",
+        "BTCUSD_CFD", "BTC_CFD", "BITCOIN_CFD",
+        "BTCUSDF", "BTCF", "BTCFUT"
+      ],
+      "ETHUSD": [
+        "ETHUSDpm", "ETHUSD.m", "ETHUSD_m", "ETHUSDpro", "ETHUSDc", "ETHUSDi", "ETHEREUM", "ETH", "ETHUSD.pro", "ETHUSD.ecn",
+        "ETHUSDT", "ETHEUR", "ETHGBP", "ETH/USD", "ETH-USD", "Ethereum", "EthereumUSD", "ETH_USD",
+        "ETHUSD_CFD", "ETH_CFD", "ETHEREUM_CFD", "ETHUSDF", "ETHF", "ETHFUT"
+      ],
+      "CRUDE": ["CRUDEpm", "CRUDE.m", "CRUDE_m", "CRUDEpro", "CRUDEc", "CRUDEi", "WTI", "WTIpm", "WTI.m", "USOIL", "USOILpm", "CRUDE.pro", "CRUDE.ecn"],
+      "BRENT": ["BRENTpm", "BRENT.m", "BRENT_m", "BRENTpro", "BRENTc", "BRENTi", "UKOIL", "UKOILpm", "UKOIL.m", "BRENT.pro", "BRENT.ecn"],
+    };
+    
+    return mappings[symbol] || [];
+  } catch (error) {
+    console.error(`Error getting broker mappings for ${symbol}:`, error);
+    return [];
+  }
 }
 
-function getSymbolSuggestions(symbol: string): string[] {
-  // Provide helpful suggestions for common symbols that might not be available
-  const suggestions: { [key: string]: string[] } = {
-    "BTCUSD": ["EURUSD", "GBPUSD", "XAUUSD", "CRUDE"],
-    "ETHUSD": ["BTCUSD", "EURUSD", "GBPUSD", "XAUUSD"],
-    "LTCUSD": ["BTCUSD", "ETHUSD", "EURUSD"],
-    "ADAUSD": ["BTCUSD", "ETHUSD", "EURUSD"],
-  };
-  
-  return suggestions[symbol] || ["EURUSD", "GBPUSD", "USDJPY", "XAUUSD"];
+function getBrokerSpecificSuggestions(symbol: string): string[] {
+  try {
+    if (!symbol || typeof symbol !== 'string') {
+      return [];
+    }
+
+    // Provide alternative symbols that are commonly available when the requested symbol is not
+    const alternatives: { [key: string]: string[] } = {
+      "BTCUSD": ["EURUSD", "GBPUSD", "XAUUSD"], // If crypto not available, suggest forex/gold
+      "ETHUSD": ["BTCUSD", "EURUSD", "GBPUSD"],
+      "LTCUSD": ["BTCUSD", "ETHUSD", "EURUSD"],
+      "ADAUSD": ["BTCUSD", "ETHUSD", "EURUSD"],
+      "XRPUSD": ["BTCUSD", "ETHUSD", "EURUSD"],
+    };
+    
+    return alternatives[symbol] || [];
+  } catch (error) {
+    console.error(`Error getting broker suggestions for ${symbol}:`, error);
+    return [];
+  }
+}
+
+function getGeneralSymbolSuggestions(symbol: string): string[] {
+  try {
+    if (!symbol || typeof symbol !== 'string') {
+      return ["EURUSD", "GBPUSD", "USDJPY", "AUDUSD"];
+    }
+
+    // Provide general suggestions based on symbol type
+    if (symbol.includes("BTC") || symbol.includes("ETH") || symbol.includes("CRYPTO")) {
+      return ["EURUSD", "GBPUSD", "USDJPY", "XAUUSD"]; // Suggest forex/gold if crypto not available
+    }
+    
+    if (symbol.includes("USD") || symbol.includes("EUR") || symbol.includes("GBP")) {
+      return ["EURUSD", "GBPUSD", "USDJPY", "AUDUSD"]; // Suggest major forex pairs
+    }
+    
+    if (symbol.includes("XAU") || symbol.includes("GOLD")) {
+      return ["EURUSD", "GBPUSD", "USDJPY"]; // Suggest forex if gold not available
+    }
+    
+    if (symbol.includes("CRUDE") || symbol.includes("OIL") || symbol.includes("WTI")) {
+      return ["EURUSD", "GBPUSD", "XAUUSD"]; // Suggest forex/gold if oil not available
+    }
+    
+    // Default suggestions for unknown symbols
+    return ["EURUSD", "GBPUSD", "USDJPY", "AUDUSD"];
+  } catch (error) {
+    console.error(`Error getting general suggestions for ${symbol}:`, error);
+    return ["EURUSD", "GBPUSD", "USDJPY", "AUDUSD"];
+  }
 }
 
 async function simulateMT5Execution(order: MT5OrderRequest): Promise<MT5OrderResult> {
-  // Simulate network delay
-  await new Promise(resolve => setTimeout(resolve, 1000 + Math.random() * 2000));
-  
-  // Simulate 95% success rate
-  if (Math.random() < 0.95) {
-    const orderId = Math.floor(Math.random() * 1000000) + 100000;
-    const slippage = (Math.random() - 0.5) * 0.0001; // Small slippage
-    const executionPrice = order.entryPrice + slippage;
+  try {
+    // Simulate network delay
+    await new Promise(resolve => setTimeout(resolve, 1000 + Math.random() * 2000));
     
-    console.log(`[SIMULATION] Order executed: ${order.symbol} ${order.direction} ${order.lotSize} lots at ${executionPrice}`);
-    console.log(`[SIMULATION] Comment: ${order.comment || "AI Trading Bot"}`);
-    console.log(`[SIMULATION] Take Profit: ${order.takeProfit}, Stop Loss: ${order.stopLoss}`);
-    
-    return {
-      success: true,
-      orderId,
-      executionPrice: Math.round(executionPrice * 100000) / 100000,
-    };
-  } else {
-    const errors = [
-      "Insufficient margin",
-      "Market closed",
-      "Invalid symbol",
-      "Connection timeout",
-      "Price off quotes",
-      "Trade disabled",
-      "Invalid volume",
-      "No connection",
-    ];
-    
-    const error = errors[Math.floor(Math.random() * errors.length)];
-    console.log(`[SIMULATION] Order failed: ${error}`);
-    
+    // Simulate 95% success rate
+    if (Math.random() < 0.95) {
+      const orderId = Math.floor(Math.random() * 1000000) + 100000;
+      const slippage = (Math.random() - 0.5) * 0.0001; // Small slippage
+      const executionPrice = order.entryPrice + slippage;
+      
+      console.log(`[SIMULATION] Order executed: ${order.symbol} ${order.direction} ${order.lotSize} lots at ${executionPrice}`);
+      console.log(`[SIMULATION] Comment: ${order.comment || "AI Trading Bot"}`);
+      console.log(`[SIMULATION] Take Profit: ${order.takeProfit}, Stop Loss: ${order.stopLoss}`);
+      
+      return {
+        success: true,
+        orderId,
+        executionPrice: Math.round(executionPrice * 100000) / 100000,
+      };
+    } else {
+      const errors = [
+        "Insufficient margin",
+        "Market closed",
+        "Invalid symbol",
+        "Connection timeout",
+        "Price off quotes",
+        "Trade disabled",
+        "Invalid volume",
+        "No connection",
+      ];
+      
+      const error = errors[Math.floor(Math.random() * errors.length)];
+      console.log(`[SIMULATION] Order failed: ${error}`);
+      
+      return {
+        success: false,
+        error,
+      };
+    }
+  } catch (error) {
+    console.error("Error in simulation:", error);
     return {
       success: false,
-      error,
+      error: `Simulation failed: ${error.message || 'Unknown error'}`,
     };
   }
 }
@@ -447,7 +614,7 @@ export async function getMT5AccountInfo(): Promise<MT5AccountInfo | null> {
 
     if (response.ok) {
       const data = await response.json();
-      if (data.connected) {
+      if (data && data.connected) {
         return {
           balance: data.balance || 10000,
           equity: data.equity || 10000,
@@ -495,7 +662,7 @@ export async function checkMT5Connection(): Promise<boolean> {
 
     if (response.ok) {
       const data = await response.json();
-      const isConnected = data.connected && data.trade_allowed;
+      const isConnected = data && data.connected && data.trade_allowed;
       console.log(`MT5 connection status: ${isConnected ? 'Connected' : 'Disconnected'}`);
       return isConnected;
     }
@@ -524,7 +691,7 @@ export async function getMT5Positions(): Promise<MT5Position[]> {
 
     if (response.ok) {
       const data = await response.json();
-      return data.positions || [];
+      return (data && data.positions) ? data.positions : [];
     }
   } catch (error) {
     console.error("Error getting MT5 positions:", error);
@@ -561,10 +728,10 @@ export async function closeMT5Position(ticket: number): Promise<MT5OrderResult> 
     if (response.ok) {
       const result = await response.json();
       return {
-        success: result.success,
-        orderId: result.order,
-        executionPrice: result.price,
-        error: result.error,
+        success: result && result.success,
+        orderId: result && result.order,
+        executionPrice: result && result.price,
+        error: result && result.error,
       };
     }
   } catch (error) {
@@ -579,30 +746,35 @@ export async function closeMT5Position(ticket: number): Promise<MT5OrderResult> 
 
 // Utility function to validate lot size for MT5
 export function validateLotSize(lotSize: number, symbol: string): { valid: boolean; error?: string } {
-  if (lotSize <= 0) {
-    return { valid: false, error: "Lot size must be greater than 0" };
+  try {
+    if (typeof lotSize !== 'number' || isNaN(lotSize) || lotSize <= 0) {
+      return { valid: false, error: "Lot size must be a positive number" };
+    }
+
+    // Standard forex lot size validation
+    const minLot = 0.01;
+    const maxLot = 100;
+    const stepLot = 0.01;
+
+    if (lotSize < minLot) {
+      return { valid: false, error: `Minimum lot size is ${minLot}` };
+    }
+
+    if (lotSize > maxLot) {
+      return { valid: false, error: `Maximum lot size is ${maxLot}` };
+    }
+
+    // Check if lot size is a valid step
+    const remainder = (lotSize - minLot) % stepLot;
+    if (Math.abs(remainder) > 0.001) {
+      return { valid: false, error: `Lot size must be in steps of ${stepLot}` };
+    }
+
+    return { valid: true };
+  } catch (error) {
+    console.error("Error validating lot size:", error);
+    return { valid: false, error: "Invalid lot size format" };
   }
-
-  // Standard forex lot size validation
-  const minLot = 0.01;
-  const maxLot = 100;
-  const stepLot = 0.01;
-
-  if (lotSize < minLot) {
-    return { valid: false, error: `Minimum lot size is ${minLot}` };
-  }
-
-  if (lotSize > maxLot) {
-    return { valid: false, error: `Maximum lot size is ${maxLot}` };
-  }
-
-  // Check if lot size is a valid step
-  const remainder = (lotSize - minLot) % stepLot;
-  if (Math.abs(remainder) > 0.001) {
-    return { valid: false, error: `Lot size must be in steps of ${stepLot}` };
-  }
-
-  return { valid: true };
 }
 
 // Function to calculate required margin
@@ -631,7 +803,7 @@ export async function calculateRequiredMargin(symbol: string, lotSize: number): 
 
     if (response.ok) {
       const data = await response.json();
-      return data.margin || estimateMargin(symbol, lotSize);
+      return (data && typeof data.margin === 'number') ? data.margin : estimateMargin(symbol, lotSize);
     }
   } catch (error) {
     console.error("Error calculating margin:", error);
@@ -642,21 +814,30 @@ export async function calculateRequiredMargin(symbol: string, lotSize: number): 
 }
 
 function estimateMargin(symbol: string, lotSize: number): number {
-  // Approximate margin calculation based on symbol type
-  const marginEstimates = {
-    "EURUSD": 1000,
-    "GBPUSD": 1000,
-    "USDJPY": 1000,
-    "AUDUSD": 1000,
-    "USDCAD": 1000,
-    "USDCHF": 1000,
-    "XAUUSD": 1000,
-    "BTCUSD": 5000,
-    "ETHUSD": 2000,
-    "CRUDE": 500,
-    "BRENT": 500,
-  };
-  
-  const baseMargin = marginEstimates[symbol] || 1000;
-  return baseMargin * lotSize;
+  try {
+    if (typeof lotSize !== 'number' || isNaN(lotSize) || lotSize <= 0) {
+      return 1000; // Default fallback
+    }
+
+    // Approximate margin calculation based on symbol type
+    const marginEstimates: { [key: string]: number } = {
+      "EURUSD": 1000,
+      "GBPUSD": 1000,
+      "USDJPY": 1000,
+      "AUDUSD": 1000,
+      "USDCAD": 1000,
+      "USDCHF": 1000,
+      "XAUUSD": 1000,
+      "BTCUSD": 5000,
+      "ETHUSD": 2000,
+      "CRUDE": 500,
+      "BRENT": 500,
+    };
+    
+    const baseMargin = marginEstimates[symbol] || 1000;
+    return baseMargin * lotSize;
+  } catch (error) {
+    console.error("Error estimating margin:", error);
+    return 1000; // Safe fallback
+  }
 }
