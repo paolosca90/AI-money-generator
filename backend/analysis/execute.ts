@@ -58,6 +58,9 @@ export const execute = api<ExecuteRequest, ExecuteResponse>(
       });
 
       if (result.success) {
+        // Convert max_holding_hours to number for database update
+        const maxHoldingHours = Number(signal.max_holding_hours || 8);
+        
         // Update the signal as executed with strategy information
         await analysisDB.exec`
           UPDATE trading_signals 
@@ -70,7 +73,7 @@ export const execute = api<ExecuteRequest, ExecuteResponse>(
         `;
 
         // Calculate estimated holding time based on strategy
-        const estimatedHoldingTime = getEstimatedHoldingTime(strategy, signal.max_holding_hours);
+        const estimatedHoldingTime = getEstimatedHoldingTime(strategy, maxHoldingHours);
 
         return {
           success: true,

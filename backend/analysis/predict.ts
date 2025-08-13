@@ -177,6 +177,9 @@ export const predict = api<PredictRequest, TradingSignal>(
       // Ensure confidence is an integer for database storage
       const confidenceInt = Math.round(aiAnalysis.confidence);
 
+      // Convert maxHoldingTime to number (double precision)
+      const maxHoldingTimeHours = Number(strategyConfig.maxHoldingTime);
+
       const signal: TradingSignal = {
         tradeId,
         symbol,
@@ -188,7 +191,7 @@ export const predict = api<PredictRequest, TradingSignal>(
         confidence: confidenceInt,
         riskRewardRatio: priceTargets.riskRewardRatio,
         recommendedLotSize,
-        maxHoldingTime: strategyConfig.maxHoldingTime,
+        maxHoldingTime: maxHoldingTimeHours,
         chartUrl,
         strategyRecommendation,
         analysis: {
@@ -242,7 +245,7 @@ export const predict = api<PredictRequest, TradingSignal>(
           ${tradeId}, ${symbol}, ${aiAnalysis.direction}, ${optimalStrategy}, 
           ${priceTargets.entryPrice}, ${priceTargets.takeProfit}, ${priceTargets.stopLoss}, 
           ${confidenceInt}, ${priceTargets.riskRewardRatio}, ${recommendedLotSize},
-          ${strategyConfig.maxHoldingTime}, ${JSON.stringify(signal.analysis)}, NOW()
+          ${maxHoldingTimeHours}, ${JSON.stringify(signal.analysis)}, NOW()
         )
       `;
 
