@@ -296,6 +296,10 @@ def get_symbol_info():
         if symbol_info is None:
             return jsonify({'error': f'Simbolo {symbol} non trovato'}), 404
         
+        # Ottieni attributi in modo sicuro, con un default che indica 'non disponibile' se mancante
+        trade_mode = getattr(symbol_info, 'trade_mode', -1) # -1 indica non disponibile
+        visible = getattr(symbol_info, 'visible', True) # Assumi visibile se non specificato
+
         return jsonify({
             'symbol_info': {
                 'name': symbol_info.name,
@@ -314,8 +318,8 @@ def get_symbol_info():
                 'currency_base': symbol_info.currency_base,
                 'currency_profit': symbol_info.currency_profit,
                 'currency_margin': symbol_info.currency_margin,
-                'trade_mode': getattr(symbol_info, 'trade_mode', None),
-                'visible': getattr(symbol_info, 'visible', None)
+                'trade_mode': trade_mode,
+                'visible': visible
             }
         })
         
@@ -344,7 +348,7 @@ def get_symbols():
                 'currency_profit': symbol.currency_profit,
                 'visible': getattr(symbol, 'visible', True),
                 'select': getattr(symbol, 'select', True),
-                'trade_mode': getattr(symbol, 'trade_mode', None)
+                'trade_mode': getattr(symbol, 'trade_mode', -1)
             })
         
         return jsonify({'symbols': symbols_list})
@@ -374,7 +378,7 @@ def find_symbol():
                     'symbol': variation,
                     'description': getattr(symbol_info, 'description', ''),
                     'visible': getattr(symbol_info, 'visible', True),
-                    'trade_mode': getattr(symbol_info, 'trade_mode', None)
+                    'trade_mode': getattr(symbol_info, 'trade_mode', -1)
                 })
         
         return jsonify({

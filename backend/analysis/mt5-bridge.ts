@@ -366,16 +366,20 @@ function validateSymbolForTrading(symbolInfo: any, symbolName: string): SymbolTr
     // Check trade mode - this is the most important check
     const tradeMode = symbolInfo.trade_mode;
     
+    // -1 indicates not available from python server
+    if (tradeMode === undefined || tradeMode === null || tradeMode === -1) {
+      // If trade_mode is not provided, assume it's tradable.
+      // The final check will be the order execution itself.
+      console.log(`⚠️ Trade mode for ${symbolName} not specified by broker, assuming tradable.`);
+      return { tradable: true, reason: "Trade mode not specified" };
+    }
+    
     // Trade mode values:
     // 0 = SYMBOL_TRADE_MODE_DISABLED (trading disabled)
     // 1 = SYMBOL_TRADE_MODE_LONGONLY (only long positions allowed)
     // 2 = SYMBOL_TRADE_MODE_SHORTONLY (only short positions allowed)  
     // 3 = SYMBOL_TRADE_MODE_CLOSEONLY (only close positions allowed)
     // 4 = SYMBOL_TRADE_MODE_FULL (full trading allowed)
-    
-    if (tradeMode === undefined || tradeMode === null) {
-      return { tradable: false, reason: "Trade mode information not available" };
-    }
     
     // Convert to number if it's a string
     const tradeModeNum = typeof tradeMode === 'string' ? parseInt(tradeMode, 10) : tradeMode;
