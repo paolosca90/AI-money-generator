@@ -193,26 +193,88 @@ export default function TradingSignals() {
               <div className="grid grid-cols-2 md:grid-cols-5 gap-4 text-sm">
                 <div>
                   <div className="text-gray-600">RSI</div>
-                  <div className="font-medium">{currentSignal.analysis.technical.rsi.toFixed(1)}</div>
+                  <div className="font-medium">
+                    {currentSignal.analysis?.technical?.rsi?.toFixed(1) || 'N/A'}
+                  </div>
                 </div>
                 <div>
                   <div className="text-gray-600">MACD</div>
-                  <div className="font-medium">{currentSignal.analysis.technical.macd}</div>
+                  <div className="font-medium">
+                    {currentSignal.analysis?.technical?.macd?.toFixed(5) || 'N/A'}
+                  </div>
                 </div>
                 <div>
                   <div className="text-gray-600">ATR</div>
-                  <div className="font-medium">{currentSignal.analysis.technical.atr.toFixed(5)}</div>
+                  <div className="font-medium">
+                    {currentSignal.analysis?.technical?.atr?.toFixed(5) || 'N/A'}
+                  </div>
                 </div>
                 <div>
                   <div className="text-gray-600">Support</div>
-                  <div className="font-medium">{currentSignal.analysis.technical.support}</div>
+                  <div className="font-medium">
+                    {currentSignal.analysis?.technical?.support || 'N/A'}
+                  </div>
                 </div>
                 <div>
                   <div className="text-gray-600">Resistance</div>
-                  <div className="font-medium">{currentSignal.analysis.technical.resistance}</div>
+                  <div className="font-medium">
+                    {currentSignal.analysis?.technical?.resistance || 'N/A'}
+                  </div>
                 </div>
               </div>
             </div>
+
+            {currentSignal.analysis?.smartMoney && (
+              <div className="border-t pt-4">
+                <h4 className="font-semibold mb-3">Smart Money Analysis</h4>
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-4 text-sm">
+                  <div>
+                    <div className="text-gray-600">Institutional Flow</div>
+                    <div className="font-medium">
+                      {currentSignal.analysis.smartMoney.institutionalFlow}
+                    </div>
+                  </div>
+                  <div>
+                    <div className="text-gray-600">Volume Profile</div>
+                    <div className="font-medium">
+                      {currentSignal.analysis.smartMoney.volumeProfile}
+                    </div>
+                  </div>
+                  <div>
+                    <div className="text-gray-600">Order Flow</div>
+                    <div className="font-medium">
+                      {currentSignal.analysis.smartMoney.orderFlow}
+                    </div>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {currentSignal.analysis?.professional && (
+              <div className="border-t pt-4">
+                <h4 className="font-semibold mb-3">Professional Analysis</h4>
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-4 text-sm">
+                  <div>
+                    <div className="text-gray-600">Consensus View</div>
+                    <div className="font-medium">
+                      {currentSignal.analysis.professional.consensusView}
+                    </div>
+                  </div>
+                  <div>
+                    <div className="text-gray-600">Risk/Reward</div>
+                    <div className="font-medium">
+                      1:{currentSignal.analysis.professional.riskReward?.toFixed(1) || 'N/A'}
+                    </div>
+                  </div>
+                  <div>
+                    <div className="text-gray-600">Timeframe</div>
+                    <div className="font-medium">
+                      {currentSignal.analysis.professional.timeframe}
+                    </div>
+                  </div>
+                </div>
+              </div>
+            )}
 
             <div className="border-t pt-4">
               <h4 className="font-semibold mb-3">Execute Trade</h4>

@@ -30,9 +30,10 @@ export async function fetchMarketData(symbol: string, timeframes: string[]): Pro
       if (realData) {
         data[timeframe] = realData;
       } else {
-        // Fallback to simulated data
-        console.log(`Using simulated data for ${symbol} ${timeframe}`);
-        data[timeframe] = await simulateMarketData(symbol, timeframe);
+        // Fallback to alternative sources or simulated data
+        console.log(`Using alternative data source for ${symbol} ${timeframe}`);
+        const altData = await fetchAlternativeData(symbol, timeframe);
+        data[timeframe] = altData || await simulateMarketData(symbol, timeframe);
       }
     } catch (error) {
       console.error(`Error fetching data for ${symbol} ${timeframe}:`, error);
@@ -48,28 +49,30 @@ async function fetchAlphaVantageData(symbol: string, timeframe: string): Promise
   try {
     const apiKey = alphaVantageApiKey();
     if (!apiKey || apiKey === "your_alpha_vantage_key") {
-      console.log("Alpha Vantage API key not configured, using simulated data");
+      console.log("Alpha Vantage API key not configured, using alternative sources");
       return null;
     }
 
     // Convert symbol format for Alpha Vantage
     const avSymbol = convertSymbolForAlphaVantage(symbol);
     if (!avSymbol) {
-      console.log(`Symbol ${symbol} not supported by Alpha Vantage, using simulated data`);
+      console.log(`Symbol ${symbol} not supported by Alpha Vantage, using alternative sources`);
       return null;
     }
 
-    // For crypto symbols, use DIGITAL_CURRENCY_DAILY
+    // For crypto symbols, use DIGITAL_CURRENCY_DAILY (free tier)
     if (symbol === "BTCUSD" || symbol === "ETHUSD") {
       return await fetchCryptoData(symbol, avSymbol);
     }
 
-    // For forex symbols, use FX_INTRADAY
+    // For forex symbols, try free endpoints first, then fallback
     if (isForexSymbol(symbol)) {
-      return await fetchForexData(symbol, avSymbol, timeframe);
+      // Note: FX_INTRADAY requires premium, so we'll use alternative sources
+      console.log(`Forex symbol ${symbol} requires Alpha Vantage premium, using alternative sources`);
+      return null;
     }
 
-    // For other symbols, try TIME_SERIES_INTRADAY
+    // For other symbols, try TIME_SERIES_INTRADAY (may require premium)
     return await fetchStockData(symbol, avSymbol, timeframe);
 
   } catch (error) {
@@ -93,9 +96,6 @@ async function fetchCryptoData(symbol: string, avSymbol: string): Promise<Market
     }
 
     const data = await response.json();
-    
-    // Log the raw response for debugging
-    console.log("Alpha Vantage crypto response keys:", Object.keys(data));
     
     // Check for API limit or error
     if (data["Error Message"]) {
@@ -149,8 +149,6 @@ async function fetchCryptoData(symbol: string, avSymbol: string): Promise<Market
       return null;
     }
 
-    console.log("Latest crypto data keys:", Object.keys(latestData));
-
     // Try different field name variations
     let open, high, low, close, volume;
     
@@ -197,7 +195,7 @@ async function fetchCryptoData(symbol: string, avSymbol: string): Promise<Market
     }
 
     // Validate price ranges (basic sanity check)
-    if (close > 1000000 || close < 0.01) {
+    if (close > 200000 || close < 1000) {
       console.warn(`Unusual crypto price detected: ${close}. Using realistic price range.`);
       // Use more realistic Bitcoin price range
       const basePrice = getBasePrice(symbol);
@@ -224,100 +222,6 @@ async function fetchCryptoData(symbol: string, avSymbol: string): Promise<Market
     };
   } catch (error) {
     console.error("Error fetching crypto data:", error);
-    return null;
-  }
-}
-
-async function fetchForexData(symbol: string, avSymbol: string, timeframe: string): Promise<MarketDataPoint | null> {
-  try {
-    // Map our timeframes to Alpha Vantage intervals
-    const intervalMap: { [key: string]: string } = {
-      "5m": "5min",
-      "15m": "15min",
-      "30m": "30min",
-      "1h": "60min",
-    };
-
-    const interval = intervalMap[timeframe] || "5min";
-    
-    // For forex, we need from_symbol and to_symbol
-    const fromSymbol = avSymbol.substring(0, 3);
-    const toSymbol = avSymbol.substring(3, 6);
-    
-    const url = `https://www.alphavantage.co/query?function=FX_INTRADAY&from_symbol=${fromSymbol}&to_symbol=${toSymbol}&interval=${interval}&apikey=${alphaVantageApiKey()}&outputsize=compact`;
-    
-    console.log(`Fetching forex data from: ${url.replace(alphaVantageApiKey(), 'API_KEY')}`);
-    
-    const response = await fetch(url);
-    
-    if (!response.ok) {
-      console.error("Alpha Vantage HTTP error:", response.status, response.statusText);
-      return null;
-    }
-
-    const data = await response.json();
-    
-    // Check for API limit or error
-    if (data["Error Message"]) {
-      console.error("Alpha Vantage error:", data["Error Message"]);
-      return null;
-    }
-
-    if (data["Note"]) {
-      console.error("Alpha Vantage rate limit:", data["Note"]);
-      return null;
-    }
-
-    if (data["Information"]) {
-      console.error("Alpha Vantage info:", data["Information"]);
-      return null;
-    }
-
-    const timeSeries = data[`Time Series FX (${interval})`];
-    if (!timeSeries) {
-      console.error("No forex time series data found");
-      return null;
-    }
-
-    // Get the most recent data point
-    const times = Object.keys(timeSeries).sort().reverse();
-    if (times.length === 0) {
-      console.error("No forex data points found");
-      return null;
-    }
-
-    const latestTime = times[0];
-    const latestData = timeSeries[latestTime];
-
-    if (!latestData) {
-      console.error("No forex data for latest time");
-      return null;
-    }
-
-    const open = parseFloat(latestData["1. open"]);
-    const high = parseFloat(latestData["2. high"]);
-    const low = parseFloat(latestData["3. low"]);
-    const close = parseFloat(latestData["4. close"]);
-
-    if (isNaN(open) || isNaN(high) || isNaN(low) || isNaN(close)) {
-      console.error("Invalid forex price data");
-      return null;
-    }
-
-    // Calculate technical indicators
-    const indicators = calculateIndicators(open, high, low, close);
-
-    return {
-      timestamp: new Date(latestTime).getTime(),
-      open: Math.round(open * 100000) / 100000,
-      high: Math.round(high * 100000) / 100000,
-      low: Math.round(low * 100000) / 100000,
-      close: Math.round(close * 100000) / 100000,
-      volume: Math.floor(Math.random() * 1000000), // Forex doesn't have volume
-      indicators,
-    };
-  } catch (error) {
-    console.error("Error fetching forex data:", error);
     return null;
   }
 }
@@ -413,6 +317,17 @@ async function fetchStockData(symbol: string, avSymbol: string, timeframe: strin
   }
 }
 
+// Alternative data sources for when Alpha Vantage premium is required
+async function fetchAlternativeData(symbol: string, timeframe: string): Promise<MarketDataPoint | null> {
+  // Try CoinGecko for crypto
+  if (symbol === "BTCUSD" || symbol === "ETHUSD") {
+    return await fetchCoinGeckoData(symbol);
+  }
+  
+  // Try Yahoo Finance for forex and other symbols
+  return await fetchYahooFinanceData(symbol);
+}
+
 function convertSymbolForAlphaVantage(symbol: string): string | null {
   // Convert trading symbols to Alpha Vantage format
   const symbolMap: { [key: string]: string } = {
@@ -420,7 +335,7 @@ function convertSymbolForAlphaVantage(symbol: string): string | null {
     "BTCUSD": "BTC",
     "ETHUSD": "ETH",
     
-    // Forex symbols (6 characters)
+    // Forex symbols (6 characters) - Note: These require premium
     "EURUSD": "EURUSD",
     "GBPUSD": "GBPUSD",
     "USDJPY": "USDJPY",
@@ -433,7 +348,7 @@ function convertSymbolForAlphaVantage(symbol: string): string | null {
     "GBPJPY": "GBPJPY",
     
     // Commodities and metals (not directly supported by Alpha Vantage free tier)
-    // These will fall back to simulated data
+    // These will fall back to alternative sources
     "XAUUSD": null,
     "CRUDE": null,
     "BRENT": null,

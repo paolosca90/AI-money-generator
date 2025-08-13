@@ -34,6 +34,11 @@ export interface AIAnalysis {
     riskReward: number;
     timeframe: string;
   };
+  technical: {
+    rsi: number;
+    macd: number;
+    atr: number;
+  };
 }
 
 export async function analyzeWithAI(marketData: TimeframeData, symbol: string): Promise<AIAnalysis> {
@@ -54,7 +59,7 @@ export async function analyzeWithAI(marketData: TimeframeData, symbol: string): 
   // Professional trader consensus
   const professionalAnalysis = await analyzeProfessionalTraders(symbol, marketData);
 
-  // Use Gemini AI for enhanced analysis with professional trading concepts
+  // Use Gemini AI for enhanced analysis with better error handling and rate limiting
   const geminiAnalysis = await analyzeWithGemini(marketData, symbol, {
     priceAction: priceActionAnalysis,
     smartMoney: smartMoneyAnalysis,
@@ -92,6 +97,13 @@ export async function analyzeWithAI(marketData: TimeframeData, symbol: string): 
     daily: data30m.indicators.atr / data30m.close,
   };
 
+  // Extract technical indicators for frontend compatibility
+  const technical = {
+    rsi: data5m.indicators.rsi,
+    macd: data5m.indicators.macd,
+    atr: data5m.indicators.atr,
+  };
+
   return {
     direction: finalDirection,
     confidence: finalConfidence,
@@ -102,6 +114,7 @@ export async function analyzeWithAI(marketData: TimeframeData, symbol: string): 
     smartMoney: smartMoneyAnalysis,
     priceAction: priceActionAnalysis,
     professionalAnalysis,
+    technical,
   };
 }
 
@@ -327,48 +340,90 @@ async function analyzeWithGemini(
 
     const prompt = createAdvancedTradingPrompt(marketData, symbol, additionalData);
     
-    const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash-latest:generateContent?key=${apiKey}`, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({
-        contents: [{
-          parts: [{
-            text: prompt
-          }]
-        }],
-        generationConfig: {
-          temperature: 0.1,
-          topK: 1,
-          topP: 1,
-          maxOutputTokens: 300,
+    // Add retry logic with exponential backoff for rate limiting
+    const maxRetries = 3;
+    let retryDelay = 1000; // Start with 1 second
+    
+    for (let attempt = 1; attempt <= maxRetries; attempt++) {
+      try {
+        const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash-latest:generateContent?key=${apiKey}`, {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({
+            contents: [{
+              parts: [{
+                text: prompt
+              }]
+            }],
+            generationConfig: {
+              temperature: 0.1,
+              topK: 1,
+              topP: 1,
+              maxOutputTokens: 300,
+            }
+          })
+        });
+
+        if (response.status === 503) {
+          console.log(`Gemini service overloaded, attempt ${attempt}/${maxRetries}`);
+          if (attempt < maxRetries) {
+            await new Promise(resolve => setTimeout(resolve, retryDelay));
+            retryDelay *= 2; // Exponential backoff
+            continue;
+          } else {
+            console.log("Gemini service unavailable after retries, using fallback");
+            return fallbackAnalysis(marketData);
+          }
         }
-      })
-    });
 
-    if (!response.ok) {
-      const errorText = await response.text();
-      console.error(`Gemini API error: ${response.status} ${response.statusText} - ${errorText}`);
-      return fallbackAnalysis(marketData);
+        if (response.status === 429) {
+          console.log(`Gemini rate limit exceeded, attempt ${attempt}/${maxRetries}`);
+          if (attempt < maxRetries) {
+            await new Promise(resolve => setTimeout(resolve, retryDelay));
+            retryDelay *= 2;
+            continue;
+          } else {
+            console.log("Gemini rate limit exceeded after retries, using fallback");
+            return fallbackAnalysis(marketData);
+          }
+        }
+
+        if (!response.ok) {
+          const errorText = await response.text();
+          console.error(`Gemini API error: ${response.status} ${response.statusText} - ${errorText}`);
+          return fallbackAnalysis(marketData);
+        }
+
+        const data = await response.json();
+        
+        if (data.error) {
+          console.error("Gemini API response error:", data.error);
+          return fallbackAnalysis(marketData);
+        }
+        
+        const text = data.candidates?.[0]?.content?.parts?.[0]?.text;
+        
+        if (!text) {
+          console.log("No text response from Gemini, using fallback");
+          return fallbackAnalysis(marketData);
+        }
+
+        console.log("Gemini advanced analysis successful");
+        return parseGeminiResponse(text);
+        
+      } catch (error) {
+        console.error(`Gemini API attempt ${attempt} failed:`, error);
+        if (attempt === maxRetries) {
+          return fallbackAnalysis(marketData);
+        }
+        await new Promise(resolve => setTimeout(resolve, retryDelay));
+        retryDelay *= 2;
+      }
     }
 
-    const data = await response.json();
-    
-    if (data.error) {
-      console.error("Gemini API response error:", data.error);
-      return fallbackAnalysis(marketData);
-    }
-    
-    const text = data.candidates?.[0]?.content?.parts?.[0]?.text;
-    
-    if (!text) {
-      console.log("No text response from Gemini, using fallback");
-      return fallbackAnalysis(marketData);
-    }
-
-    console.log("Gemini advanced analysis successful");
-    return parseGeminiResponse(text);
+    return fallbackAnalysis(marketData);
   } catch (error) {
     console.error("Error calling Gemini API:", error);
     return fallbackAnalysis(marketData);
