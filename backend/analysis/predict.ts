@@ -1,4 +1,4 @@
-import { api } from "encore.dev/api";
+import { api, APIError } from "encore.dev/api";
 import { analysisDB } from "./db";
 import { generateTradeId } from "./utils";
 import { fetchMarketData } from "./market-data";
@@ -64,6 +64,13 @@ export const predict = api<PredictRequest, TradingSignal>(
 
     // Fetch multi-timeframe market data
     const marketData = await fetchMarketData(symbol, ["5m", "15m", "30m"]);
+    
+    // Check if we received all necessary data from MT5
+    if (!marketData["5m"] || !marketData["15m"] || !marketData["30m"]) {
+      throw APIError.unavailable(
+        "Could not fetch complete market data from MT5. Please check your MT5 connection and server logs."
+      );
+    }
     
     // Perform advanced AI analysis with professional trading concepts
     const aiAnalysis = await analyzeWithAI(marketData, symbol);

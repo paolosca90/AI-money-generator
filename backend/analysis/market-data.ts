@@ -30,9 +30,9 @@ export async function fetchMarketData(symbol: string, timeframes: string[]): Pro
     if (mt5Data) {
       data[timeframe] = mt5Data;
     } else {
-      // If MT5 data is not available, throw an error.
-      // This will be caught by the calling API endpoint and reported to the user.
-      throw new Error(`Failed to fetch market data for ${symbol} on timeframe ${timeframe} from MT5. Please check MT5 connection and server logs.`);
+      // If MT5 data is not available, log an error but do not throw.
+      // The caller will handle the case of missing data.
+      console.error(`Failed to fetch market data for ${symbol} on timeframe ${timeframe} from MT5. Please check MT5 connection and server logs.`);
     }
   }
 
