@@ -70,15 +70,23 @@ async function fetchMT5Data(symbol: string, timeframe: string): Promise<MarketDa
     const port = mt5ServerPort();
 
     // Check if MT5 server configuration is available
-    if (!host || !port || host === "your_vps_ip" || host === "localhost") {
+    if (!host || !port) {
       console.log("MT5 server not configured. Please set MT5ServerHost and MT5ServerPort in Infrastructure settings.");
+      return null;
+    }
+
+    // Check for common misconfiguration
+    if (host === "your_vps_ip" || host === "localhost") {
+      console.log("⚠️  MT5ServerHost is set to 'localhost' or placeholder value.");
+      console.log("💡 If you're using a VPS, update MT5ServerHost to your VPS IP address (e.g., 154.61.187.189)");
+      console.log("💡 Go to Infrastructure tab → Secrets → Update MT5ServerHost");
       return null;
     }
 
     // Test if MT5 server is reachable
     const statusResponse = await fetch(`http://${host}:${port}/status`, {
       method: "GET",
-      timeout: 5000, // 5 second timeout
+      signal: AbortSignal.timeout(5000), // 5 second timeout
     });
 
     if (!statusResponse.ok) {
@@ -110,7 +118,7 @@ async function fetchMT5Data(symbol: string, timeframe: string): Promise<MarketDa
         timeframe: timeframe,
         count: 50 // Fetch last 50 bars for indicator calculation
       }),
-      timeout: 10000, // 10 second timeout
+      signal: AbortSignal.timeout(10000), // 10 second timeout
     });
 
     if (!response.ok) {
@@ -155,6 +163,7 @@ async function fetchMT5Data(symbol: string, timeframe: string): Promise<MarketDa
       console.log("2. Ensure MT5 Python server is started: python mt5-python-server.py");
       console.log("3. Check that port 8080 is open on your VPS");
       console.log("4. Verify MT5ServerHost and MT5ServerPort in Infrastructure settings");
+      console.log("5. If using VPS, MT5ServerHost should be your VPS IP (e.g., 154.61.187.189), not 'localhost'");
     } else if (error.message.includes("timeout")) {
       console.log("💡 Connection timeout - check your VPS network connection");
     }
@@ -176,7 +185,7 @@ async function findCorrectSymbolFormat(host: string, port: string, symbol: strin
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ symbol: variation }),
-        timeout: 5000,
+        signal: AbortSignal.timeout(5000),
       });
 
       if (response.ok) {
