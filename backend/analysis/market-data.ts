@@ -69,11 +69,32 @@ async function fetchMT5Data(symbol: string, timeframe: string): Promise<MarketDa
     const host = mt5ServerHost();
     const port = mt5ServerPort();
 
-    if (!host || !port || host === "localhost") {
-      console.log("MT5 server not configured for remote access, skipping MT5 data fetch.");
+    // Check if MT5 server configuration is available
+    if (!host || !port || host === "your_vps_ip" || host === "localhost") {
+      console.log("MT5 server not configured. Please set MT5ServerHost and MT5ServerPort in Infrastructure settings.");
       return null;
     }
 
+    // Test if MT5 server is reachable
+    const statusResponse = await fetch(`http://${host}:${port}/status`, {
+      method: "GET",
+      timeout: 5000, // 5 second timeout
+    });
+
+    if (!statusResponse.ok) {
+      console.log(`MT5 server status check failed: ${statusResponse.status} ${statusResponse.statusText}`);
+      console.log("Make sure the MT5 Python server is running on your VPS.");
+      return null;
+    }
+
+    const statusData = await statusResponse.json();
+    if (!statusData.connected) {
+      console.log("MT5 server is running but not connected to MetaTrader 5.");
+      console.log("Please ensure MT5 is open and logged in on your VPS.");
+      return null;
+    }
+
+    // Fetch rates data
     const response = await fetch(`http://${host}:${port}/rates`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -82,6 +103,7 @@ async function fetchMT5Data(symbol: string, timeframe: string): Promise<MarketDa
         timeframe: timeframe,
         count: 50 // Fetch last 50 bars for indicator calculation
       }),
+      timeout: 10000, // 10 second timeout
     });
 
     if (!response.ok) {
@@ -103,7 +125,7 @@ async function fetchMT5Data(symbol: string, timeframe: string): Promise<MarketDa
     // Calculate indicators based on the fetched rates
     const indicators = calculateIndicatorsFromRates(result.rates);
 
-    console.log(`Successfully fetched MT5 data for ${symbol} ${timeframe}`);
+    console.log(`Successfully fetched MT5 data for ${symbol} ${timeframe} - Close: ${close}`);
 
     return {
       timestamp: time * 1000,
@@ -117,7 +139,19 @@ async function fetchMT5Data(symbol: string, timeframe: string): Promise<MarketDa
 
   } catch (error) {
     // This will catch network errors if the python server is not running
-    console.error(`Error fetching MT5 data for ${symbol}:`, error.message);
+    console.log(`Error fetching MT5 data for ${symbol}: ${error.message}`);
+    
+    // Provide helpful error messages based on error type
+    if (error.message.includes("fetch failed") || error.message.includes("ECONNREFUSED")) {
+      console.log("💡 MT5 Setup Help:");
+      console.log("1. Make sure your VPS is running");
+      console.log("2. Ensure MT5 Python server is started: python mt5-python-server.py");
+      console.log("3. Check that port 8080 is open on your VPS");
+      console.log("4. Verify MT5ServerHost and MT5ServerPort in Infrastructure settings");
+    } else if (error.message.includes("timeout")) {
+      console.log("💡 Connection timeout - check your VPS network connection");
+    }
+    
     return null;
   }
 }
