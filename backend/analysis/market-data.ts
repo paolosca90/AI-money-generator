@@ -25,7 +25,7 @@ export async function fetchMarketData(symbol: string, timeframes: string[]): Pro
   const data: TimeframeData = {};
 
   for (const timeframe of timeframes) {
-    // Try to fetch real data from MT5.
+    // Try to fetch real data from MT5 with improved timeout handling
     const mt5Data = await fetchMT5Data(symbol, timeframe);
     if (mt5Data) {
       data[timeframe] = mt5Data;
@@ -58,11 +58,10 @@ async function fetchMT5Data(symbol: string, timeframe: string): Promise<MarketDa
       return null;
     }
 
-    // Test if MT5 server is reachable
-    const statusResponse = await fetch(`http://${host}:${port}/status`, {
+    // Test if MT5 server is reachable with shorter timeout for status check
+    const statusResponse = await fetchWithTimeout(`http://${host}:${port}/status`, {
       method: "GET",
-      signal: AbortSignal.timeout(5000), // 5 second timeout
-    });
+    }, 8000); // 8 second timeout for status
 
     if (!statusResponse.ok) {
       console.log(`MT5 server status check failed: ${statusResponse.status} ${statusResponse.statusText}`);
@@ -84,8 +83,8 @@ async function fetchMT5Data(symbol: string, timeframe: string): Promise<MarketDa
       return null;
     }
 
-    // Fetch rates data with the correct symbol
-    const response = await fetch(`http://${host}:${port}/rates`, {
+    // Fetch rates data with the correct symbol and longer timeout
+    const response = await fetchWithTimeout(`http://${host}:${port}/rates`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
@@ -93,8 +92,7 @@ async function fetchMT5Data(symbol: string, timeframe: string): Promise<MarketDa
         timeframe: timeframe,
         count: 50 // Fetch last 50 bars for indicator calculation
       }),
-      signal: AbortSignal.timeout(10000), // 10 second timeout
-    });
+    }, 15000); // 15 second timeout for data fetch
 
     if (!response.ok) {
       console.error(`MT5 rates endpoint error: ${response.status} ${response.statusText}`);
@@ -139,11 +137,37 @@ async function fetchMT5Data(symbol: string, timeframe: string): Promise<MarketDa
       console.log("3. Check that port 8080 is open on your VPS");
       console.log("4. Verify MT5ServerHost and MT5ServerPort in Infrastructure settings");
       console.log("5. If using VPS, MT5ServerHost should be your VPS IP (e.g., 154.61.187.189), not 'localhost'");
-    } else if (error.message.includes("timeout")) {
+    } else if (error.message.includes("timeout") || error.message.includes("aborted")) {
       console.log("💡 Connection timeout - check your VPS network connection");
+      console.log("💡 Possible solutions:");
+      console.log("  - Check if VPS is online and accessible");
+      console.log("  - Verify firewall settings allow port 8080");
+      console.log("  - Restart MT5 Python server on VPS");
+      console.log("  - Check VPS internet connection");
     }
     
     return null;
+  }
+}
+
+// Custom fetch with timeout function
+async function fetchWithTimeout(url: string, options: RequestInit, timeoutMs: number): Promise<Response> {
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
+  
+  try {
+    const response = await fetch(url, {
+      ...options,
+      signal: controller.signal,
+    });
+    clearTimeout(timeoutId);
+    return response;
+  } catch (error) {
+    clearTimeout(timeoutId);
+    if (error.name === 'AbortError') {
+      throw new Error(`The operation was aborted due to timeout (${timeoutMs}ms)`);
+    }
+    throw error;
   }
 }
 
@@ -156,12 +180,11 @@ async function findCorrectSymbolFormat(host: string, port: string, symbol: strin
   // Try each variation until we find one that works
   for (const variation of symbolVariations) {
     try {
-      const response = await fetch(`http://${host}:${port}/symbol_info`, {
+      const response = await fetchWithTimeout(`http://${host}:${port}/symbol_info`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ symbol: variation }),
-        signal: AbortSignal.timeout(5000),
-      });
+      }, 5000); // 5 second timeout for symbol check
 
       if (response.ok) {
         const result = await response.json();
