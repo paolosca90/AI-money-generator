@@ -129,9 +129,16 @@ async function tryDirectMT5Connection(order: MT5OrderRequest): Promise<MT5OrderR
     const correctSymbol = await findCorrectSymbolForExecution(baseUrl, order.symbol);
     if (!correctSymbol) {
       console.log(`❌ Symbol ${order.symbol} not found on this broker`);
+      
+      // Provide helpful suggestions for common symbols
+      const suggestions = getSymbolSuggestions(order.symbol);
+      const errorMessage = suggestions.length > 0 
+        ? `Symbol ${order.symbol} not available for trading on this broker. Try: ${suggestions.join(', ')}`
+        : `Symbol ${order.symbol} not available for trading on this broker`;
+      
       return { 
         success: false, 
-        error: `Symbol ${order.symbol} not available for trading on this broker` 
+        error: errorMessage
       };
     }
 
@@ -257,8 +264,11 @@ async function findCorrectSymbolForExecution(baseUrl: string, symbol: string): P
           const tradeMode = symbolInfo.trade_mode;
           const visible = symbolInfo.visible;
           
-          const isTradingAllowed = tradeMode !== undefined && tradeMode >= 1;
+          // More robust checking for trading availability
+          const isTradingAllowed = tradeMode !== undefined && tradeMode !== null && tradeMode >= 1;
           const isSymbolActive = visible !== false;
+          
+          console.log(`🔍 Symbol ${variation}: trade_mode=${tradeMode}, visible=${visible}, trading_allowed=${isTradingAllowed}`);
           
           if (isTradingAllowed && isSymbolActive) {
             console.log(`✅ Found tradeable symbol format: ${symbol} → ${variation} (trade_mode: ${tradeMode})`);
@@ -275,6 +285,30 @@ async function findCorrectSymbolForExecution(baseUrl: string, symbol: string): P
   }
   
   console.log(`❌ No tradeable symbol format found for ${symbol} on this broker`);
+  
+  // Try to get all available symbols to provide better suggestions
+  try {
+    const symbolsResponse = await fetchWithTimeout(`${baseUrl}/symbols`, {
+      method: "GET",
+    }, 5000);
+    
+    if (symbolsResponse.ok) {
+      const symbolsData = await symbolsResponse.json();
+      if (symbolsData.symbols && symbolsData.symbols.length > 0) {
+        const availableSymbols = symbolsData.symbols
+          .filter(s => s.visible && s.name.includes(symbol.substring(0, 3)))
+          .map(s => s.name)
+          .slice(0, 5);
+        
+        if (availableSymbols.length > 0) {
+          console.log(`💡 Similar symbols available on this broker: ${availableSymbols.join(', ')}`);
+        }
+      }
+    }
+  } catch (error) {
+    // Ignore error, just continue
+  }
+  
   return null;
 }
 
@@ -283,7 +317,7 @@ function getSymbolVariations(symbol: string): string[] {
   const variations = [symbol]; // Start with the original symbol
   
   // Common suffixes used by different brokers
-  const suffixes = ['m', 'pm', 'pro', 'ecn', 'raw', 'c', 'i', '.', '_m', '_pro', '.m', '.ecn', '.pro'];
+  const suffixes = ['m', 'pm', 'pro', 'ecn', 'raw', 'c', 'i', '.', '_m', '_pro', '.m', '.ecn', '.pro', 'micro'];
   
   // Add variations with suffixes
   suffixes.forEach(suffix => {
@@ -291,7 +325,7 @@ function getSymbolVariations(symbol: string): string[] {
   });
   
   // Add variations with prefixes (less common but some brokers use them)
-  const prefixes = ['m', 'pro', 'ecn'];
+  const prefixes = ['m', 'pro', 'ecn', 'mini'];
   prefixes.forEach(prefix => {
     variations.push(prefix + symbol);
   });
@@ -318,13 +352,40 @@ function getBrokerSpecificMappings(symbol: string): string[] {
     "EURJPY": ["EURJPYpm", "EURJPY.m", "EURJPY_m", "EURJPYpro", "EURJPYc", "EURJPYi", "EURJPY.pro", "EURJPY.ecn"],
     "GBPJPY": ["GBPJPYpm", "GBPJPY.m", "GBPJPY_m", "GBPJPYpro", "GBPJPYc", "GBPJPYi", "GBPJPY.pro", "GBPJPY.ecn"],
     "XAUUSD": ["XAUUSDpm", "XAUUSD.m", "XAUUSD_m", "XAUUSDpro", "XAUUSDc", "XAUUSDi", "GOLD", "GOLDpm", "GOLD.m", "XAUUSD.pro", "XAUUSD.ecn"],
-    "BTCUSD": ["BTCUSDpm", "BTCUSD.m", "BTCUSD_m", "BTCUSDpro", "BTCUSDc", "BTCUSDi", "BITCOIN", "BTC", "BTCUSD.pro", "BTCUSD.ecn"],
-    "ETHUSD": ["ETHUSDpm", "ETHUSD.m", "ETHUSD_m", "ETHUSDpro", "ETHUSDc", "ETHUSDi", "ETHEREUM", "ETH", "ETHUSD.pro", "ETHUSD.ecn"],
+    "BTCUSD": [
+      // Standard crypto variations
+      "BTCUSDpm", "BTCUSD.m", "BTCUSD_m", "BTCUSDpro", "BTCUSDc", "BTCUSDi", "BTCUSD.pro", "BTCUSD.ecn",
+      // Alternative names
+      "BITCOIN", "BTC", "BTCUSDT", "BTCEUR", "BTCGBP",
+      // Broker-specific variations
+      "BTC/USD", "BTC-USD", "Bitcoin", "BitcoinUSD", "BTC_USD",
+      // CFD variations
+      "BTCUSD_CFD", "BTC_CFD", "BITCOIN_CFD",
+      // Futures variations
+      "BTCUSDF", "BTCF", "BTCFUT"
+    ],
+    "ETHUSD": [
+      "ETHUSDpm", "ETHUSD.m", "ETHUSD_m", "ETHUSDpro", "ETHUSDc", "ETHUSDi", "ETHEREUM", "ETH", "ETHUSD.pro", "ETHUSD.ecn",
+      "ETHUSDT", "ETHEUR", "ETHGBP", "ETH/USD", "ETH-USD", "Ethereum", "EthereumUSD", "ETH_USD",
+      "ETHUSD_CFD", "ETH_CFD", "ETHEREUM_CFD", "ETHUSDF", "ETHF", "ETHFUT"
+    ],
     "CRUDE": ["CRUDEpm", "CRUDE.m", "CRUDE_m", "CRUDEpro", "CRUDEc", "CRUDEi", "WTI", "WTIpm", "WTI.m", "USOIL", "USOILpm", "CRUDE.pro", "CRUDE.ecn"],
     "BRENT": ["BRENTpm", "BRENT.m", "BRENT_m", "BRENTpro", "BRENTc", "BRENTi", "UKOIL", "UKOILpm", "UKOIL.m", "BRENT.pro", "BRENT.ecn"],
   };
   
   return mappings[symbol] || [];
+}
+
+function getSymbolSuggestions(symbol: string): string[] {
+  // Provide helpful suggestions for common symbols that might not be available
+  const suggestions: { [key: string]: string[] } = {
+    "BTCUSD": ["EURUSD", "GBPUSD", "XAUUSD", "CRUDE"],
+    "ETHUSD": ["BTCUSD", "EURUSD", "GBPUSD", "XAUUSD"],
+    "LTCUSD": ["BTCUSD", "ETHUSD", "EURUSD"],
+    "ADAUSD": ["BTCUSD", "ETHUSD", "EURUSD"],
+  };
+  
+  return suggestions[symbol] || ["EURUSD", "GBPUSD", "USDJPY", "XAUUSD"];
 }
 
 async function simulateMT5Execution(order: MT5OrderRequest): Promise<MT5OrderResult> {

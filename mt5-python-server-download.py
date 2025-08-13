@@ -282,6 +282,159 @@ def get_positions():
         logger.error(f"Errore ottenimento posizioni: {e}")
         return jsonify({'error': str(e)}), 500
 
+@app.route('/symbol_info', methods=['POST'])
+def get_symbol_info():
+    """Ottieni informazioni simbolo"""
+    try:
+        if not mt5_connected:
+            return jsonify({'error': 'Non connesso a MT5'}), 400
+        
+        data = request.json
+        symbol = data.get('symbol')
+        
+        symbol_info = mt5.symbol_info(symbol)
+        if symbol_info is None:
+            return jsonify({'error': f'Simbolo {symbol} non trovato'}), 404
+        
+        return jsonify({
+            'symbol_info': {
+                'name': symbol_info.name,
+                'bid': symbol_info.bid,
+                'ask': symbol_info.ask,
+                'spread': symbol_info.spread,
+                'digits': symbol_info.digits,
+                'point': symbol_info.point,
+                'trade_contract_size': symbol_info.trade_contract_size,
+                'trade_tick_value': symbol_info.trade_tick_value,
+                'trade_tick_size': symbol_info.trade_tick_size,
+                'volume_min': symbol_info.volume_min,
+                'volume_max': symbol_info.volume_max,
+                'volume_step': symbol_info.volume_step,
+                'margin_initial': symbol_info.margin_initial,
+                'currency_base': symbol_info.currency_base,
+                'currency_profit': symbol_info.currency_profit,
+                'currency_margin': symbol_info.currency_margin,
+                'trade_mode': getattr(symbol_info, 'trade_mode', None),
+                'visible': getattr(symbol_info, 'visible', None)
+            }
+        })
+        
+    except Exception as e:
+        logger.error(f"Errore info simbolo: {e}")
+        return jsonify({'error': str(e)}), 500
+
+@app.route('/symbols', methods=['GET'])
+def get_symbols():
+    """Ottieni tutti i simboli disponibili"""
+    try:
+        if not mt5_connected:
+            return jsonify({'error': 'Non connesso a MT5'}), 400
+        
+        symbols = mt5.symbols_get()
+        if symbols is None:
+            return jsonify({'symbols': []})
+        
+        symbols_list = []
+        for symbol in symbols:
+            symbols_list.append({
+                'name': symbol.name,
+                'description': symbol.description,
+                'category': symbol.category,
+                'currency_base': symbol.currency_base,
+                'currency_profit': symbol.currency_profit,
+                'visible': getattr(symbol, 'visible', True),
+                'select': getattr(symbol, 'select', True),
+                'trade_mode': getattr(symbol, 'trade_mode', None)
+            })
+        
+        return jsonify({'symbols': symbols_list})
+        
+    except Exception as e:
+        logger.error(f"Errore ottenimento simboli: {e}")
+        return jsonify({'error': str(e)}), 500
+
+@app.route('/find_symbol', methods=['POST'])
+def find_symbol():
+    """Trova variazioni simbolo che esistono su questo broker"""
+    try:
+        if not mt5_connected:
+            return jsonify({'error': 'Non connesso a MT5'}), 400
+        
+        data = request.json
+        base_symbol = data.get('symbol')
+        
+        # Ottieni tutte le possibili variazioni
+        variations = get_symbol_variations(base_symbol)
+        found_symbols = []
+        
+        for variation in variations:
+            symbol_info = mt5.symbol_info(variation)
+            if symbol_info is not None:
+                found_symbols.append({
+                    'symbol': variation,
+                    'description': getattr(symbol_info, 'description', ''),
+                    'visible': getattr(symbol_info, 'visible', True),
+                    'trade_mode': getattr(symbol_info, 'trade_mode', None)
+                })
+        
+        return jsonify({
+            'base_symbol': base_symbol,
+            'found_symbols': found_symbols,
+            'total_found': len(found_symbols)
+        })
+        
+    except Exception as e:
+        logger.error(f"Errore ricerca simbolo: {e}")
+        return jsonify({'error': str(e)}), 500
+
+def get_symbol_variations(symbol):
+    """Ottieni tutte le possibili variazioni simbolo"""
+    variations = [symbol]  # Inizia con l'originale
+    
+    # Suffissi comuni
+    suffixes = ['m', 'pm', 'pro', 'ecn', 'raw', 'c', 'i', '.', '_m', '_pro', 'micro']
+    for suffix in suffixes:
+        variations.append(symbol + suffix)
+    
+    # Prefissi comuni
+    prefixes = ['m', 'pro', 'ecn', 'mini']
+    for prefix in prefixes:
+        variations.append(prefix + symbol)
+    
+    # Mappature specifiche broker
+    broker_mappings = {
+        "EURUSD": ["EURUSDpm", "EURUSD.m", "EURUSD_m", "EURUSDpro", "EURUSDc", "EURUSDi"],
+        "GBPUSD": ["GBPUSDpm", "GBPUSD.m", "GBPUSD_m", "GBPUSDpro", "GBPUSDc", "GBPUSDi"],
+        "USDJPY": ["USDJPYpm", "USDJPY.m", "USDJPY_m", "USDJPYpro", "USDJPYc", "USDJPYi"],
+        "AUDUSD": ["AUDUSDpm", "AUDUSD.m", "AUDUSD_m", "AUDUSDpro", "AUDUSDc", "AUDUSDi"],
+        "USDCAD": ["USDCADpm", "USDCAD.m", "USDCAD_m", "USDCADpro", "USDCADc", "USDCADi"],
+        "USDCHF": ["USDCHFpm", "USDCHF.m", "USDCHF_m", "USDCHFpro", "USDCHFc", "USDCHFi"],
+        "NZDUSD": ["NZDUSDpm", "NZDUSD.m", "NZDUSD_m", "NZDUSDpro", "NZDUSDc", "NZDUSDi"],
+        "XAUUSD": ["XAUUSDpm", "XAUUSD.m", "XAUUSD_m", "GOLD", "GOLDpm", "GOLD.m"],
+        "BTCUSD": [
+            "BTCUSDpm", "BTCUSD.m", "BTCUSD_m", "BTCUSDpro", "BTCUSDc", "BTCUSDi",
+            "BITCOIN", "BTC", "BTCUSDT", "BTCEUR", "BTCGBP",
+            "BTC/USD", "BTC-USD", "Bitcoin", "BitcoinUSD", "BTC_USD",
+            "BTCUSD_CFD", "BTC_CFD", "BITCOIN_CFD",
+            "BTCUSDF", "BTCF", "BTCFUT"
+        ],
+        "ETHUSD": [
+            "ETHUSDpm", "ETHUSD.m", "ETHUSD_m", "ETHUSDpro", "ETHUSDc", "ETHUSDi",
+            "ETHEREUM", "ETH", "ETHUSDT", "ETHEUR", "ETHGBP",
+            "ETH/USD", "ETH-USD", "Ethereum", "EthereumUSD", "ETH_USD",
+            "ETHUSD_CFD", "ETH_CFD", "ETHEREUM_CFD",
+            "ETHUSDF", "ETHF", "ETHFUT"
+        ],
+        "CRUDE": ["CRUDEpm", "CRUDE.m", "CRUDE_m", "WTI", "WTIpm", "USOIL", "USOILpm"],
+        "BRENT": ["BRENTpm", "BRENT.m", "BRENT_m", "UKOIL", "UKOILpm", "UKOIL.m"],
+    }
+    
+    if symbol in broker_mappings:
+        variations.extend(broker_mappings[symbol])
+    
+    # Rimuovi duplicati
+    return list(set(variations))
+
 if __name__ == '__main__':
     print("=======================================")
     print("=== AI TRADING BOT - MT5 PY-SERVER ===")
