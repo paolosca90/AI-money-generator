@@ -22,8 +22,26 @@ export default function TradingSignals() {
   const queryClient = useQueryClient();
 
   const predictMutation = useMutation({
-    mutationFn: (params: { symbol: string; strategy?: TradingStrategy; riskPercentage?: number; accountBalance?: number }) => 
-      backend.analysis.predict(params),
+    mutationFn: async (params: { symbol: string; strategy?: TradingStrategy; riskPercentage?: number; accountBalance?: number }) => {
+      try {
+        return await backend.analysis.predict(params);
+      } catch (error: any) {
+        // Enhanced error handling
+        console.error("Prediction API error:", error);
+        
+        if (error.message?.includes("fetch")) {
+          throw new Error("Impossibile connettersi al server. Verifica la tua connessione internet.");
+        } else if (error.message?.includes("404")) {
+          throw new Error("Servizio di analisi non disponibile. Riprova più tardi.");
+        } else if (error.message?.includes("500")) {
+          throw new Error("Errore interno del server. Controlla la connessione MT5 e riprova.");
+        } else if (error.message?.includes("timeout")) {
+          throw new Error("Timeout della richiesta. L'analisi sta richiedendo più tempo del previsto.");
+        }
+        
+        throw error;
+      }
+    },
     onSuccess: (data) => {
       toast({
         title: "Segnale Generato",
@@ -35,15 +53,35 @@ export default function TradingSignals() {
       console.error("Errore previsione:", error);
       toast({
         title: "Previsione Fallita",
-        description: error.message || "Si è verificato un errore sconosciuto. Controlla la connessione al server MT5.",
+        description: error.message || "Si è verificato un errore sconosciuto. Controlla la connessione al server.",
         variant: "destructive",
       });
     },
   });
 
   const executeMutation = useMutation({
-    mutationFn: ({ tradeId, lotSize, strategy }: { tradeId: string; lotSize: number; strategy?: TradingStrategy }) =>
-      backend.analysis.execute({ tradeId, lotSize, strategy }),
+    mutationFn: async ({ tradeId, lotSize, strategy }: { tradeId: string; lotSize: number; strategy?: TradingStrategy }) => {
+      try {
+        return await backend.analysis.execute({ tradeId, lotSize, strategy });
+      } catch (error: any) {
+        // Enhanced error handling
+        console.error("Execution API error:", error);
+        
+        if (error.message?.includes("fetch")) {
+          throw new Error("Impossibile connettersi al server. Verifica la tua connessione internet.");
+        } else if (error.message?.includes("not found")) {
+          throw new Error("Il segnale di trading non è più disponibile. Potrebbe essere scaduto o già eseguito.");
+        } else if (error.message?.includes("already executed")) {
+          throw new Error("Questo segnale è già stato eseguito in precedenza.");
+        } else if (error.message?.includes("Invalid lot size")) {
+          throw new Error("Dimensione lotto non valida. Inserisci un valore tra 0.01 e 100.");
+        } else if (error.message?.includes("MT5")) {
+          throw new Error("Errore MT5. Verifica che MetaTrader 5 sia connesso e il trading sia abilitato.");
+        }
+        
+        throw error;
+      }
+    },
     onSuccess: (data) => {
       if (data.success) {
         toast({
@@ -64,18 +102,14 @@ export default function TradingSignals() {
       console.error("Errore esecuzione:", error);
       
       // Handle specific error cases
-      let errorMessage = "Impossibile eseguire il trade. Controlla la tua connessione MT5.";
+      let errorMessage = error.message || "Impossibile eseguire il trade. Controlla la tua connessione MT5.";
       
-      if (error.message.includes("not found")) {
-        errorMessage = "Il segnale di trading non è più disponibile. Potrebbe essere scaduto o già eseguito.";
+      if (error.message?.includes("not found")) {
         // Clear the current signal if it's not found
         queryClient.setQueryData(["currentSignal"], null);
-      } else if (error.message.includes("already executed")) {
-        errorMessage = "Questo segnale è già stato eseguito in precedenza.";
+      } else if (error.message?.includes("already executed")) {
         // Clear the current signal if it's already executed
         queryClient.setQueryData(["currentSignal"], null);
-      } else if (error.message.includes("Invalid lot size")) {
-        errorMessage = "Dimensione lotto non valida. Inserisci un valore tra 0.01 e 100.";
       }
       
       toast({
@@ -91,7 +125,7 @@ export default function TradingSignals() {
     enabled: false,
   });
 
-  const handlePredict = () => {
+  const handlePredict = async () => {
     if (!symbol.trim()) {
       toast({
         title: "Errore",
@@ -125,15 +159,19 @@ export default function TradingSignals() {
     // Clear any existing signal before generating a new one
     queryClient.setQueryData(["currentSignal"], null);
 
-    predictMutation.mutate({
-      symbol: symbol.toUpperCase(),
-      strategy,
-      riskPercentage: risk,
-      accountBalance: balance,
-    });
+    try {
+      await predictMutation.mutateAsync({
+        symbol: symbol.toUpperCase(),
+        strategy,
+        riskPercentage: risk,
+        accountBalance: balance,
+      });
+    } catch (error) {
+      // Error is already handled in the mutation
+    }
   };
 
-  const handleExecute = () => {
+  const handleExecute = async () => {
     if (!currentSignal) {
       toast({
         title: "Errore",
@@ -153,11 +191,15 @@ export default function TradingSignals() {
       return;
     }
 
-    executeMutation.mutate({
-      tradeId: currentSignal.tradeId,
-      lotSize: lot,
-      strategy: currentSignal.strategy,
-    });
+    try {
+      await executeMutation.mutateAsync({
+        tradeId: currentSignal.tradeId,
+        lotSize: lot,
+        strategy: currentSignal.strategy,
+      });
+    } catch (error) {
+      // Error is already handled in the mutation
+    }
   };
 
   // Funzione helper per formattare numeri in sicurezza

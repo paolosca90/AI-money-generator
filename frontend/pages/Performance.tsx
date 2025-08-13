@@ -6,9 +6,27 @@ import { TrendingUp, TrendingDown, Target, DollarSign } from "lucide-react";
 import backend from "~backend/client";
 
 export default function Performance() {
-  const { data: performance, isLoading } = useQuery({
+  const { data: performance, isLoading, error } = useQuery({
     queryKey: ["performance"],
-    queryFn: () => backend.analysis.getPerformance(),
+    queryFn: async () => {
+      try {
+        return await backend.analysis.getPerformance();
+      } catch (error: any) {
+        console.error("Performance API error:", error);
+        
+        if (error.message?.includes("fetch")) {
+          throw new Error("Impossibile connettersi al server. Verifica la tua connessione internet.");
+        } else if (error.message?.includes("404")) {
+          throw new Error("Servizio di performance non disponibile. Riprova più tardi.");
+        } else if (error.message?.includes("500")) {
+          throw new Error("Errore interno del server. Riprova più tardi.");
+        }
+        
+        throw error;
+      }
+    },
+    retry: 3,
+    retryDelay: 1000,
   });
 
   if (isLoading) {
@@ -26,6 +44,31 @@ export default function Performance() {
             </Card>
           ))}
         </div>
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <div className="space-y-6">
+        <div>
+          <h1 className="text-3xl font-bold text-gray-900">Analisi Performance</h1>
+          <p className="text-gray-600 mt-1">Analisi dettagliata delle performance del modello AI di trading</p>
+        </div>
+        
+        <Card className="border-red-200 bg-red-50">
+          <CardContent className="pt-6">
+            <div className="text-center">
+              <div className="text-red-600 font-medium mb-2">Errore nel caricamento dei dati</div>
+              <div className="text-sm text-red-500">
+                {error instanceof Error ? error.message : "Si è verificato un errore sconosciuto"}
+              </div>
+              <div className="text-xs text-gray-500 mt-2">
+                Verifica la connessione al server e riprova
+              </div>
+            </div>
+          </CardContent>
+        </Card>
       </div>
     );
   }
