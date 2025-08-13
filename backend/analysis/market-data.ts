@@ -94,6 +94,9 @@ async function fetchCryptoData(symbol: string, avSymbol: string): Promise<Market
 
     const data = await response.json();
     
+    // Log the raw response for debugging
+    console.log("Alpha Vantage crypto response keys:", Object.keys(data));
+    
     // Check for API limit or error
     if (data["Error Message"]) {
       console.error("Alpha Vantage error:", data["Error Message"]);
@@ -110,9 +113,24 @@ async function fetchCryptoData(symbol: string, avSymbol: string): Promise<Market
       return null;
     }
 
-    const timeSeries = data["Time Series (Digital Currency Daily)"];
+    // Try different possible keys for crypto data
+    let timeSeries = data["Time Series (Digital Currency Daily)"];
     if (!timeSeries) {
-      console.error("No crypto time series data found");
+      // Alternative key format
+      timeSeries = data["Time Series (Digital Currency)"];
+    }
+    if (!timeSeries) {
+      // Check if there's any time series data
+      const keys = Object.keys(data);
+      const timeSeriesKey = keys.find(key => key.toLowerCase().includes("time series"));
+      if (timeSeriesKey) {
+        timeSeries = data[timeSeriesKey];
+        console.log(`Found time series data with key: ${timeSeriesKey}`);
+      }
+    }
+    
+    if (!timeSeries) {
+      console.error("No crypto time series data found. Available keys:", Object.keys(data));
       return null;
     }
 
@@ -131,19 +149,49 @@ async function fetchCryptoData(symbol: string, avSymbol: string): Promise<Market
       return null;
     }
 
-    const open = parseFloat(latestData["1a. open (USD)"]);
-    const high = parseFloat(latestData["2a. high (USD)"]);
-    const low = parseFloat(latestData["3a. low (USD)"]);
-    const close = parseFloat(latestData["4a. close (USD)"]);
-    const volume = parseFloat(latestData["5. volume"]);
+    console.log("Latest crypto data keys:", Object.keys(latestData));
+
+    // Try different field name variations
+    let open, high, low, close, volume;
+    
+    // Standard format
+    if (latestData["1a. open (USD)"]) {
+      open = parseFloat(latestData["1a. open (USD)"]);
+      high = parseFloat(latestData["2a. high (USD)"]);
+      low = parseFloat(latestData["3a. low (USD)"]);
+      close = parseFloat(latestData["4a. close (USD)"]);
+      volume = parseFloat(latestData["5. volume"]);
+    }
+    // Alternative format
+    else if (latestData["1. open"]) {
+      open = parseFloat(latestData["1. open"]);
+      high = parseFloat(latestData["2. high"]);
+      low = parseFloat(latestData["3. low"]);
+      close = parseFloat(latestData["4. close"]);
+      volume = parseFloat(latestData["5. volume"] || "0");
+    }
+    // Another alternative format
+    else if (latestData["open"]) {
+      open = parseFloat(latestData["open"]);
+      high = parseFloat(latestData["high"]);
+      low = parseFloat(latestData["low"]);
+      close = parseFloat(latestData["close"]);
+      volume = parseFloat(latestData["volume"] || "0");
+    }
+    else {
+      console.error("Unknown crypto data format. Available fields:", Object.keys(latestData));
+      return null;
+    }
 
     if (isNaN(open) || isNaN(high) || isNaN(low) || isNaN(close)) {
-      console.error("Invalid crypto price data");
+      console.error("Invalid crypto price data - parsed values:", { open, high, low, close });
       return null;
     }
 
     // Calculate technical indicators
     const indicators = calculateIndicators(open, high, low, close);
+
+    console.log(`Successfully parsed crypto data: ${symbol} - Close: ${close}`);
 
     return {
       timestamp: new Date(latestDate).getTime(),
@@ -151,7 +199,7 @@ async function fetchCryptoData(symbol: string, avSymbol: string): Promise<Market
       high: Math.round(high * 100) / 100,
       low: Math.round(low * 100) / 100,
       close: Math.round(close * 100) / 100,
-      volume: Math.round(volume),
+      volume: Math.round(volume || 0),
       indicators,
     };
   } catch (error) {
@@ -526,4 +574,60 @@ function convertSymbolForYahoo(symbol: string): string {
   };
 
   return symbolMap[symbol] || symbol;
+}
+
+// Alternative: CoinGecko API for crypto data (free, no API key required)
+export async function fetchCoinGeckoData(symbol: string): Promise<MarketDataPoint | null> {
+  try {
+    // Map symbols to CoinGecko IDs
+    const coinMap: { [key: string]: string } = {
+      "BTCUSD": "bitcoin",
+      "ETHUSD": "ethereum",
+    };
+
+    const coinId = coinMap[symbol];
+    if (!coinId) {
+      return null;
+    }
+
+    const url = `https://api.coingecko.com/api/v3/simple/price?ids=${coinId}&vs_currencies=usd&include_24hr_vol=true&include_24hr_change=true`;
+    
+    const response = await fetch(url);
+    if (!response.ok) {
+      console.error("CoinGecko API error:", response.statusText);
+      return null;
+    }
+
+    const data = await response.json();
+    const coinData = data[coinId];
+    
+    if (!coinData) {
+      console.error("No CoinGecko data found for", coinId);
+      return null;
+    }
+
+    const price = coinData.usd;
+    const volume = coinData.usd_24h_vol || 0;
+    const change24h = coinData.usd_24h_change || 0;
+    
+    // Simulate OHLC data based on current price and 24h change
+    const close = price;
+    const changePercent = change24h / 100;
+    const open = close / (1 + changePercent);
+    const high = Math.max(open, close) * (1 + Math.abs(changePercent) * 0.5);
+    const low = Math.min(open, close) * (1 - Math.abs(changePercent) * 0.5);
+
+    return {
+      timestamp: Date.now(),
+      open: Math.round(open * 100) / 100,
+      high: Math.round(high * 100) / 100,
+      low: Math.round(low * 100) / 100,
+      close: Math.round(close * 100) / 100,
+      volume: Math.round(volume),
+      indicators: calculateIndicators(open, high, low, close),
+    };
+  } catch (error) {
+    console.error("Error fetching CoinGecko data:", error);
+    return null;
+  }
 }
