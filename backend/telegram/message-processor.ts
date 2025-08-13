@@ -8,6 +8,12 @@ export async function processMessage(chatId: number, userId: number, text: strin
   try {
     if (command.startsWith("/predict")) {
       await handlePredictCommand(chatId, command);
+    } else if (command.startsWith("/scalping")) {
+      await handleStrategyCommand(chatId, command, "SCALPING");
+    } else if (command.startsWith("/intraday")) {
+      await handleStrategyCommand(chatId, command, "INTRADAY");
+    } else if (command.startsWith("/swing")) {
+      await handleStrategyCommand(chatId, command, "SWING");
     } else if (command.startsWith("/execute")) {
       await handleExecuteCommand(chatId, command);
     } else if (command === "/start") {
@@ -20,6 +26,8 @@ export async function processMessage(chatId: number, userId: number, text: strin
       await handlePerformanceCommand(chatId);
     } else if (command.startsWith("/symbols")) {
       await handleSymbolsCommand(chatId);
+    } else if (command.startsWith("/strategies")) {
+      await handleStrategiesCommand(chatId);
     } else if (command.startsWith("/vps")) {
       await handleVPSCommand(chatId, userId, command);
     } else if (command === "/vps_setup") {
@@ -42,9 +50,15 @@ export async function processCallbackQuery(chatId: number, userId: number, callb
       const parts = callbackData.split("_");
       const tradeId = parts[1];
       const lotSize = parseFloat(parts[2]);
-      await executeTradeFromCallback(chatId, tradeId, lotSize);
+      const strategy = parts[3] || "INTRADAY";
+      await executeTradeFromCallback(chatId, tradeId, lotSize, strategy);
+    } else if (callbackData.startsWith("strategy_")) {
+      const parts = callbackData.split("_");
+      const strategy = parts[1] as "SCALPING" | "INTRADAY" | "SWING";
+      const symbol = parts[2] || "BTCUSD";
+      await handleStrategyCommand(chatId, `/predict ${symbol}`, strategy);
     } else if (callbackData === "new_analysis") {
-      await sendMessage(chatId, "📊 Use `/predict SYMBOL` to generate a new analysis.\n\nExample: `/predict EURUSD`");
+      await sendMessage(chatId, "📊 Choose your trading strategy:\n\n⚡ `/scalping SYMBOL` - Quick trades (1-15 min)\n📈 `/intraday SYMBOL` - Day trading (1-8 hours)\n🎯 `/swing SYMBOL` - Multi-day trades (1-7 days)\n\nExample: `/scalping EURUSD`");
     } else if (callbackData === "show_performance") {
       await handlePerformanceCommand(chatId);
     } else if (callbackData.startsWith("predict_")) {
@@ -52,6 +66,8 @@ export async function processCallbackQuery(chatId: number, userId: number, callb
       await handlePredictCommand(chatId, `/predict ${symbol}`);
     } else if (callbackData === "show_help") {
       await handleHelpCommand(chatId);
+    } else if (callbackData === "show_strategies") {
+      await handleStrategiesCommand(chatId);
     }
   } catch (error) {
     console.error("Error processing callback query:", error);
@@ -59,22 +75,23 @@ export async function processCallbackQuery(chatId: number, userId: number, callb
   }
 }
 
-async function executeTradeFromCallback(chatId: number, tradeId: string, lotSize: number): Promise<void> {
+async function executeTradeFromCallback(chatId: number, tradeId: string, lotSize: number, strategy: string): Promise<void> {
   try {
-    await sendMessage(chatId, `⚡ Executing trade ${tradeId} with ${lotSize} lots...`);
+    await sendMessage(chatId, `⚡ Executing ${strategy} trade ${tradeId} with ${lotSize} lots...`);
     
-    const result = await analysis.execute({ tradeId, lotSize });
+    const result = await analysis.execute({ tradeId, lotSize, strategy });
     
     if (result.success) {
       const message = `
-✅ **Trade Executed Successfully**
+✅ **${strategy} Trade Executed Successfully**
 
 🆔 Trade ID: \`${tradeId}\`
 📋 MT5 Order: #${result.orderId}
 💰 Lot Size: ${lotSize}
 💵 Entry Price: ${result.executionPrice}
+⏱️ Estimated Hold: ${result.estimatedHoldingTime}
 
-🎯 Your trade is now active on MT5!
+🎯 Your ${strategy.toLowerCase()} trade is now active on MT5!
       `;
       await sendMessage(chatId, message);
     } else {
@@ -91,15 +108,52 @@ async function handlePredictCommand(chatId: number, command: string): Promise<vo
   const symbol = parts[1]?.toUpperCase() || "BTCUSD";
 
   try {
-    await sendMessage(chatId, `🧠 **Advanced ML Analysis for ${symbol}**\n\n🔍 Analyzing market structure, smart money flow, and professional trader consensus...\n\n⏳ This may take 10-15 seconds for comprehensive analysis.`);
+    await sendMessage(chatId, `🧠 **Advanced ML Analysis for ${symbol}**\n\n🔍 Analyzing market structure, smart money flow, and determining optimal strategy...\n\n⏳ This may take 10-15 seconds for comprehensive analysis.`);
     
     const prediction = await analysis.predict({ symbol });
     
-    const directionEmoji = prediction.direction === "LONG" ? "📈" : "📉";
-    const confidenceEmoji = prediction.confidence >= 85 ? "🔥" : prediction.confidence >= 75 ? "⚡" : "⚠️";
+    await sendTradingSignal(chatId, prediction);
+  } catch (error) {
+    console.error("Prediction error:", error);
+    await sendMessage(chatId, "❌ Error generating prediction. Please try again or check if the symbol is valid.");
+  }
+}
+
+async function handleStrategyCommand(chatId: number, command: string, strategy: "SCALPING" | "INTRADAY" | "SWING"): Promise<void> {
+  const parts = command.split(" ");
+  const symbol = parts[1]?.toUpperCase() || "BTCUSD";
+
+  try {
+    const strategyEmojis = {
+      "SCALPING": "⚡",
+      "INTRADAY": "📈", 
+      "SWING": "🎯"
+    };
+
+    await sendMessage(chatId, `${strategyEmojis[strategy]} **${strategy} Analysis for ${symbol}**\n\n🔍 Analyzing market for ${strategy.toLowerCase()} opportunities...\n\n⏳ Optimizing entry, stop loss, and take profit levels...`);
     
-    const message = `
-${directionEmoji} **Professional Trading Signal - ${prediction.symbol}**
+    const prediction = await analysis.predict({ symbol, strategy });
+    
+    await sendTradingSignal(chatId, prediction);
+  } catch (error) {
+    console.error("Strategy prediction error:", error);
+    await sendMessage(chatId, `❌ Error generating ${strategy.toLowerCase()} analysis. Please try again.`);
+  }
+}
+
+async function sendTradingSignal(chatId: number, prediction: any): Promise<void> {
+  const strategyEmojis = {
+    "SCALPING": "⚡",
+    "INTRADAY": "📈",
+    "SWING": "🎯"
+  };
+
+  const directionEmoji = prediction.direction === "LONG" ? "📈" : "📉";
+  const confidenceEmoji = prediction.confidence >= 85 ? "🔥" : prediction.confidence >= 75 ? "⚡" : "⚠️";
+  const strategyEmoji = strategyEmojis[prediction.strategy] || "📊";
+  
+  const message = `
+${strategyEmoji} **${prediction.strategy} Signal - ${prediction.symbol}**
 
 🆔 Trade ID: \`${prediction.tradeId}\`
 ${directionEmoji} **Direction: ${prediction.direction}**
@@ -107,11 +161,12 @@ ${directionEmoji} **Direction: ${prediction.direction}**
 🎯 **Take Profit:** \`${prediction.takeProfit}\`
 🛡️ **Stop Loss:** \`${prediction.stopLoss}\`
 ${confidenceEmoji} **Confidence:** **${prediction.confidence}%**
+📊 **Risk/Reward:** 1:${prediction.riskRewardRatio}
+💎 **Recommended Size:** ${prediction.recommendedLotSize} lots
+⏱️ **Max Hold Time:** ${prediction.maxHoldingTime}h
 
-📊 **Smart Money Analysis:**
-• Institutional Flow: **${prediction.analysis.smartMoney.institutionalFlow}**
-• Volume Profile: **${prediction.analysis.smartMoney.volumeProfile}**
-• Order Flow: **${prediction.analysis.smartMoney.orderFlow}**
+📊 **Strategy Analysis:**
+${prediction.strategyRecommendation}
 
 📈 **Price Action Analysis:**
 • Market Structure: **${prediction.analysis.technical.structure}**
@@ -122,7 +177,6 @@ ${confidenceEmoji} **Confidence:** **${prediction.confidence}%**
 • Top Traders: ${prediction.analysis.professional.topTraders.slice(0, 2).join(", ")}
 • Consensus: **${prediction.analysis.professional.consensusView}**
 • Risk/Reward: **1:${prediction.analysis.professional.riskReward.toFixed(1)}**
-• Optimal Timeframe: **${prediction.analysis.professional.timeframe}**
 
 🎯 **Key Liquidity Zones:**
 ${prediction.analysis.smartMoney.liquidityZones.slice(0, 3).map(zone => `• ${zone.toFixed(5)}`).join('\n')}
@@ -130,37 +184,36 @@ ${prediction.analysis.smartMoney.liquidityZones.slice(0, 3).map(zone => `• ${z
 📰 **Market Sentiment:** ${getSentimentEmoji(prediction.analysis.sentiment.score)} ${(prediction.analysis.sentiment.score * 100).toFixed(0)}%
 
 ⚡ **Quick Execute:**
-\`/execute ${prediction.tradeId} 0.1\`
+\`/execute ${prediction.tradeId} ${prediction.recommendedLotSize}\`
+  `;
 
-💡 **Professional Insight:** This analysis combines institutional order flow, smart money positioning, and top trader consensus for ${symbol}.
-    `;
+  // Create inline keyboard for quick actions
+  const keyboard = createInlineKeyboard([
+    [
+      { text: `${strategyEmoji} Execute ${prediction.recommendedLotSize}`, callback_data: `execute_${prediction.tradeId}_${prediction.recommendedLotSize}_${prediction.strategy}` },
+      { text: `${strategyEmoji} Execute 0.01`, callback_data: `execute_${prediction.tradeId}_0.01_${prediction.strategy}` }
+    ],
+    [
+      { text: "⚡ Scalping", callback_data: `strategy_SCALPING_${prediction.symbol}` },
+      { text: "📈 Intraday", callback_data: `strategy_INTRADAY_${prediction.symbol}` },
+      { text: "🎯 Swing", callback_data: `strategy_SWING_${prediction.symbol}` }
+    ],
+    [
+      { text: "📊 New Analysis", callback_data: "new_analysis" },
+      { text: "📈 Performance", callback_data: "show_performance" }
+    ]
+  ]);
 
-    // Create inline keyboard for quick actions
-    const keyboard = createInlineKeyboard([
-      [
-        { text: "📊 Execute 0.1 lot", callback_data: `execute_${prediction.tradeId}_0.1` },
-        { text: "📊 Execute 0.05 lot", callback_data: `execute_${prediction.tradeId}_0.05` }
-      ],
-      [
-        { text: "📈 New Analysis", callback_data: "new_analysis" },
-        { text: "📊 Performance", callback_data: "show_performance" }
-      ]
-    ]);
+  await sendMessage(chatId, message, { replyMarkup: keyboard });
 
-    await sendMessage(chatId, message, { replyMarkup: keyboard });
-
-    // Send chart image if available
-    if (prediction.chartUrl) {
-      try {
-        await sendPhoto(chatId, prediction.chartUrl, `📊 Professional Chart Analysis for ${symbol}`);
-      } catch (error) {
-        console.error("Error sending chart:", error);
-        await sendMessage(chatId, `📊 Chart: ${prediction.chartUrl}`);
-      }
+  // Send chart image if available
+  if (prediction.chartUrl) {
+    try {
+      await sendPhoto(chatId, prediction.chartUrl, `📊 ${prediction.strategy} Chart Analysis for ${prediction.symbol}`);
+    } catch (error) {
+      console.error("Error sending chart:", error);
+      await sendMessage(chatId, `📊 Chart: ${prediction.chartUrl}`);
     }
-  } catch (error) {
-    console.error("Prediction error:", error);
-    await sendMessage(chatId, "❌ Error generating prediction. Please try again or check if the symbol is valid.");
   }
 }
 
@@ -168,32 +221,34 @@ async function handleExecuteCommand(chatId: number, command: string): Promise<vo
   const parts = command.split(" ");
   const tradeId = parts[1];
   const lotSize = parseFloat(parts[2] || "0.1");
+  const strategy = parts[3] || "INTRADAY";
 
   if (!tradeId) {
-    await sendMessage(chatId, "❌ Please provide a trade ID. Usage: `/execute TRADE_ID LOT_SIZE`");
+    await sendMessage(chatId, "❌ Please provide a trade ID. Usage: `/execute TRADE_ID LOT_SIZE [STRATEGY]`");
     return;
   }
 
   if (isNaN(lotSize) || lotSize <= 0) {
-    await sendMessage(chatId, "❌ Please provide a valid lot size. Usage: `/execute TRADE_ID LOT_SIZE`");
+    await sendMessage(chatId, "❌ Please provide a valid lot size. Usage: `/execute TRADE_ID LOT_SIZE [STRATEGY]`");
     return;
   }
 
   try {
-    await sendMessage(chatId, `⚡ Executing trade ${tradeId} with ${lotSize} lots...`);
+    await sendMessage(chatId, `⚡ Executing ${strategy} trade ${tradeId} with ${lotSize} lots...`);
     
-    const result = await analysis.execute({ tradeId, lotSize });
+    const result = await analysis.execute({ tradeId, lotSize, strategy });
     
     if (result.success) {
       const message = `
-✅ **Trade Executed Successfully**
+✅ **${strategy} Trade Executed Successfully**
 
 🆔 Trade ID: \`${tradeId}\`
 📋 MT5 Order: #${result.orderId}
 💰 Lot Size: ${lotSize}
 💵 Entry Price: ${result.executionPrice}
+⏱️ Estimated Hold: ${result.estimatedHoldingTime}
 
-🎯 Your trade is now active on MT5!
+🎯 Your ${strategy.toLowerCase()} trade is now active on MT5!
       `;
       await sendMessage(chatId, message);
     } else {
@@ -209,7 +264,7 @@ async function handleStartCommand(chatId: number): Promise<void> {
   const message = `
 🤖 **Welcome to Professional AI Trading Bot**
 
-I'm your institutional-grade trading assistant powered by advanced machine learning and professional trading concepts! 
+I'm your institutional-grade trading assistant with **3 specialized strategies**! 
 
 🧠 **What Makes Me Different:**
 • **Smart Money Analysis** - Track institutional flow and order patterns
@@ -217,12 +272,16 @@ I'm your institutional-grade trading assistant powered by advanced machine learn
 • **Advanced Price Action** - Market structure and liquidity zone analysis
 • **ML-Powered Predictions** - No traditional indicators, pure price action
 
-📊 **Analysis Commands:**
-• \`/predict SYMBOL\` - Get professional ML trading signal
-• \`/predict\` - Analyze BTCUSD (default)
+⚡ **Trading Strategies:**
+• \`/scalping SYMBOL\` - Quick trades (1-15 minutes, tight stops)
+• \`/intraday SYMBOL\` - Day trading (1-8 hours, balanced risk)
+• \`/swing SYMBOL\` - Multi-day trades (1-7 days, larger targets)
+
+📊 **General Analysis:**
+• \`/predict SYMBOL\` - Auto-select optimal strategy
 
 ⚡ **Execution Commands:**
-• \`/execute TRADE_ID LOT_SIZE\` - Execute trade on MT5
+• \`/execute TRADE_ID LOT_SIZE [STRATEGY]\` - Execute trade on MT5
 
 🖥️ **VPS Management:**
 • \`/vps\` - Manage your VPS and MT5 setup
@@ -231,6 +290,7 @@ I'm your institutional-grade trading assistant powered by advanced machine learn
 📈 **Information Commands:**
 • \`/status\` - Check bot and MT5 status
 • \`/performance\` - View trading performance
+• \`/strategies\` - Learn about trading strategies
 • \`/symbols\` - List supported symbols
 
 📚 **Help:**
@@ -238,18 +298,23 @@ I'm your institutional-grade trading assistant powered by advanced machine learn
 
 🚀 **Quick Start:**
 1. Use \`/vps_setup\` to configure your VPS and MT5
-2. Try \`/predict BTCUSD\` to get your first professional ML signal!
+2. Try \`/scalping BTCUSD\` for a quick scalping signal!
+3. Or \`/swing EURUSD\` for a swing trading opportunity!
 
-💡 **Professional Tip:** I analyze like institutional traders - focusing on market structure, smart money flow, and liquidity zones rather than traditional indicators.
+💡 **Professional Tip:** Each strategy has optimized risk/reward ratios and holding times. Choose based on your trading style and available time.
   `;
   
   const keyboard = createInlineKeyboard([
     [
-      { text: "🖥️ Setup VPS", callback_data: "vps_setup" },
-      { text: "📊 Analyze BTCUSD", callback_data: "predict_BTCUSD" }
+      { text: "⚡ Scalping BTCUSD", callback_data: "strategy_SCALPING_BTCUSD" },
+      { text: "📈 Intraday EURUSD", callback_data: "strategy_INTRADAY_EURUSD" }
     ],
     [
-      { text: "📈 Performance", callback_data: "show_performance" },
+      { text: "🎯 Swing XAUUSD", callback_data: "strategy_SWING_XAUUSD" },
+      { text: "🖥️ Setup VPS", callback_data: "vps_setup" }
+    ],
+    [
+      { text: "📊 Strategies Guide", callback_data: "show_strategies" },
       { text: "❓ Help", callback_data: "show_help" }
     ]
   ]);
@@ -257,19 +322,105 @@ I'm your institutional-grade trading assistant powered by advanced machine learn
   await sendMessage(chatId, message, { replyMarkup: keyboard });
 }
 
+async function handleStrategiesCommand(chatId: number): Promise<void> {
+  const message = `
+📊 **Professional Trading Strategies Guide**
+
+**⚡ SCALPING STRATEGY**
+• **Timeframe:** 1-15 minutes
+• **Risk/Reward:** 1:1.5
+• **Best For:** Quick profits, high-volume sessions
+• **Stop Loss:** Tight (0.8x ATR)
+• **Take Profit:** Quick (1.2x ATR)
+• **Min Confidence:** 85%
+• **Max Position:** 0.5 lots
+• **Ideal Conditions:** High volume, trending markets, low spreads
+
+**📈 INTRADAY STRATEGY**
+• **Timeframe:** 1-8 hours
+• **Risk/Reward:** 1:2.0
+• **Best For:** Day trading, balanced approach
+• **Stop Loss:** Standard (1.0x ATR)
+• **Take Profit:** Standard (2.0x ATR)
+• **Min Confidence:** 75%
+• **Max Position:** 1.0 lots
+• **Ideal Conditions:** Normal volume, trending markets, breakouts
+
+**🎯 SWING STRATEGY**
+• **Timeframe:** 1-7 days
+• **Risk/Reward:** 1:3.0
+• **Best For:** Multi-day trends, larger moves
+• **Stop Loss:** Wide (1.5x ATR)
+• **Take Profit:** Large (4.5x ATR)
+• **Min Confidence:** 70%
+• **Max Position:** 2.0 lots
+• **Ideal Conditions:** Any volume, reversals, consolidations
+
+**🎓 How to Choose:**
+
+**Choose SCALPING when:**
+• You can monitor trades actively
+• Market is trending with high volume
+• You want quick profits
+• Low volatility environment
+
+**Choose INTRADAY when:**
+• You trade during market hours
+• Balanced risk/reward approach
+• Following daily trends
+• Normal market conditions
+
+**Choose SWING when:**
+• You prefer less monitoring
+• Looking for larger moves
+• Multi-day trend following
+• Higher volatility acceptable
+
+**💡 Pro Tips:**
+• Start with INTRADAY for balanced approach
+• Use SCALPING during high-volume sessions
+• Use SWING for major trend reversals
+• Always respect the strategy's risk limits
+
+**⚡ Quick Commands:**
+• \`/scalping EURUSD\` - Generate scalping signal
+• \`/intraday GBPUSD\` - Generate intraday signal  
+• \`/swing XAUUSD\` - Generate swing signal
+• \`/predict BTCUSD\` - Auto-select best strategy
+
+Each strategy is optimized for different market conditions and trading styles! 🚀
+  `;
+  
+  await sendMessage(chatId, message);
+}
+
 async function handleHelpCommand(chatId: number): Promise<void> {
   const message = `
 📚 **Professional AI Trading Bot - Complete Guide**
 
-**🧠 Advanced ML Analysis Commands:**
-• \`/predict BTCUSD\` - Analyze Bitcoin with smart money flow
-• \`/predict EURUSD\` - Analyze Euro/Dollar with institutional data
-• \`/predict XAUUSD\` - Analyze Gold with professional consensus
-• \`/predict CRUDE\` - Analyze Oil with order flow analysis
+**⚡ SCALPING Commands:**
+• \`/scalping BTCUSD\` - Quick Bitcoin scalp (1-15 min)
+• \`/scalping EURUSD\` - Euro scalping opportunity
+• \`/scalping XAUUSD\` - Gold scalping signal
+
+**📈 INTRADAY Commands:**
+• \`/intraday EURUSD\` - Euro day trading (1-8 hours)
+• \`/intraday GBPUSD\` - Pound intraday analysis
+• \`/intraday CRUDE\` - Oil day trading signal
+
+**🎯 SWING Commands:**
+• \`/swing BTCUSD\` - Bitcoin swing trade (1-7 days)
+• \`/swing XAUUSD\` - Gold swing opportunity
+• \`/swing CRUDE\` - Oil swing analysis
+
+**📊 General Analysis:**
+• \`/predict SYMBOL\` - Auto-select optimal strategy
+• \`/predict\` - Analyze BTCUSD (default)
 
 **⚡ Execution Commands:**
 • \`/execute BTC-001 0.1\` - Execute with 0.1 lots
-• \`/execute EUR-002 0.05\` - Execute with 0.05 lots
+• \`/execute EUR-002 0.05 SCALPING\` - Execute scalping trade
+• \`/execute XAU-003 0.2 SWING\` - Execute swing trade
 
 **🖥️ VPS Management:**
 • \`/vps\` - VPS dashboard and management
@@ -281,43 +432,39 @@ async function handleHelpCommand(chatId: number): Promise<void> {
 **📊 Information Commands:**
 • \`/status\` - Bot and MT5 connection status
 • \`/performance\` - Trading statistics
+• \`/strategies\` - Detailed strategy guide
 • \`/symbols\` - All supported trading symbols
 
-**🎯 Professional Features:**
-• **Smart Money Analysis** - Track institutional buying/selling
-• **Order Flow Analysis** - Analyze buying vs selling pressure
-• **Volume Profile** - Identify accumulation/distribution zones
-• **Liquidity Zone Mapping** - Find where stops are placed
-• **Professional Trader Consensus** - Follow top traders per asset
-• **Market Structure Analysis** - Higher highs, lower lows, breaks
-• **Risk Management** - Professional 1:2-1:3 risk/reward ratios
+**🎯 Strategy Features:**
 
-**💡 Trading Methodology:**
-• **No Traditional Indicators** - Pure price action and volume
-• **Institutional Approach** - Think like smart money
-• **Liquidity-Based** - Trade around key liquidity zones
-• **Structure-Based** - Follow market structure breaks
-• **Professional Risk Management** - Proper position sizing
+**⚡ SCALPING (1-15 min):**
+• Tight stops for capital protection
+• Quick profit taking
+• High confidence signals only
+• Best during high volume sessions
 
-**🎓 Professional Concepts Used:**
-• **Order Flow** - Buying vs selling pressure analysis
-• **Volume Profile** - Price-volume relationship analysis
-• **Smart Money Concepts** - Institutional trading patterns
-• **Liquidity Zones** - Areas where stops are hunted
-• **Market Structure** - Trend analysis without indicators
-• **Risk/Reward Optimization** - Professional ratios
+**📈 INTRADAY (1-8 hours):**
+• Balanced risk/reward ratio
+• Follow trend direction
+• Close before market close
+• Monitor news and events
+
+**🎯 SWING (1-7 days):**
+• Wider stops for volatility
+• Larger profit targets
+• Less frequent monitoring
+• Focus on weekly trends
+
+**💡 Professional Tips:**
+• **Risk Management:** Never risk more than 2% per trade
+• **Strategy Selection:** Choose based on available time and market conditions
+• **Position Sizing:** Use recommended lot sizes for optimal risk
+• **Monitoring:** Scalping requires active monitoring, swing allows passive approach
 
 **⚠️ Risk Warning:**
 This bot uses advanced institutional trading concepts. Always use proper risk management and never trade money you can't afford to lose.
 
-**🎯 Best Practices:**
-• Use signals with >80% confidence for best results
-• Follow professional risk management (1-2% per trade)
-• Focus on high-probability setups near liquidity zones
-• Consider market structure before entering trades
-• Monitor smart money flow for confirmation
-
-Need more help? Contact support! 💬
+Need more help? Try the specific strategy commands! 💬
   `;
   
   await sendMessage(chatId, message);
@@ -343,11 +490,11 @@ async function handleStatusCommand(chatId: number): Promise<void> {
 • Open Positions: 0
 • Risk Level: Conservative
 
-🎯 **Analysis Capabilities:**
-• Smart Money Flow: ✅ Active
-• Volume Profile: ✅ Real-time
-• Liquidity Zones: ✅ Mapped
-• Professional Consensus: ✅ Updated
+🎯 **Strategy Capabilities:**
+• ⚡ Scalping: ✅ Active (1-15 min trades)
+• 📈 Intraday: ✅ Active (1-8 hour trades)
+• 🎯 Swing: ✅ Active (1-7 day trades)
+• 📊 Auto-Strategy: ✅ Active (Optimal selection)
 
 🕐 **Last Update:** ${new Date().toLocaleString()}
 
@@ -384,16 +531,21 @@ ${profitFactorEmoji} **Profit Factor:** ${performance.profitFactor.toFixed(2)}
 **🧠 ML Model Performance:**
 ${getMLPerformanceRating(performance.winRate, performance.profitFactor)}
 
-**📈 Professional Metrics:**
+**📈 Strategy Performance:**
+• ⚡ Scalping: High frequency, tight risk management
+• 📈 Intraday: Balanced approach, good for beginners
+• 🎯 Swing: Larger moves, less monitoring required
+
+**🎯 Professional Metrics:**
 • Risk/Reward Ratio: 1:${performance.profitFactor.toFixed(1)}
 • Sharpe Ratio: ${calculateSharpeRatio(performance)}
 • Maximum Drawdown: ${calculateMaxDrawdown(performance)}%
 • Recovery Factor: ${calculateRecoveryFactor(performance)}
 
-**🎯 Smart Money Accuracy:**
-• Institutional Flow Signals: 85%+ accuracy
-• Liquidity Zone Predictions: 78%+ accuracy
-• Structure Break Calls: 82%+ accuracy
+**🚀 Strategy Recommendations:**
+• Use **SCALPING** for quick profits during high volume
+• Use **INTRADAY** for balanced daily trading
+• Use **SWING** for larger moves with less monitoring
 
 Keep following the smart money! 🚀
     `;
@@ -407,38 +559,43 @@ Keep following the smart money! 🚀
 
 async function handleSymbolsCommand(chatId: number): Promise<void> {
   const message = `
-📊 **Supported Trading Symbols with Professional Analysis**
+📊 **Supported Trading Symbols with Multi-Strategy Analysis**
 
 **💰 Cryptocurrencies:**
-• **BTCUSD** - Bitcoin (Smart Money: Institutional adoption tracking)
-• **ETHUSD** - Ethereum (Order Flow: DeFi liquidity analysis)
+• **BTCUSD** - Bitcoin (All strategies: ⚡📈🎯)
+• **ETHUSD** - Ethereum (All strategies: ⚡📈🎯)
 
 **💱 Major Forex Pairs:**
-• **EURUSD** - Euro/Dollar (Central Bank flow analysis)
-• **GBPUSD** - Pound/Dollar (Brexit sentiment tracking)
-• **USDJPY** - Dollar/Yen (Carry trade flow analysis)
-• **AUDUSD** - Australian Dollar (Commodity correlation)
-• **USDCAD** - Dollar/Canadian (Oil correlation analysis)
-• **USDCHF** - Dollar/Swiss Franc (Safe haven flow)
+• **EURUSD** - Euro/Dollar (Best for: ⚡📈)
+• **GBPUSD** - Pound/Dollar (Best for: ⚡📈🎯)
+• **USDJPY** - Dollar/Yen (Best for: ⚡📈)
+• **AUDUSD** - Australian Dollar (Best for: 📈🎯)
+• **USDCAD** - Dollar/Canadian (Best for: 📈🎯)
+• **USDCHF** - Dollar/Swiss Franc (Best for: 📈🎯)
 
 **🥇 Precious Metals:**
-• **XAUUSD** - Gold (Institutional hedging analysis)
+• **XAUUSD** - Gold (Best for: 📈🎯)
 
 **🛢️ Commodities:**
-• **CRUDE** - WTI Oil (Supply/demand fundamentals)
-• **BRENT** - Brent Oil (Geopolitical analysis)
+• **CRUDE** - WTI Oil (Best for: 📈🎯)
+• **BRENT** - Brent Oil (Best for: 📈🎯)
 
-**🎯 Professional Analysis Features per Symbol:**
-• **Smart Money Flow** - Track institutional positioning
-• **Order Flow Analysis** - Buying vs selling pressure
-• **Volume Profile** - Accumulation/distribution zones
-• **Liquidity Mapping** - Key stop-loss hunting areas
-• **Top Trader Consensus** - Follow the best traders per asset
+**🎯 Strategy Symbols:**
+⚡ = Excellent for SCALPING (1-15 min)
+📈 = Excellent for INTRADAY (1-8 hours)  
+🎯 = Excellent for SWING (1-7 days)
 
-**Usage:** \`/predict SYMBOL\`
-**Example:** \`/predict EURUSD\`
+**Usage Examples:**
+• \`/scalping BTCUSD\` - Bitcoin scalping
+• \`/intraday EURUSD\` - Euro day trading
+• \`/swing XAUUSD\` - Gold swing trading
+• \`/predict GBPUSD\` - Auto-select best strategy
 
-**💡 Pro Tip:** Each symbol has specialized analysis based on its unique characteristics and the top professional traders who focus on that market.
+**💡 Strategy Selection Tips:**
+• **Crypto (BTC/ETH):** Great for all strategies due to 24/7 trading
+• **Major Forex:** Best for scalping and intraday during market hours
+• **Gold/Oil:** Excellent for swing trading due to larger moves
+• **Minor Pairs:** Better for intraday and swing strategies
 
 More symbols and advanced features coming soon! 🚀
   `;

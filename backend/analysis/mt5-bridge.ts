@@ -13,6 +13,7 @@ export interface MT5OrderRequest {
   entryPrice: number;
   takeProfit: number;
   stopLoss: number;
+  comment?: string;
 }
 
 export interface MT5OrderResult {
@@ -109,7 +110,7 @@ async function tryDirectMT5Connection(order: MT5OrderRequest): Promise<MT5OrderR
         tp: order.takeProfit,
         deviation: 20, // Price deviation in points
         magic: 234000, // Expert Advisor ID
-        comment: "AI Trading Bot",
+        comment: order.comment || "AI Trading Bot",
         type_time: "GTC", // Good Till Cancelled
         type_filling: "FOK", // Fill or Kill
       }),
@@ -250,7 +251,7 @@ async function tryMT5RestAPI(order: MT5OrderRequest): Promise<MT5OrderResult> {
         stoploss: order.stopLoss,
         takeprofit: order.takeProfit,
         magic: 234000,
-        comment: "AI Trading Bot",
+        comment: order.comment || "AI Trading Bot",
         expiration: 0, // No expiration
       }),
     });
@@ -291,6 +292,7 @@ async function simulateMT5Execution(order: MT5OrderRequest): Promise<MT5OrderRes
     const executionPrice = order.entryPrice + slippage;
     
     console.log(`[SIMULATION] Order executed: ${order.symbol} ${order.direction} ${order.lotSize} lots at ${executionPrice}`);
+    console.log(`[SIMULATION] Comment: ${order.comment || "AI Trading Bot"}`);
     
     return {
       success: true,
