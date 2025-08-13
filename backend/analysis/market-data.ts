@@ -31,6 +31,7 @@ export async function fetchMarketData(symbol: string, timeframes: string[]): Pro
         data[timeframe] = realData;
       } else {
         // Fallback to simulated data
+        console.log(`Using simulated data for ${symbol} ${timeframe}`);
         data[timeframe] = await simulateMarketData(symbol, timeframe);
       }
     } catch (error) {
@@ -45,6 +46,122 @@ export async function fetchMarketData(symbol: string, timeframes: string[]): Pro
 
 async function fetchAlphaVantageData(symbol: string, timeframe: string): Promise<MarketDataPoint | null> {
   try {
+    const apiKey = alphaVantageApiKey();
+    if (!apiKey || apiKey === "your_alpha_vantage_key") {
+      console.log("Alpha Vantage API key not configured, using simulated data");
+      return null;
+    }
+
+    // Convert symbol format for Alpha Vantage
+    const avSymbol = convertSymbolForAlphaVantage(symbol);
+    if (!avSymbol) {
+      console.log(`Symbol ${symbol} not supported by Alpha Vantage, using simulated data`);
+      return null;
+    }
+
+    // For crypto symbols, use DIGITAL_CURRENCY_DAILY
+    if (symbol === "BTCUSD" || symbol === "ETHUSD") {
+      return await fetchCryptoData(symbol, avSymbol);
+    }
+
+    // For forex symbols, use FX_INTRADAY
+    if (isForexSymbol(symbol)) {
+      return await fetchForexData(symbol, avSymbol, timeframe);
+    }
+
+    // For other symbols, try TIME_SERIES_INTRADAY
+    return await fetchStockData(symbol, avSymbol, timeframe);
+
+  } catch (error) {
+    console.error("Alpha Vantage API error:", error);
+    return null;
+  }
+}
+
+async function fetchCryptoData(symbol: string, avSymbol: string): Promise<MarketDataPoint | null> {
+  try {
+    const cryptoCode = avSymbol; // BTC, ETH, etc.
+    const url = `https://www.alphavantage.co/query?function=DIGITAL_CURRENCY_DAILY&symbol=${cryptoCode}&market=USD&apikey=${alphaVantageApiKey()}`;
+    
+    console.log(`Fetching crypto data from: ${url.replace(alphaVantageApiKey(), 'API_KEY')}`);
+    
+    const response = await fetch(url);
+    
+    if (!response.ok) {
+      console.error("Alpha Vantage HTTP error:", response.status, response.statusText);
+      return null;
+    }
+
+    const data = await response.json();
+    
+    // Check for API limit or error
+    if (data["Error Message"]) {
+      console.error("Alpha Vantage error:", data["Error Message"]);
+      return null;
+    }
+
+    if (data["Note"]) {
+      console.error("Alpha Vantage rate limit:", data["Note"]);
+      return null;
+    }
+
+    if (data["Information"]) {
+      console.error("Alpha Vantage info:", data["Information"]);
+      return null;
+    }
+
+    const timeSeries = data["Time Series (Digital Currency Daily)"];
+    if (!timeSeries) {
+      console.error("No crypto time series data found");
+      return null;
+    }
+
+    // Get the most recent data point
+    const dates = Object.keys(timeSeries).sort().reverse();
+    if (dates.length === 0) {
+      console.error("No crypto data points found");
+      return null;
+    }
+
+    const latestDate = dates[0];
+    const latestData = timeSeries[latestDate];
+
+    if (!latestData) {
+      console.error("No crypto data for latest date");
+      return null;
+    }
+
+    const open = parseFloat(latestData["1a. open (USD)"]);
+    const high = parseFloat(latestData["2a. high (USD)"]);
+    const low = parseFloat(latestData["3a. low (USD)"]);
+    const close = parseFloat(latestData["4a. close (USD)"]);
+    const volume = parseFloat(latestData["5. volume"]);
+
+    if (isNaN(open) || isNaN(high) || isNaN(low) || isNaN(close)) {
+      console.error("Invalid crypto price data");
+      return null;
+    }
+
+    // Calculate technical indicators
+    const indicators = calculateIndicators(open, high, low, close);
+
+    return {
+      timestamp: new Date(latestDate).getTime(),
+      open: Math.round(open * 100) / 100,
+      high: Math.round(high * 100) / 100,
+      low: Math.round(low * 100) / 100,
+      close: Math.round(close * 100) / 100,
+      volume: Math.round(volume),
+      indicators,
+    };
+  } catch (error) {
+    console.error("Error fetching crypto data:", error);
+    return null;
+  }
+}
+
+async function fetchForexData(symbol: string, avSymbol: string, timeframe: string): Promise<MarketDataPoint | null> {
+  try {
     // Map our timeframes to Alpha Vantage intervals
     const intervalMap: { [key: string]: string } = {
       "5m": "5min",
@@ -55,37 +172,57 @@ async function fetchAlphaVantageData(symbol: string, timeframe: string): Promise
 
     const interval = intervalMap[timeframe] || "5min";
     
-    // Convert symbol format for Alpha Vantage
-    const avSymbol = convertSymbolForAlphaVantage(symbol);
+    // For forex, we need from_symbol and to_symbol
+    const fromSymbol = avSymbol.substring(0, 3);
+    const toSymbol = avSymbol.substring(3, 6);
     
-    const url = `https://www.alphavantage.co/query?function=TIME_SERIES_INTRADAY&symbol=${avSymbol}&interval=${interval}&apikey=${alphaVantageApiKey()}&outputsize=compact`;
+    const url = `https://www.alphavantage.co/query?function=FX_INTRADAY&from_symbol=${fromSymbol}&to_symbol=${toSymbol}&interval=${interval}&apikey=${alphaVantageApiKey()}&outputsize=compact`;
+    
+    console.log(`Fetching forex data from: ${url.replace(alphaVantageApiKey(), 'API_KEY')}`);
     
     const response = await fetch(url);
     
     if (!response.ok) {
-      console.error("Alpha Vantage API error:", response.statusText);
+      console.error("Alpha Vantage HTTP error:", response.status, response.statusText);
       return null;
     }
 
     const data = await response.json();
     
     // Check for API limit or error
-    if (data["Error Message"] || data["Note"]) {
-      console.error("Alpha Vantage error:", data["Error Message"] || data["Note"]);
+    if (data["Error Message"]) {
+      console.error("Alpha Vantage error:", data["Error Message"]);
       return null;
     }
 
-    const timeSeries = data[`Time Series (${interval})`];
+    if (data["Note"]) {
+      console.error("Alpha Vantage rate limit:", data["Note"]);
+      return null;
+    }
+
+    if (data["Information"]) {
+      console.error("Alpha Vantage info:", data["Information"]);
+      return null;
+    }
+
+    const timeSeries = data[`Time Series FX (${interval})`];
     if (!timeSeries) {
-      console.error("No time series data found");
+      console.error("No forex time series data found");
       return null;
     }
 
     // Get the most recent data point
-    const latestTime = Object.keys(timeSeries)[0];
+    const times = Object.keys(timeSeries).sort().reverse();
+    if (times.length === 0) {
+      console.error("No forex data points found");
+      return null;
+    }
+
+    const latestTime = times[0];
     const latestData = timeSeries[latestTime];
 
     if (!latestData) {
+      console.error("No forex data for latest time");
       return null;
     }
 
@@ -93,7 +230,11 @@ async function fetchAlphaVantageData(symbol: string, timeframe: string): Promise
     const high = parseFloat(latestData["2. high"]);
     const low = parseFloat(latestData["3. low"]);
     const close = parseFloat(latestData["4. close"]);
-    const volume = parseInt(latestData["5. volume"]);
+
+    if (isNaN(open) || isNaN(high) || isNaN(low) || isNaN(close)) {
+      console.error("Invalid forex price data");
+      return null;
+    }
 
     // Calculate technical indicators
     const indicators = calculateIndicators(open, high, low, close);
@@ -104,32 +245,141 @@ async function fetchAlphaVantageData(symbol: string, timeframe: string): Promise
       high: Math.round(high * 100000) / 100000,
       low: Math.round(low * 100000) / 100000,
       close: Math.round(close * 100000) / 100000,
-      volume,
+      volume: Math.floor(Math.random() * 1000000), // Forex doesn't have volume
       indicators,
     };
   } catch (error) {
-    console.error("Error fetching Alpha Vantage data:", error);
+    console.error("Error fetching forex data:", error);
     return null;
   }
 }
 
-function convertSymbolForAlphaVantage(symbol: string): string {
+async function fetchStockData(symbol: string, avSymbol: string, timeframe: string): Promise<MarketDataPoint | null> {
+  try {
+    // Map our timeframes to Alpha Vantage intervals
+    const intervalMap: { [key: string]: string } = {
+      "5m": "5min",
+      "15m": "15min",
+      "30m": "30min",
+      "1h": "60min",
+    };
+
+    const interval = intervalMap[timeframe] || "5min";
+    
+    const url = `https://www.alphavantage.co/query?function=TIME_SERIES_INTRADAY&symbol=${avSymbol}&interval=${interval}&apikey=${alphaVantageApiKey()}&outputsize=compact`;
+    
+    console.log(`Fetching stock data from: ${url.replace(alphaVantageApiKey(), 'API_KEY')}`);
+    
+    const response = await fetch(url);
+    
+    if (!response.ok) {
+      console.error("Alpha Vantage HTTP error:", response.status, response.statusText);
+      return null;
+    }
+
+    const data = await response.json();
+    
+    // Check for API limit or error
+    if (data["Error Message"]) {
+      console.error("Alpha Vantage error:", data["Error Message"]);
+      return null;
+    }
+
+    if (data["Note"]) {
+      console.error("Alpha Vantage rate limit:", data["Note"]);
+      return null;
+    }
+
+    if (data["Information"]) {
+      console.error("Alpha Vantage info:", data["Information"]);
+      return null;
+    }
+
+    const timeSeries = data[`Time Series (${interval})`];
+    if (!timeSeries) {
+      console.error("No stock time series data found");
+      return null;
+    }
+
+    // Get the most recent data point
+    const times = Object.keys(timeSeries).sort().reverse();
+    if (times.length === 0) {
+      console.error("No stock data points found");
+      return null;
+    }
+
+    const latestTime = times[0];
+    const latestData = timeSeries[latestTime];
+
+    if (!latestData) {
+      console.error("No stock data for latest time");
+      return null;
+    }
+
+    const open = parseFloat(latestData["1. open"]);
+    const high = parseFloat(latestData["2. high"]);
+    const low = parseFloat(latestData["3. low"]);
+    const close = parseFloat(latestData["4. close"]);
+    const volume = parseInt(latestData["5. volume"]);
+
+    if (isNaN(open) || isNaN(high) || isNaN(low) || isNaN(close)) {
+      console.error("Invalid stock price data");
+      return null;
+    }
+
+    // Calculate technical indicators
+    const indicators = calculateIndicators(open, high, low, close);
+
+    return {
+      timestamp: new Date(latestTime).getTime(),
+      open: Math.round(open * 100) / 100,
+      high: Math.round(high * 100) / 100,
+      low: Math.round(low * 100) / 100,
+      close: Math.round(close * 100) / 100,
+      volume: volume || 0,
+      indicators,
+    };
+  } catch (error) {
+    console.error("Error fetching stock data:", error);
+    return null;
+  }
+}
+
+function convertSymbolForAlphaVantage(symbol: string): string | null {
   // Convert trading symbols to Alpha Vantage format
   const symbolMap: { [key: string]: string } = {
+    // Crypto symbols (just the base currency)
     "BTCUSD": "BTC",
     "ETHUSD": "ETH",
-    "EURUSD": "EURUSD=X",
-    "GBPUSD": "GBPUSD=X",
-    "USDJPY": "USDJPY=X",
-    "AUDUSD": "AUDUSD=X",
-    "USDCAD": "USDCAD=X",
-    "USDCHF": "USDCHF=X",
-    "XAUUSD": "XAUUSD=X",
-    "CRUDE": "CL=F",
-    "BRENT": "BZ=F",
+    
+    // Forex symbols (6 characters)
+    "EURUSD": "EURUSD",
+    "GBPUSD": "GBPUSD",
+    "USDJPY": "USDJPY",
+    "AUDUSD": "AUDUSD",
+    "USDCAD": "USDCAD",
+    "USDCHF": "USDCHF",
+    "NZDUSD": "NZDUSD",
+    "EURGBP": "EURGBP",
+    "EURJPY": "EURJPY",
+    "GBPJPY": "GBPJPY",
+    
+    // Commodities and metals (not directly supported by Alpha Vantage free tier)
+    // These will fall back to simulated data
+    "XAUUSD": null,
+    "CRUDE": null,
+    "BRENT": null,
   };
 
-  return symbolMap[symbol] || symbol;
+  return symbolMap[symbol] !== undefined ? symbolMap[symbol] : null;
+}
+
+function isForexSymbol(symbol: string): boolean {
+  const forexSymbols = [
+    "EURUSD", "GBPUSD", "USDJPY", "AUDUSD", "USDCAD", 
+    "USDCHF", "NZDUSD", "EURGBP", "EURJPY", "GBPJPY"
+  ];
+  return forexSymbols.includes(symbol);
 }
 
 function calculateIndicators(open: number, high: number, low: number, close: number) {
@@ -180,6 +430,10 @@ function getBasePrice(symbol: string): number {
     "AUDUSD": 0.6550,
     "USDCAD": 1.3650,
     "USDCHF": 0.8950,
+    "NZDUSD": 0.6150,
+    "EURGBP": 0.8650,
+    "EURJPY": 162.50,
+    "GBPJPY": 188.75,
     "XAUUSD": 2050.00,
     "CRUDE": 75.50,
     "BRENT": 78.20,
@@ -198,6 +452,10 @@ function getVolatility(symbol: string, timeframe: string): number {
     "AUDUSD": 0.007,
     "USDCAD": 0.005,
     "USDCHF": 0.005,
+    "NZDUSD": 0.008,
+    "EURGBP": 0.004,
+    "EURJPY": 0.007,
+    "GBPJPY": 0.009,
     "XAUUSD": 0.015,
     "CRUDE": 0.025,
     "BRENT": 0.025,
@@ -258,6 +516,10 @@ function convertSymbolForYahoo(symbol: string): string {
     "AUDUSD": "AUDUSD=X",
     "USDCAD": "USDCAD=X",
     "USDCHF": "USDCHF=X",
+    "NZDUSD": "NZDUSD=X",
+    "EURGBP": "EURGBP=X",
+    "EURJPY": "EURJPY=X",
+    "GBPJPY": "GBPJPY=X",
     "XAUUSD": "GC=F",
     "CRUDE": "CL=F",
     "BRENT": "BZ=F",
