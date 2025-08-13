@@ -85,14 +85,15 @@ async function tryDirectMT5Connection(order: MT5OrderRequest): Promise<MT5OrderR
     // Fix: Construct URL properly without duplicate port
     const baseUrl = host.includes(':') ? `http://${host}` : `http://${host}:${port}`;
 
-    // Find the correct symbol format for this broker
+    // Find the correct symbol format for this broker with enhanced error handling
     const correctSymbol = await findCorrectSymbolForExecution(baseUrl, order.symbol);
     if (!correctSymbol) {
-      return { success: false, error: `Symbol ${order.symbol} not found on this broker` };
+      console.log(`Symbol ${order.symbol} not found on this broker - trying alternative execution methods`);
+      return { success: false, error: `Symbol ${order.symbol} not available for trading on this broker` };
     }
 
     // Connect to Python service running MetaTrader5 library
-    const response = await fetch(`${baseUrl}/execute`, {
+    const response = await fetchWithTimeout(`${baseUrl}/execute`, {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
@@ -114,11 +115,11 @@ async function tryDirectMT5Connection(order: MT5OrderRequest): Promise<MT5OrderR
         type_time: "GTC", // Good Till Cancelled
         type_filling: "FOK", // Fill or Kill
       }),
-    });
+    }, 15000); // 15 second timeout
 
     if (!response.ok) {
       console.error(`MT5 server error: ${response.status} ${response.statusText}`);
-      return { success: false, error: "MT5 server connection failed" };
+      return { success: false, error: `MT5 server connection failed: ${response.status}` };
     }
 
     const result = await response.json();
@@ -131,6 +132,7 @@ async function tryDirectMT5Connection(order: MT5OrderRequest): Promise<MT5OrderR
         executionPrice: result.price,
       };
     } else {
+      console.log(`MT5 execution failed: ${result.error || `Error Code: ${result.retcode}`}`);
       return {
         success: false,
         error: result.error || `MT5 Error Code: ${result.retcode}`,
@@ -142,20 +144,41 @@ async function tryDirectMT5Connection(order: MT5OrderRequest): Promise<MT5OrderR
   }
 }
 
+// Custom fetch with timeout function
+async function fetchWithTimeout(url: string, options: RequestInit, timeoutMs: number): Promise<Response> {
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
+  
+  try {
+    const response = await fetch(url, {
+      ...options,
+      signal: controller.signal,
+    });
+    clearTimeout(timeoutId);
+    return response;
+  } catch (error) {
+    clearTimeout(timeoutId);
+    if (error.name === 'AbortError') {
+      throw new Error(`Request timeout after ${timeoutMs}ms`);
+    }
+    throw error;
+  }
+}
+
 async function findCorrectSymbolForExecution(baseUrl: string, symbol: string): Promise<string | null> {
   // Get possible symbol variations for this broker
   const symbolVariations = getSymbolVariations(symbol);
   
   console.log(`Finding correct symbol format for execution: ${symbol}. Testing variations: ${symbolVariations.join(', ')}`);
   
-  // Try each variation until we find one that works
+  // Try each variation until we find one that works for trading
   for (const variation of symbolVariations) {
     try {
-      const response = await fetch(`${baseUrl}/symbol_info`, {
+      const response = await fetchWithTimeout(`${baseUrl}/symbol_info`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ symbol: variation }),
-      });
+      }, 5000);
 
       if (response.ok) {
         const result = await response.json();
@@ -165,6 +188,8 @@ async function findCorrectSymbolForExecution(baseUrl: string, symbol: string): P
           if (symbolInfo.trade_mode !== undefined && symbolInfo.trade_mode > 0) {
             console.log(`✅ Found tradeable symbol format: ${symbol} → ${variation}`);
             return variation;
+          } else {
+            console.log(`Symbol ${variation} found but trading not allowed (trade_mode: ${symbolInfo.trade_mode})`);
           }
         }
       }
@@ -236,7 +261,7 @@ async function tryMT5RestAPI(order: MT5OrderRequest): Promise<MT5OrderResult> {
     const baseUrl = host.includes(':') ? `http://${host}` : `http://${host}:${port}`;
     
     // Connect to custom Expert Advisor that exposes REST API
-    const response = await fetch(`${baseUrl}/api/trade`, {
+    const response = await fetchWithTimeout(`${baseUrl}/api/trade`, {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
@@ -254,7 +279,7 @@ async function tryMT5RestAPI(order: MT5OrderRequest): Promise<MT5OrderResult> {
         comment: order.comment || "AI Trading Bot",
         expiration: 0, // No expiration
       }),
-    });
+    }, 10000);
 
     if (!response.ok) {
       console.error(`MT5 REST API error: ${response.status} ${response.statusText}`);
@@ -327,12 +352,12 @@ export async function getMT5AccountInfo(): Promise<MT5AccountInfo | null> {
     const baseUrl = host.includes(':') ? `http://${host}` : `http://${host}:${port}`;
     
     // Try to get account info from MT5
-    const response = await fetch(`${baseUrl}/account`, {
+    const response = await fetchWithTimeout(`${baseUrl}/account`, {
       method: "GET",
       headers: {
         "Authorization": `Bearer ${mt5Password()}`,
       },
-    });
+    }, 10000);
 
     if (response.ok) {
       const data = await response.json();
@@ -369,12 +394,12 @@ export async function checkMT5Connection(): Promise<boolean> {
     const baseUrl = host.includes(':') ? `http://${host}` : `http://${host}:${port}`;
     
     // Check if MT5 terminal is connected and logged in
-    const response = await fetch(`${baseUrl}/status`, {
+    const response = await fetchWithTimeout(`${baseUrl}/status`, {
       method: "GET",
       headers: {
         "Authorization": `Bearer ${mt5Password()}`,
       },
-    });
+    }, 5000);
 
     if (response.ok) {
       const data = await response.json();
@@ -396,12 +421,12 @@ export async function getMT5Positions(): Promise<MT5Position[]> {
     // Fix: Construct URL properly without duplicate port
     const baseUrl = host.includes(':') ? `http://${host}` : `http://${host}:${port}`;
     
-    const response = await fetch(`${baseUrl}/positions`, {
+    const response = await fetchWithTimeout(`${baseUrl}/positions`, {
       method: "GET",
       headers: {
         "Authorization": `Bearer ${mt5Password()}`,
       },
-    });
+    }, 10000);
 
     if (response.ok) {
       const data = await response.json();
@@ -422,7 +447,7 @@ export async function closeMT5Position(ticket: number): Promise<MT5OrderResult> 
     // Fix: Construct URL properly without duplicate port
     const baseUrl = host.includes(':') ? `http://${host}` : `http://${host}:${port}`;
     
-    const response = await fetch(`${baseUrl}/close`, {
+    const response = await fetchWithTimeout(`${baseUrl}/close`, {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
@@ -432,7 +457,7 @@ export async function closeMT5Position(ticket: number): Promise<MT5OrderResult> 
         ticket: ticket,
         deviation: 20,
       }),
-    });
+    }, 15000);
 
     if (response.ok) {
       const result = await response.json();
@@ -469,7 +494,7 @@ export async function getMT5MarketInfo(symbol: string): Promise<any> {
       return null;
     }
 
-    const response = await fetch(`${baseUrl}/symbol_info`, {
+    const response = await fetchWithTimeout(`${baseUrl}/symbol_info`, {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
@@ -478,7 +503,7 @@ export async function getMT5MarketInfo(symbol: string): Promise<any> {
       body: JSON.stringify({
         symbol: correctSymbol,
       }),
-    });
+    }, 10000);
 
     if (response.ok) {
       const data = await response.json();
@@ -507,7 +532,7 @@ export async function getMT5Tick(symbol: string): Promise<any> {
       return null;
     }
 
-    const response = await fetch(`${baseUrl}/tick`, {
+    const response = await fetchWithTimeout(`${baseUrl}/tick`, {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
@@ -516,7 +541,7 @@ export async function getMT5Tick(symbol: string): Promise<any> {
       body: JSON.stringify({
         symbol: correctSymbol,
       }),
-    });
+    }, 5000);
 
     if (response.ok) {
       const data = await response.json();
@@ -596,7 +621,7 @@ export async function calculateRequiredMargin(symbol: string, lotSize: number): 
       return 0;
     }
 
-    const response = await fetch(`${baseUrl}/calc_margin`, {
+    const response = await fetchWithTimeout(`${baseUrl}/calc_margin`, {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
@@ -607,7 +632,7 @@ export async function calculateRequiredMargin(symbol: string, lotSize: number): 
         volume: lotSize,
         action: "BUY", // Margin is same for BUY/SELL
       }),
-    });
+    }, 10000);
 
     if (response.ok) {
       const data = await response.json();

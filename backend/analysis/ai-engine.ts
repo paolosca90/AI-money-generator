@@ -41,6 +41,10 @@ export interface AIAnalysis {
   };
 }
 
+// Cache for Gemini responses to reduce API calls
+const geminiCache = new Map<string, { response: any; timestamp: number }>();
+const CACHE_DURATION = 5 * 60 * 1000; // 5 minutes
+
 export async function analyzeWithAI(marketData: TimeframeData, symbol: string): Promise<AIAnalysis> {
   // Extract key data from different timeframes
   const data5m = marketData["5m"];
@@ -59,8 +63,8 @@ export async function analyzeWithAI(marketData: TimeframeData, symbol: string): 
   // Professional trader consensus
   const professionalAnalysis = await analyzeProfessionalTraders(symbol, marketData);
 
-  // Use Gemini AI for enhanced analysis with better error handling and rate limiting
-  const geminiAnalysis = await analyzeWithGemini(marketData, symbol, {
+  // Use Gemini AI for enhanced analysis with better error handling and caching
+  const geminiAnalysis = await analyzeWithGeminiCached(marketData, symbol, {
     priceAction: priceActionAnalysis,
     smartMoney: smartMoneyAnalysis,
     volume: volumeAnalysis,
@@ -662,12 +666,22 @@ function determineOptimalTimeframe(symbol: string): string {
   return timeframeMap[symbol] || "15m";
 }
 
-async function analyzeWithGemini(
+async function analyzeWithGeminiCached(
   marketData: TimeframeData, 
   symbol: string, 
   additionalData: any
 ): Promise<{ direction: "LONG" | "SHORT"; confidence: number }> {
   try {
+    // Create cache key based on market data and symbol
+    const cacheKey = `${symbol}_${marketData["5m"].close}_${Date.now() - (Date.now() % (5 * 60 * 1000))}`;
+    
+    // Check cache first
+    const cached = geminiCache.get(cacheKey);
+    if (cached && (Date.now() - cached.timestamp) < CACHE_DURATION) {
+      console.log("Using cached Gemini analysis");
+      return cached.response;
+    }
+
     const apiKey = geminiApiKey();
     if (!apiKey || apiKey === "your_gemini_key") {
       console.log("Gemini API key not configured, using fallback analysis");
@@ -676,93 +690,84 @@ async function analyzeWithGemini(
 
     const prompt = createAdvancedTradingPrompt(marketData, symbol, additionalData);
     
-    // Add retry logic with exponential backoff for rate limiting
-    const maxRetries = 3;
-    let retryDelay = 1000; // Start with 1 second
-    
-    for (let attempt = 1; attempt <= maxRetries; attempt++) {
-      try {
-        const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash-latest:generateContent?key=${apiKey}`, {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-          },
-          body: JSON.stringify({
-            contents: [{
-              parts: [{
-                text: prompt
-              }]
-            }],
-            generationConfig: {
-              temperature: 0.1,
-              topK: 1,
-              topP: 1,
-              maxOutputTokens: 300,
-            }
-          })
-        });
-
-        if (response.status === 503) {
-          console.log(`Gemini service overloaded, attempt ${attempt}/${maxRetries}`);
-          if (attempt < maxRetries) {
-            await new Promise(resolve => setTimeout(resolve, retryDelay));
-            retryDelay *= 2; // Exponential backoff
-            continue;
-          } else {
-            console.log("Gemini service unavailable after retries, using fallback");
-            return fallbackAnalysis(marketData);
+    // Simplified single request with longer timeout
+    try {
+      const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash-latest:generateContent?key=${apiKey}`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          contents: [{
+            parts: [{
+              text: prompt
+            }]
+          }],
+          generationConfig: {
+            temperature: 0.1,
+            topK: 1,
+            topP: 1,
+            maxOutputTokens: 200, // Reduced to save quota
           }
-        }
+        })
+      });
 
-        if (response.status === 429) {
-          console.log(`Gemini rate limit exceeded, attempt ${attempt}/${maxRetries}`);
-          if (attempt < maxRetries) {
-            await new Promise(resolve => setTimeout(resolve, retryDelay));
-            retryDelay *= 2;
-            continue;
-          } else {
-            console.log("Gemini rate limit exceeded after retries, using fallback");
-            return fallbackAnalysis(marketData);
-          }
-        }
-
-        if (!response.ok) {
-          const errorText = await response.text();
-          console.error(`Gemini API error: ${response.status} ${response.statusText} - ${errorText}`);
-          return fallbackAnalysis(marketData);
-        }
-
-        const data = await response.json();
-        
-        if (data.error) {
-          console.error("Gemini API response error:", data.error);
-          return fallbackAnalysis(marketData);
-        }
-        
-        const text = data.candidates?.[0]?.content?.parts?.[0]?.text;
-        
-        if (!text) {
-          console.log("No text response from Gemini, using fallback");
-          return fallbackAnalysis(marketData);
-        }
-
-        console.log("Gemini advanced analysis successful");
-        return parseGeminiResponse(text);
-        
-      } catch (error) {
-        console.error(`Gemini API attempt ${attempt} failed:`, error);
-        if (attempt === maxRetries) {
-          return fallbackAnalysis(marketData);
-        }
-        await new Promise(resolve => setTimeout(resolve, retryDelay));
-        retryDelay *= 2;
+      if (response.status === 429) {
+        console.log("Gemini quota exceeded, using enhanced fallback analysis");
+        return enhancedFallbackAnalysis(marketData, additionalData);
       }
+
+      if (!response.ok) {
+        const errorText = await response.text();
+        console.error(`Gemini API error: ${response.status} ${response.statusText} - ${errorText}`);
+        return enhancedFallbackAnalysis(marketData, additionalData);
+      }
+
+      const data = await response.json();
+      
+      if (data.error) {
+        console.error("Gemini API response error:", data.error);
+        return enhancedFallbackAnalysis(marketData, additionalData);
+      }
+      
+      const text = data.candidates?.[0]?.content?.parts?.[0]?.text;
+      
+      if (!text) {
+        console.log("No text response from Gemini, using enhanced fallback");
+        return enhancedFallbackAnalysis(marketData, additionalData);
+      }
+
+      const result = parseGeminiResponse(text);
+      
+      // Cache the result
+      geminiCache.set(cacheKey, {
+        response: result,
+        timestamp: Date.now()
+      });
+      
+      // Clean old cache entries
+      cleanCache();
+      
+      console.log("Gemini analysis successful");
+      return result;
+      
+    } catch (error) {
+      console.error("Gemini API request failed:", error);
+      return enhancedFallbackAnalysis(marketData, additionalData);
     }
 
-    return fallbackAnalysis(marketData);
   } catch (error) {
-    console.error("Error calling Gemini API:", error);
-    return fallbackAnalysis(marketData);
+    console.error("Error in Gemini analysis:", error);
+    return enhancedFallbackAnalysis(marketData, additionalData);
+  }
+}
+
+function cleanCache() {
+  const now = Date.now();
+  for (const [key, value] of geminiCache.entries()) {
+    if (now - value.timestamp > CACHE_DURATION) {
+      geminiCache.delete(key);
+    }
   }
 }
 
@@ -771,53 +776,25 @@ function createAdvancedTradingPrompt(marketData: TimeframeData, symbol: string, 
   const data15m = marketData["15m"];
   const data30m = marketData["30m"];
 
+  // Simplified prompt to reduce token usage
   return `
-You are an elite institutional trader with 20+ years of experience. Analyze ${symbol} using advanced trading concepts.
+Analyze ${symbol} trading signal:
 
-MARKET DATA:
-5-minute: Open ${data5m.open}, High ${data5m.high}, Low ${data5m.low}, Close ${data5m.close}, Volume ${data5m.volume}
-15-minute: Open ${data15m.open}, High ${data15m.high}, Low ${data15m.low}, Close ${data15m.close}, Volume ${data15m.volume}
-30-minute: Open ${data30m.open}, High ${data30m.high}, Low ${data30m.low}, Close ${data30m.close}, Volume ${data30m.volume}
+PRICE DATA:
+5m: ${data5m.close} (Vol: ${data5m.volume})
+15m: ${data15m.close} (Vol: ${data15m.volume})
+30m: ${data30m.close} (Vol: ${data30m.volume})
 
-SMART MONEY ANALYSIS:
-- Institutional Flow: ${additionalData.smartMoney.institutionalFlow}
-- Volume Profile: ${additionalData.smartMoney.volumeProfile}
-- Order Flow: ${additionalData.smartMoney.orderFlow}
-
-PRICE ACTION ANALYSIS:
-- Market Structure: ${additionalData.priceAction.structure}
+ANALYSIS:
 - Trend: ${additionalData.priceAction.trend}
-- Breakout Probability: ${additionalData.priceAction.breakoutProbability}%
+- Structure: ${additionalData.priceAction.structure}
+- Smart Money: ${additionalData.smartMoney.institutionalFlow}
+- Volume: ${additionalData.smartMoney.volumeProfile}
 
-PROFESSIONAL TRADER CONSENSUS:
-- Top Traders: ${additionalData.professional.topTraders.slice(0, 3).join(", ")}
-- Consensus View: ${additionalData.professional.consensusView}
-- Risk-Reward: ${additionalData.professional.riskReward}
-
-ANALYSIS FRAMEWORK:
-1. MARKET STRUCTURE: Analyze higher highs/lower lows, structure breaks, liquidity zones
-2. VOLUME ANALYSIS: Volume profile, VWAP relationship, volume-price divergence
-3. ORDER FLOW: Smart money footprints, institutional accumulation/distribution
-4. LIQUIDITY: Where are the stops? Where is smart money hunting liquidity?
-5. RISK MANAGEMENT: Professional risk-reward ratios, position sizing
-
-Think like an institutional trader:
-- Where is smart money positioned?
-- What are the key liquidity zones?
-- Is this a continuation or reversal setup?
-- What would professional traders do in this scenario?
-
-Based on this PROFESSIONAL analysis, provide your recommendation:
-
+Provide trading recommendation:
 DIRECTION: [LONG or SHORT]
-CONFIDENCE: [number between 70-95]
-REASONING: [Brief explanation of smart money concepts used]
-
-Focus on:
-- Market structure and liquidity
-- Volume profile and order flow
-- Professional trader positioning
-- Risk-reward optimization
+CONFIDENCE: [70-95]
+REASON: [Brief explanation]
 `;
 }
 
@@ -839,39 +816,103 @@ function parseGeminiResponse(text: string): { direction: "LONG" | "SHORT"; confi
   }
 }
 
+function enhancedFallbackAnalysis(marketData: TimeframeData, additionalData: any): { direction: "LONG" | "SHORT"; confidence: number } {
+  const data5m = marketData["5m"];
+  const data15m = marketData["15m"];
+  const data30m = marketData["30m"];
+
+  // Enhanced fallback analysis using all available data
+  let bullishSignals = 0;
+  let bearishSignals = 0;
+  let totalWeight = 0;
+  
+  // Price momentum analysis (weight: 3)
+  const priceChanges = [
+    (data5m.close - data15m.close) / data15m.close,
+    (data15m.close - data30m.close) / data30m.close
+  ];
+  
+  priceChanges.forEach(change => {
+    if (change > 0.001) bullishSignals += 3; // 0.1% threshold
+    else if (change < -0.001) bearishSignals += 3;
+    totalWeight += 3;
+  });
+  
+  // Volume analysis (weight: 2)
+  if (data5m.volume > data15m.volume * 1.2) {
+    if (data5m.close > data5m.open) bullishSignals += 2;
+    else bearishSignals += 2;
+    totalWeight += 2;
+  }
+  
+  // Technical indicators (weight: 2)
+  if (data5m.indicators.rsi < 30) bullishSignals += 2; // Oversold
+  else if (data5m.indicators.rsi > 70) bearishSignals += 2; // Overbought
+  totalWeight += 2;
+  
+  if (data5m.indicators.macd > 0) bullishSignals += 1;
+  else bearishSignals += 1;
+  totalWeight += 1;
+  
+  // Smart money analysis (weight: 4)
+  if (additionalData.smartMoney.institutionalFlow === "BUYING") bullishSignals += 2;
+  else if (additionalData.smartMoney.institutionalFlow === "SELLING") bearishSignals += 2;
+  totalWeight += 2;
+  
+  if (additionalData.smartMoney.volumeProfile === "ACCUMULATION") bullishSignals += 1;
+  else if (additionalData.smartMoney.volumeProfile === "DISTRIBUTION") bearishSignals += 1;
+  totalWeight += 1;
+  
+  if (additionalData.smartMoney.orderFlow === "BULLISH") bullishSignals += 1;
+  else if (additionalData.smartMoney.orderFlow === "BEARISH") bearishSignals += 1;
+  totalWeight += 1;
+  
+  // Price action analysis (weight: 3)
+  if (additionalData.priceAction.trend === "UPTREND") bullishSignals += 2;
+  else if (additionalData.priceAction.trend === "DOWNTREND") bearishSignals += 2;
+  totalWeight += 2;
+  
+  if (additionalData.priceAction.structure === "BULLISH") bullishSignals += 1;
+  else if (additionalData.priceAction.structure === "BEARISH") bearishSignals += 1;
+  totalWeight += 1;
+  
+  // Calculate direction and confidence
+  const direction = bullishSignals > bearishSignals ? "LONG" : "SHORT";
+  const signalStrength = Math.abs(bullishSignals - bearishSignals);
+  const confidence = Math.min(90, 70 + (signalStrength / totalWeight) * 20);
+
+  console.log(`Enhanced fallback analysis: ${direction} with ${confidence}% confidence (${bullishSignals}/${bearishSignals} signals)`);
+
+  return { direction, confidence };
+}
+
 function fallbackAnalysis(marketData: TimeframeData): { direction: "LONG" | "SHORT"; confidence: number } {
   const data5m = marketData["5m"];
   const data15m = marketData["15m"];
   const data30m = marketData["30m"];
 
-  // Advanced price action analysis
-  const priceAction = analyzePriceActionEnhanced(data5m, data15m, data30m, "UNKNOWN");
-  const smartMoney = analyzeSmartMoneyEnhanced(data5m, data15m, data30m, "UNKNOWN");
-  
+  // Basic price action analysis
   let bullishSignals = 0;
   let bearishSignals = 0;
   
-  // Price action signals
-  if (priceAction.trend === "UPTREND") bullishSignals++;
-  if (priceAction.trend === "DOWNTREND") bearishSignals++;
-  if (priceAction.structure === "BULLISH") bullishSignals++;
-  if (priceAction.structure === "BEARISH") bearishSignals++;
+  // Price momentum
+  if (data5m.close > data15m.close) bullishSignals++;
+  else bearishSignals++;
   
-  // Smart money signals
-  if (smartMoney.institutionalFlow === "BUYING") bullishSignals++;
-  if (smartMoney.institutionalFlow === "SELLING") bearishSignals++;
-  if (smartMoney.volumeProfile === "ACCUMULATION") bullishSignals++;
-  if (smartMoney.volumeProfile === "DISTRIBUTION") bearishSignals++;
-  if (smartMoney.orderFlow === "BULLISH") bullishSignals++;
-  if (smartMoney.orderFlow === "BEARISH") bearishSignals++;
+  if (data15m.close > data30m.close) bullishSignals++;
+  else bearishSignals++;
   
   // Volume confirmation
   if (data5m.volume > data15m.volume && data5m.close > data5m.open) bullishSignals++;
   if (data5m.volume > data15m.volume && data5m.close < data5m.open) bearishSignals++;
   
+  // Technical indicators
+  if (data5m.indicators.rsi < 30) bullishSignals++; // Oversold
+  if (data5m.indicators.rsi > 70) bearishSignals++; // Overbought
+  
   const direction = bullishSignals > bearishSignals ? "LONG" : "SHORT";
   const signalStrength = Math.abs(bullishSignals - bearishSignals);
-  const confidence = Math.min(90, 70 + (signalStrength * 5));
+  const confidence = Math.min(85, 70 + (signalStrength * 3));
 
   return { direction, confidence };
 }
@@ -960,8 +1001,8 @@ function calculateConfidence(
     alignmentScore += 5;
   }
   
-  // Gemini confidence boost
-  alignmentScore += (geminiAnalysis.confidence - 70) * 0.3;
+  // Gemini confidence boost (reduced impact to account for fallback)
+  alignmentScore += Math.min(10, (geminiAnalysis.confidence - 70) * 0.2);
   
   // Breakout probability boost
   if (priceAction.breakoutProbability > 70) {
