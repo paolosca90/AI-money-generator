@@ -112,8 +112,12 @@ export const predict = api<PredictRequest, TradingSignal>(
       const requiredTimeframes = ["5m", "15m", "30m"];
       const completeMarketData = {};
       
+      // Find a fallback timeframe (first available, prefer 5m if exists)
+      const fallbackTimeframe = availableTimeframes.includes("5m") ? "5m" : availableTimeframes[0];
+      const fallbackData = marketData[fallbackTimeframe];
+
       for (const tf of requiredTimeframes) {
-        completeMarketData[tf] = marketData[tf] || marketData["5m"]; // Fallback to 5m if missing
+        completeMarketData[tf] = marketData[tf] || fallbackData;
       }
       
       // Add additional timeframes if available
