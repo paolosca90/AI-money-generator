@@ -97,6 +97,23 @@ export default function TradingSignals() {
     });
   };
 
+  // Helper function to safely format numbers
+  const safeToFixed = (value: any, decimals: number = 2): string => {
+    if (value === null || value === undefined || isNaN(Number(value))) {
+      return 'N/A';
+    }
+    return Number(value).toFixed(decimals);
+  };
+
+  // Helper function to safely access nested properties
+  const safeGet = (obj: any, path: string, defaultValue: any = 'N/A'): any => {
+    try {
+      return path.split('.').reduce((current, key) => current?.[key], obj) ?? defaultValue;
+    } catch {
+      return defaultValue;
+    }
+  };
+
   return (
     <div className="space-y-6">
       <div>
@@ -165,7 +182,7 @@ export default function TradingSignals() {
               <div className="text-center p-4 bg-blue-50 rounded-lg">
                 <div className="text-sm text-blue-600 font-medium">Entry Price</div>
                 <div className="text-2xl font-bold text-blue-900">
-                  {currentSignal.entryPrice}
+                  {safeToFixed(currentSignal.entryPrice, 5)}
                 </div>
               </div>
               <div className="text-center p-4 bg-green-50 rounded-lg">
@@ -174,7 +191,7 @@ export default function TradingSignals() {
                   Take Profit
                 </div>
                 <div className="text-2xl font-bold text-green-900">
-                  {currentSignal.takeProfit}
+                  {safeToFixed(currentSignal.takeProfit, 5)}
                 </div>
               </div>
               <div className="text-center p-4 bg-red-50 rounded-lg">
@@ -183,7 +200,7 @@ export default function TradingSignals() {
                   Stop Loss
                 </div>
                 <div className="text-2xl font-bold text-red-900">
-                  {currentSignal.stopLoss}
+                  {safeToFixed(currentSignal.stopLoss, 5)}
                 </div>
               </div>
             </div>
@@ -194,31 +211,31 @@ export default function TradingSignals() {
                 <div>
                   <div className="text-gray-600">RSI</div>
                   <div className="font-medium">
-                    {currentSignal.analysis?.technical?.rsi?.toFixed(1) || 'N/A'}
+                    {safeToFixed(safeGet(currentSignal, 'analysis.technical.rsi'), 1)}
                   </div>
                 </div>
                 <div>
                   <div className="text-gray-600">MACD</div>
                   <div className="font-medium">
-                    {currentSignal.analysis?.technical?.macd?.toFixed(5) || 'N/A'}
+                    {safeToFixed(safeGet(currentSignal, 'analysis.technical.macd'), 5)}
                   </div>
                 </div>
                 <div>
                   <div className="text-gray-600">ATR</div>
                   <div className="font-medium">
-                    {currentSignal.analysis?.technical?.atr?.toFixed(5) || 'N/A'}
+                    {safeToFixed(safeGet(currentSignal, 'analysis.technical.atr'), 5)}
                   </div>
                 </div>
                 <div>
                   <div className="text-gray-600">Support</div>
                   <div className="font-medium">
-                    {currentSignal.analysis?.technical?.support?.toFixed(5) || 'N/A'}
+                    {safeToFixed(safeGet(currentSignal, 'analysis.technical.support'), 5)}
                   </div>
                 </div>
                 <div>
                   <div className="text-gray-600">Resistance</div>
                   <div className="font-medium">
-                    {currentSignal.analysis?.technical?.resistance?.toFixed(5) || 'N/A'}
+                    {safeToFixed(safeGet(currentSignal, 'analysis.technical.resistance'), 5)}
                   </div>
                 </div>
               </div>
@@ -231,19 +248,19 @@ export default function TradingSignals() {
                   <div>
                     <div className="text-gray-600">Institutional Flow</div>
                     <div className="font-medium">
-                      {currentSignal.analysis.smartMoney.institutionalFlow}
+                      {safeGet(currentSignal, 'analysis.smartMoney.institutionalFlow', 'N/A')}
                     </div>
                   </div>
                   <div>
                     <div className="text-gray-600">Volume Profile</div>
                     <div className="font-medium">
-                      {currentSignal.analysis.smartMoney.volumeProfile}
+                      {safeGet(currentSignal, 'analysis.smartMoney.volumeProfile', 'N/A')}
                     </div>
                   </div>
                   <div>
                     <div className="text-gray-600">Order Flow</div>
                     <div className="font-medium">
-                      {currentSignal.analysis.smartMoney.orderFlow}
+                      {safeGet(currentSignal, 'analysis.smartMoney.orderFlow', 'N/A')}
                     </div>
                   </div>
                 </div>
@@ -257,19 +274,59 @@ export default function TradingSignals() {
                   <div>
                     <div className="text-gray-600">Consensus View</div>
                     <div className="font-medium">
-                      {currentSignal.analysis.professional.consensusView}
+                      {safeGet(currentSignal, 'analysis.professional.consensusView', 'N/A')}
                     </div>
                   </div>
                   <div>
                     <div className="text-gray-600">Risk/Reward</div>
                     <div className="font-medium">
-                      1:{currentSignal.analysis?.professional?.riskReward?.toFixed(1) || 'N/A'}
+                      1:{safeToFixed(safeGet(currentSignal, 'analysis.professional.riskReward'), 1)}
                     </div>
                   </div>
                   <div>
                     <div className="text-gray-600">Timeframe</div>
                     <div className="font-medium">
-                      {currentSignal.analysis.professional.timeframe}
+                      {safeGet(currentSignal, 'analysis.professional.timeframe', 'N/A')}
+                    </div>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {currentSignal.analysis?.sentiment && (
+              <div className="border-t pt-4">
+                <h4 className="font-semibold mb-3">Market Sentiment</h4>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm">
+                  <div>
+                    <div className="text-gray-600">Sentiment Score</div>
+                    <div className="font-medium">
+                      {safeToFixed(safeGet(currentSignal, 'analysis.sentiment.score', 0) * 100, 0)}%
+                    </div>
+                  </div>
+                  <div>
+                    <div className="text-gray-600">Sources</div>
+                    <div className="font-medium">
+                      {safeGet(currentSignal, 'analysis.sentiment.sources', []).length || 0} sources
+                    </div>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {currentSignal.analysis?.volatility && (
+              <div className="border-t pt-4">
+                <h4 className="font-semibold mb-3">Volatility Analysis</h4>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm">
+                  <div>
+                    <div className="text-gray-600">Hourly Volatility</div>
+                    <div className="font-medium">
+                      {safeToFixed(safeGet(currentSignal, 'analysis.volatility.hourly', 0) * 100, 2)}%
+                    </div>
+                  </div>
+                  <div>
+                    <div className="text-gray-600">Daily Volatility</div>
+                    <div className="font-medium">
+                      {safeToFixed(safeGet(currentSignal, 'analysis.volatility.daily', 0) * 100, 2)}%
                     </div>
                   </div>
                 </div>
