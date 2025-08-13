@@ -241,6 +241,57 @@ def execute_trade():
             'retcode': -1
         }), 500
 
+@app.route('/rates', methods=['POST'])
+def get_rates():
+    """Get historical rates for a symbol"""
+    try:
+        if not mt5_connected:
+            return jsonify({'error': 'Not connected to MT5'}), 400
+        
+        data = request.json
+        symbol = data.get('symbol')
+        timeframe_str = data.get('timeframe') # e.g., '5m', '15m'
+        count = int(data.get('count', 100)) # Number of bars
+        
+        timeframe_map = {
+            '1m': mt5.TIMEFRAME_M1,
+            '5m': mt5.TIMEFRAME_M5,
+            '15m': mt5.TIMEFRAME_M15,
+            '30m': mt5.TIMEFRAME_M30,
+            '1h': mt5.TIMEFRAME_H1,
+            '4h': mt5.TIMEFRAME_H4,
+            '1d': mt5.TIMEFRAME_D1,
+        }
+        
+        timeframe = timeframe_map.get(timeframe_str)
+        if timeframe is None:
+            return jsonify({'error': f'Invalid timeframe: {timeframe_str}'}), 400
+            
+        rates = mt5.copy_rates_from_pos(symbol, timeframe, 0, count)
+        
+        if rates is None or len(rates) == 0:
+            return jsonify({'error': f'Failed to get rates for {symbol}'}), 500
+            
+        # Convert numpy array to list of dicts
+        rates_list = []
+        for rate in rates:
+            rates_list.append({
+                'time': int(rate['time']),
+                'open': rate['open'],
+                'high': rate['high'],
+                'low': rate['low'],
+                'close': rate['close'],
+                'tick_volume': int(rate['tick_volume']),
+                'spread': int(rate['spread']),
+                'real_volume': int(rate['real_volume'])
+            })
+            
+        return jsonify({'rates': rates_list})
+        
+    except Exception as e:
+        logger.error(f"Get rates error: {e}")
+        return jsonify({'error': str(e)}), 500
+
 @app.route('/positions', methods=['GET'])
 def get_positions():
     """Get open positions"""

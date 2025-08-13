@@ -1,6 +1,8 @@
 import { secret } from "encore.dev/config";
 
 const alphaVantageApiKey = secret("AlphaVantageApiKey");
+const mt5ServerHost = secret("MT5ServerHost");
+const mt5ServerPort = secret("MT5ServerPort");
 
 export interface MarketDataPoint {
   timestamp: number;
@@ -25,24 +27,169 @@ export async function fetchMarketData(symbol: string, timeframes: string[]): Pro
 
   for (const timeframe of timeframes) {
     try {
-      // Try to fetch real data from Alpha Vantage
-      const realData = await fetchAlphaVantageData(symbol, timeframe);
-      if (realData) {
-        data[timeframe] = realData;
-      } else {
-        // Fallback to alternative sources or simulated data
-        console.log(`Using alternative data source for ${symbol} ${timeframe}`);
-        const altData = await fetchAlternativeData(symbol, timeframe);
-        data[timeframe] = altData || await simulateMarketData(symbol, timeframe);
+      // 1. Try to fetch real data from MT5 first
+      const mt5Data = await fetchMT5Data(symbol, timeframe);
+      if (mt5Data) {
+        data[timeframe] = mt5Data;
+        continue; // Move to next timeframe if successful
       }
+
+      // 2. Fallback to Alpha Vantage
+      console.log(`MT5 data unavailable for ${symbol} ${timeframe}, falling back to Alpha Vantage`);
+      const alphaVantageData = await fetchAlphaVantageData(symbol, timeframe);
+      if (alphaVantageData) {
+        data[timeframe] = alphaVantageData;
+        continue;
+      }
+
+      // 3. Fallback to other alternative sources
+      console.log(`Alpha Vantage data unavailable for ${symbol} ${timeframe}, falling back to other sources`);
+      const altData = await fetchAlternativeData(symbol, timeframe);
+      if (altData) {
+        data[timeframe] = altData;
+        continue;
+      }
+
+      // 4. Final fallback to simulated data
+      console.log(`All data sources failed for ${symbol} ${timeframe}, using simulated data`);
+      data[timeframe] = await simulateMarketData(symbol, timeframe);
+
     } catch (error) {
       console.error(`Error fetching data for ${symbol} ${timeframe}:`, error);
-      // Fallback to simulated data
+      // Fallback to simulated data on any critical error
       data[timeframe] = await simulateMarketData(symbol, timeframe);
     }
   }
 
   return data;
+}
+
+async function fetchMT5Data(symbol: string, timeframe: string): Promise<MarketDataPoint | null> {
+  try {
+    const host = mt5ServerHost();
+    const port = mt5ServerPort();
+
+    if (!host || !port || host === "localhost") {
+      console.log("MT5 server not configured for remote access, skipping MT5 data fetch.");
+      return null;
+    }
+
+    const response = await fetch(`http://${host}:${port}/rates`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        symbol: convertSymbolForMT5(symbol),
+        timeframe: timeframe,
+        count: 50 // Fetch last 50 bars for indicator calculation
+      }),
+    });
+
+    if (!response.ok) {
+      console.error(`MT5 rates endpoint error: ${response.status} ${response.statusText}`);
+      return null;
+    }
+
+    const result = await response.json();
+    if (result.error || !result.rates || result.rates.length === 0) {
+      console.error("Failed to get rates from MT5:", result.error || "No rates returned");
+      return null;
+    }
+
+    // Use the most recent bar (last in the list)
+    const latestBar = result.rates[result.rates.length - 1];
+    
+    const { open, high, low, close, tick_volume, time } = latestBar;
+
+    // Calculate indicators based on the fetched rates
+    const indicators = calculateIndicatorsFromRates(result.rates);
+
+    console.log(`Successfully fetched MT5 data for ${symbol} ${timeframe}`);
+
+    return {
+      timestamp: time * 1000,
+      open,
+      high,
+      low,
+      close,
+      volume: tick_volume,
+      indicators,
+    };
+
+  } catch (error) {
+    // This will catch network errors if the python server is not running
+    console.error(`Error fetching MT5 data for ${symbol}:`, error.message);
+    return null;
+  }
+}
+
+function calculateIndicatorsFromRates(rates: any[]): { rsi: number; macd: number; atr: number } {
+    if (rates.length < 26) { // Need at least 26 periods for MACD
+        const lastBar = rates[rates.length - 1];
+        // Fallback to simple calculation if not enough data
+        return calculateIndicators(lastBar.open, lastBar.high, lastBar.low, lastBar.close);
+    }
+
+    // Simplified ATR calculation
+    const trs = rates.map((rate, i) => {
+        const prevClose = i > 0 ? rates[i-1].close : rate.open;
+        const tr1 = rate.high - rate.low;
+        const tr2 = Math.abs(rate.high - prevClose);
+        const tr3 = Math.abs(rate.low - prevClose);
+        return Math.max(tr1, tr2, tr3);
+    });
+    const atr = trs.slice(-14).reduce((sum, tr) => sum + tr, 0) / 14;
+
+    // Simplified RSI calculation
+    const changes = rates.map((rate, i) => i > 0 ? rate.close - rates[i-1].close : 0).slice(-14);
+    const gains = changes.filter(c => c > 0).reduce((sum, c) => sum + c, 0);
+    const losses = Math.abs(changes.filter(c => c < 0).reduce((sum, c) => sum + c, 0));
+    const avgGain = gains / 14;
+    const avgLoss = losses / 14;
+    const rs = avgLoss === 0 ? 100 : avgGain / avgLoss;
+    const rsi = 100 - (100 / (1 + rs));
+
+    // Simplified MACD calculation
+    const closes = rates.map(r => r.close);
+    const ema12 = calculateEMA(closes, 12);
+    const ema26 = calculateEMA(closes, 26);
+    const macd = ema12[ema12.length - 1] - ema26[ema26.length - 1];
+
+    return {
+        rsi: Math.round(rsi * 10) / 10,
+        macd: Math.round(macd * 100000) / 100000,
+        atr: Math.round(atr * 100000) / 100000,
+    };
+}
+
+function calculateEMA(data: number[], period: number): number[] {
+    const k = 2 / (period + 1);
+    const emaArray: number[] = [];
+    if (data.length > 0) {
+        emaArray.push(data[0]);
+        for (let i = 1; i < data.length; i++) {
+            emaArray.push(data[i] * k + emaArray[i - 1] * (1 - k));
+        }
+    }
+    return emaArray;
+}
+
+function convertSymbolForMT5(symbol: string): string {
+  // Most MT5 brokers use these symbol formats
+  const symbolMap: { [key: string]: string } = {
+    "EURUSD": "EURUSD",
+    "GBPUSD": "GBPUSD", 
+    "USDJPY": "USDJPY",
+    "AUDUSD": "AUDUSD",
+    "USDCAD": "USDCAD",
+    "USDCHF": "USDCHF",
+    "NZDUSD": "NZDUSD",
+    "XAUUSD": "XAUUSD", // Gold
+    "BTCUSD": "BTCUSD", // If broker supports crypto
+    "ETHUSD": "ETHUSD",
+    "CRUDE": "CRUDE",   // Oil
+    "BRENT": "BRENT",
+  };
+  return symbolMap[symbol] || symbol;
 }
 
 async function fetchAlphaVantageData(symbol: string, timeframe: string): Promise<MarketDataPoint | null> {
