@@ -101,6 +101,9 @@ export const predict = api<PredictRequest, TradingSignal>(
       stopLoss = priceTargets.shortStopLoss;
     }
 
+    // Ensure confidence is an integer for database storage
+    const confidenceInt = Math.round(aiAnalysis.confidence);
+
     const signal: TradingSignal = {
       tradeId,
       symbol,
@@ -108,7 +111,7 @@ export const predict = api<PredictRequest, TradingSignal>(
       entryPrice: Math.round(entryPrice * 100000) / 100000,
       takeProfit: Math.round(takeProfit * 100000) / 100000,
       stopLoss: Math.round(stopLoss * 100000) / 100000,
-      confidence: aiAnalysis.confidence,
+      confidence: confidenceInt,
       chartUrl,
       analysis: {
         technical: {
@@ -143,14 +146,14 @@ export const predict = api<PredictRequest, TradingSignal>(
       },
     };
 
-    // Store the signal in database
+    // Store the signal in database with proper type conversion
     await analysisDB.exec`
       INSERT INTO trading_signals (
         trade_id, symbol, direction, entry_price, take_profit, stop_loss, 
         confidence, analysis_data, created_at
       ) VALUES (
         ${tradeId}, ${symbol}, ${aiAnalysis.direction}, ${entryPrice}, 
-        ${takeProfit}, ${stopLoss}, ${aiAnalysis.confidence}, 
+        ${takeProfit}, ${stopLoss}, ${confidenceInt}, 
         ${JSON.stringify(signal.analysis)}, NOW()
       )
     `;
