@@ -45,27 +45,27 @@ export default function Performance() {
   return (
     <div className="space-y-6">
       <div>
-        <h1 className="text-3xl font-bold text-gray-900">Performance Analytics</h1>
-        <p className="text-gray-600 mt-1">Detailed analysis of AI trading model performance</p>
+        <h1 className="text-3xl font-bold text-gray-900">Analisi Performance</h1>
+        <p className="text-gray-600 mt-1">Analisi dettagliata delle performance del modello AI di trading</p>
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Total Trades</CardTitle>
+            <CardTitle className="text-sm font-medium">Totale Trade</CardTitle>
             <Target className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold">{performance?.totalTrades || 0}</div>
             <p className="text-xs text-muted-foreground">
-              Signals executed
+              Segnali eseguiti
             </p>
           </CardContent>
         </Card>
 
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Win Rate</CardTitle>
+            <CardTitle className="text-sm font-medium">Tasso Vincita</CardTitle>
             <TrendingUp className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
@@ -73,14 +73,14 @@ export default function Performance() {
               {performance?.winRate.toFixed(1) || 0}%
             </div>
             <p className="text-xs text-muted-foreground">
-              Successful predictions
+              Previsioni riuscite
             </p>
           </CardContent>
         </Card>
 
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Profit Factor</CardTitle>
+            <CardTitle className="text-sm font-medium">Fattore Profitto</CardTitle>
             <DollarSign className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
@@ -88,14 +88,14 @@ export default function Performance() {
               {performance?.profitFactor.toFixed(2) || 0}
             </div>
             <p className="text-xs text-muted-foreground">
-              Profit vs Loss ratio
+              Rapporto Profitto vs Perdita
             </p>
           </CardContent>
         </Card>
 
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Average Profit</CardTitle>
+            <CardTitle className="text-sm font-medium">Profitto Medio</CardTitle>
             <TrendingUp className="h-4 w-4 text-green-600" />
           </CardHeader>
           <CardContent>
@@ -103,14 +103,14 @@ export default function Performance() {
               ${performance?.avgProfit.toFixed(2) || 0}
             </div>
             <p className="text-xs text-muted-foreground">
-              Per winning trade
+              Per trade vincente
             </p>
           </CardContent>
         </Card>
 
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Average Loss</CardTitle>
+            <CardTitle className="text-sm font-medium">Perdita Media</CardTitle>
             <TrendingDown className="h-4 w-4 text-red-600" />
           </CardHeader>
           <CardContent>
@@ -118,14 +118,14 @@ export default function Performance() {
               ${performance?.avgLoss.toFixed(2) || 0}
             </div>
             <p className="text-xs text-muted-foreground">
-              Per losing trade
+              Per trade perdente
             </p>
           </CardContent>
         </Card>
 
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Best Trade</CardTitle>
+            <CardTitle className="text-sm font-medium">Miglior Trade</CardTitle>
             <TrendingUp className="h-4 w-4 text-green-600" />
           </CardHeader>
           <CardContent>
@@ -133,7 +133,7 @@ export default function Performance() {
               ${performance?.bestTrade.toFixed(2) || 0}
             </div>
             <p className="text-xs text-muted-foreground">
-              Highest profit
+              Profitto più alto
             </p>
           </CardContent>
         </Card>
@@ -142,14 +142,14 @@ export default function Performance() {
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         <Card>
           <CardHeader>
-            <CardTitle>Performance Summary</CardTitle>
+            <CardTitle>Riepilogo Performance</CardTitle>
             <CardDescription>
-              Key metrics and trading statistics
+              Metriche chiave e statistiche di trading
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
             <div className="flex justify-between items-center">
-              <span className="text-sm font-medium">Win Rate</span>
+              <span className="text-sm font-medium">Tasso Vincita</span>
               <div className="flex items-center gap-2">
                 <Badge 
                   variant={performance?.winRate >= 60 ? "default" : "secondary"}
@@ -161,7 +161,7 @@ export default function Performance() {
             </div>
             
             <div className="flex justify-between items-center">
-              <span className="text-sm font-medium">Profit Factor</span>
+              <span className="text-sm font-medium">Fattore Profitto</span>
               <div className="flex items-center gap-2">
                 <Badge 
                   variant={performance?.profitFactor >= 1.5 ? "default" : "secondary"}
@@ -173,7 +173,7 @@ export default function Performance() {
             </div>
 
             <div className="flex justify-between items-center">
-              <span className="text-sm font-medium">Average Confidence</span>
+              <span className="text-sm font-medium">Confidenza Media</span>
               <div className="flex items-center gap-2">
                 <Badge variant="outline">
                   {performance?.avgConfidence.toFixed(0)}%
@@ -182,7 +182,7 @@ export default function Performance() {
             </div>
 
             <div className="flex justify-between items-center">
-              <span className="text-sm font-medium">Total Trades</span>
+              <span className="text-sm font-medium">Totale Trade</span>
               <span className="font-medium">{performance?.totalTrades}</span>
             </div>
           </CardContent>
@@ -190,44 +190,44 @@ export default function Performance() {
 
         <Card>
           <CardHeader>
-            <CardTitle>Risk Analysis</CardTitle>
+            <CardTitle>Analisi Rischio</CardTitle>
             <CardDescription>
-              Risk management and drawdown metrics
+              Gestione del rischio e metriche di drawdown
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
             <div className="flex justify-between items-center">
-              <span className="text-sm font-medium">Worst Trade</span>
+              <span className="text-sm font-medium">Peggior Trade</span>
               <span className="font-medium text-red-600">
                 ${performance?.worstTrade.toFixed(2)}
               </span>
             </div>
             
             <div className="flex justify-between items-center">
-              <span className="text-sm font-medium">Best Trade</span>
+              <span className="text-sm font-medium">Miglior Trade</span>
               <span className="font-medium text-green-600">
                 ${performance?.bestTrade.toFixed(2)}
               </span>
             </div>
 
             <div className="flex justify-between items-center">
-              <span className="text-sm font-medium">Risk/Reward Ratio</span>
+              <span className="text-sm font-medium">Rapporto Rischio/Rendimento</span>
               <span className="font-medium">
                 1:{(performance?.profitFactor || 0).toFixed(2)}
               </span>
             </div>
 
             <div className="pt-4 border-t">
-              <div className="text-sm text-gray-600 mb-2">Performance Rating</div>
+              <div className="text-sm text-gray-600 mb-2">Valutazione Performance</div>
               <div className="flex items-center gap-2">
                 {performance?.winRate >= 70 && performance?.profitFactor >= 2 ? (
-                  <Badge className="bg-green-100 text-green-800">Excellent</Badge>
+                  <Badge className="bg-green-100 text-green-800">Eccellente</Badge>
                 ) : performance?.winRate >= 60 && performance?.profitFactor >= 1.5 ? (
-                  <Badge className="bg-blue-100 text-blue-800">Good</Badge>
+                  <Badge className="bg-blue-100 text-blue-800">Buono</Badge>
                 ) : performance?.winRate >= 50 && performance?.profitFactor >= 1 ? (
-                  <Badge className="bg-yellow-100 text-yellow-800">Average</Badge>
+                  <Badge className="bg-yellow-100 text-yellow-800">Medio</Badge>
                 ) : (
-                  <Badge className="bg-red-100 text-red-800">Needs Improvement</Badge>
+                  <Badge className="bg-red-100 text-red-800">Da Migliorare</Badge>
                 )}
               </div>
             </div>

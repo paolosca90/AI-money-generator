@@ -22,8 +22,8 @@ export default function Settings() {
 
   const handleSave = () => {
     toast({
-      title: "Settings Saved",
-      description: "Your preferences have been updated successfully.",
+      title: "Impostazioni Salvate",
+      description: "Le tue preferenze sono state aggiornate con successo.",
     });
   };
 
@@ -34,8 +34,8 @@ export default function Settings() {
   return (
     <div className="space-y-6">
       <div>
-        <h1 className="text-3xl font-bold text-gray-900">Settings</h1>
-        <p className="text-gray-600 mt-1">Configure your trading bot preferences and risk management</p>
+        <h1 className="text-3xl font-bold text-gray-900">Impostazioni</h1>
+        <p className="text-gray-600 mt-1">Configura le preferenze del bot trading e la gestione del rischio</p>
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
@@ -43,18 +43,18 @@ export default function Settings() {
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
               <Bot className="h-5 w-5" />
-              Bot Configuration
+              Configurazione Bot
             </CardTitle>
             <CardDescription>
-              Configure AI trading bot behavior and automation settings
+              Configura il comportamento del bot AI e le impostazioni di automazione
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-6">
             <div className="flex items-center justify-between">
               <div className="space-y-0.5">
-                <Label className="text-base">Telegram Notifications</Label>
+                <Label className="text-base">Notifiche Telegram</Label>
                 <div className="text-sm text-gray-600">
-                  Receive trading signals via Telegram
+                  Ricevi segnali di trading via Telegram
                 </div>
               </div>
               <Switch
@@ -65,9 +65,9 @@ export default function Settings() {
 
             <div className="flex items-center justify-between">
               <div className="space-y-0.5">
-                <Label className="text-base">Auto Execution</Label>
+                <Label className="text-base">Esecuzione Automatica</Label>
                 <div className="text-sm text-gray-600">
-                  Automatically execute high-confidence signals
+                  Esegui automaticamente segnali ad alta confidenza
                 </div>
               </div>
               <Switch
@@ -78,9 +78,9 @@ export default function Settings() {
 
             <div className="flex items-center justify-between">
               <div className="space-y-0.5">
-                <Label className="text-base">Risk Management</Label>
+                <Label className="text-base">Gestione Rischio</Label>
                 <div className="text-sm text-gray-600">
-                  Enable automatic stop-loss and take-profit
+                  Abilita stop-loss e take-profit automatici
                 </div>
               </div>
               <Switch
@@ -90,7 +90,7 @@ export default function Settings() {
             </div>
 
             <div className="space-y-2">
-              <Label htmlFor="confidence">Minimum Confidence Threshold (%)</Label>
+              <Label htmlFor="confidence">Soglia Minima Confidenza (%)</Label>
               <Input
                 id="confidence"
                 type="number"
@@ -100,7 +100,7 @@ export default function Settings() {
                 onChange={(e) => handleSettingChange("confidenceThreshold", e.target.value)}
               />
               <div className="text-sm text-gray-600">
-                Only execute signals above this confidence level
+                Esegui solo segnali sopra questo livello di confidenza
               </div>
             </div>
           </CardContent>
@@ -110,15 +110,15 @@ export default function Settings() {
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
               <Shield className="h-5 w-5" />
-              Risk Management
+              Gestione Rischio
             </CardTitle>
             <CardDescription>
-              Set trading limits and risk parameters
+              Imposta limiti di trading e parametri di rischio
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-6">
             <div className="space-y-2">
-              <Label htmlFor="maxLot">Maximum Lot Size</Label>
+              <Label htmlFor="maxLot">Dimensione Massima Lotto</Label>
               <Input
                 id="maxLot"
                 type="number"
@@ -129,12 +129,12 @@ export default function Settings() {
                 onChange={(e) => handleSettingChange("maxLotSize", e.target.value)}
               />
               <div className="text-sm text-gray-600">
-                Maximum position size per trade
+                Dimensione massima posizione per trade
               </div>
             </div>
 
             <div className="space-y-2">
-              <Label htmlFor="maxTrades">Maximum Daily Trades</Label>
+              <Label htmlFor="maxTrades">Massimo Trade Giornalieri</Label>
               <Input
                 id="maxTrades"
                 type="number"
@@ -144,18 +144,18 @@ export default function Settings() {
                 onChange={(e) => handleSettingChange("maxDailyTrades", e.target.value)}
               />
               <div className="text-sm text-gray-600">
-                Limit the number of trades per day
+                Limita il numero di trade per giorno
               </div>
             </div>
 
             <div className="p-4 bg-yellow-50 rounded-lg border border-yellow-200">
               <div className="flex items-center gap-2 text-yellow-800 font-medium mb-2">
                 <Shield className="h-4 w-4" />
-                Risk Warning
+                Avviso di Rischio
               </div>
               <div className="text-sm text-yellow-700">
-                Trading involves substantial risk of loss. Never trade with money you cannot afford to lose.
-                Past performance does not guarantee future results.
+                Il trading comporta un rischio sostanziale di perdita. Non fare mai trading con denaro che non puoi permetterti di perdere.
+                Le performance passate non garantiscono risultati futuri.
               </div>
             </div>
           </CardContent>
@@ -165,37 +165,37 @@ export default function Settings() {
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
               <Zap className="h-5 w-5" />
-              MT5 Connection
+              Connessione MT5
             </CardTitle>
             <CardDescription>
-              MetaTrader 5 integration status and settings
+              Stato integrazione MetaTrader 5 e impostazioni
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
             <div className="flex items-center justify-between">
-              <span className="text-sm font-medium">Connection Status</span>
+              <span className="text-sm font-medium">Stato Connessione</span>
               <Badge variant="default" className="bg-green-100 text-green-800">
-                Connected
+                Connesso
               </Badge>
             </div>
 
             <div className="flex items-center justify-between">
-              <span className="text-sm font-medium">Account Balance</span>
-              <span className="font-medium">$10,000.00</span>
+              <span className="text-sm font-medium">Saldo Account</span>
+              <span className="font-medium">$10.000,00</span>
             </div>
 
             <div className="flex items-center justify-between">
-              <span className="text-sm font-medium">Free Margin</span>
-              <span className="font-medium">$9,500.00</span>
+              <span className="text-sm font-medium">Margine Libero</span>
+              <span className="font-medium">$9.500,00</span>
             </div>
 
             <div className="flex items-center justify-between">
               <span className="text-sm font-medium">Server</span>
-              <span className="font-medium">Demo Server</span>
+              <span className="font-medium">Server Demo</span>
             </div>
 
             <Button variant="outline" className="w-full">
-              Test Connection
+              Testa Connessione
             </Button>
           </CardContent>
         </Card>
@@ -204,19 +204,19 @@ export default function Settings() {
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
               <Bell className="h-5 w-5" />
-              Notifications
+              Notifiche
             </CardTitle>
             <CardDescription>
-              Configure alert preferences and notification settings
+              Configura preferenze avvisi e impostazioni notifiche
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
             <div className="space-y-4">
               <div className="flex items-center justify-between">
                 <div className="space-y-0.5">
-                  <Label className="text-sm font-medium">Signal Alerts</Label>
+                  <Label className="text-sm font-medium">Avvisi Segnali</Label>
                   <div className="text-xs text-gray-600">
-                    Get notified when new signals are generated
+                    Ricevi notifiche quando vengono generati nuovi segnali
                   </div>
                 </div>
                 <Switch defaultChecked />
@@ -224,9 +224,9 @@ export default function Settings() {
 
               <div className="flex items-center justify-between">
                 <div className="space-y-0.5">
-                  <Label className="text-sm font-medium">Execution Alerts</Label>
+                  <Label className="text-sm font-medium">Avvisi Esecuzione</Label>
                   <div className="text-xs text-gray-600">
-                    Get notified when trades are executed
+                    Ricevi notifiche quando i trade vengono eseguiti
                   </div>
                 </div>
                 <Switch defaultChecked />
@@ -234,9 +234,9 @@ export default function Settings() {
 
               <div className="flex items-center justify-between">
                 <div className="space-y-0.5">
-                  <Label className="text-sm font-medium">Performance Reports</Label>
+                  <Label className="text-sm font-medium">Report Performance</Label>
                   <div className="text-xs text-gray-600">
-                    Receive daily performance summaries
+                    Ricevi riepiloghi giornalieri delle performance
                   </div>
                 </div>
                 <Switch />
@@ -248,7 +248,7 @@ export default function Settings() {
 
       <div className="flex justify-end">
         <Button onClick={handleSave} className="min-w-[120px]">
-          Save Settings
+          Salva Impostazioni
         </Button>
       </div>
     </div>

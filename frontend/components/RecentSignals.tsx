@@ -8,24 +8,24 @@ const mockSignals = [
     symbol: "BTCUSD",
     direction: "LONG" as const,
     confidence: 85,
-    time: "2 hours ago",
-    status: "executed" as const,
+    time: "2 ore fa",
+    status: "eseguito" as const,
   },
   {
     id: "EUR-002",
     symbol: "EURUSD",
     direction: "SHORT" as const,
     confidence: 78,
-    time: "4 hours ago",
-    status: "pending" as const,
+    time: "4 ore fa",
+    status: "in attesa" as const,
   },
   {
     id: "XAU-003",
     symbol: "XAUUSD",
     direction: "LONG" as const,
     confidence: 92,
-    time: "6 hours ago",
-    status: "executed" as const,
+    time: "6 ore fa",
+    status: "eseguito" as const,
   },
 ];
 
@@ -56,8 +56,8 @@ export default function RecentSignals() {
           <div className="flex items-center gap-2">
             <Badge variant="outline">{signal.confidence}%</Badge>
             <Badge 
-              variant={signal.status === "executed" ? "default" : "secondary"}
-              className={signal.status === "executed" ? "bg-green-100 text-green-800" : ""}
+              variant={signal.status === "eseguito" ? "default" : "secondary"}
+              className={signal.status === "eseguito" ? "bg-green-100 text-green-800" : ""}
             >
               {signal.status}
             </Badge>

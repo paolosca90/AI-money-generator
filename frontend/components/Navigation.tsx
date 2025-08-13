@@ -5,9 +5,9 @@ import { Bot, BarChart3, Zap, Settings } from "lucide-react";
 
 const navigation = [
   { name: "Dashboard", href: "/", icon: BarChart3 },
-  { name: "Trading Signals", href: "/signals", icon: Zap },
+  { name: "Segnali Trading", href: "/signals", icon: Zap },
   { name: "Performance", href: "/performance", icon: BarChart3 },
-  { name: "Settings", href: "/settings", icon: Settings },
+  { name: "Impostazioni", href: "/settings", icon: Settings },
 ];
 
 export default function Navigation() {
@@ -19,7 +19,7 @@ export default function Navigation() {
         <div className="flex justify-between items-center h-16">
           <div className="flex items-center gap-2">
             <Bot className="h-8 w-8 text-blue-600" />
-            <span className="text-xl font-bold text-gray-900">AI Trading Bot</span>
+            <span className="text-xl font-bold text-gray-900">Bot Trading AI</span>
           </div>
           
           <div className="flex space-x-8">

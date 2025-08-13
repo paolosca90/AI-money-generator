@@ -36,32 +36,32 @@ export default function Dashboard() {
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-3xl font-bold text-gray-900">Trading Bot Dashboard</h1>
-          <p className="text-gray-600 mt-1">AI-powered trading signals and performance analytics</p>
+          <h1 className="text-3xl font-bold text-gray-900">Dashboard Bot Trading</h1>
+          <p className="text-gray-600 mt-1">Segnali di trading basati su AI e analisi delle performance</p>
         </div>
         <Badge variant="outline" className="flex items-center gap-2">
           <Bot className="h-4 w-4" />
-          AI Active
+          AI Attiva
         </Badge>
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Total Trades</CardTitle>
+            <CardTitle className="text-sm font-medium">Totale Trade</CardTitle>
             <Activity className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold">{performance?.totalTrades || 0}</div>
             <p className="text-xs text-muted-foreground">
-              Signals generated
+              Segnali generati
             </p>
           </CardContent>
         </Card>
 
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Win Rate</CardTitle>
+            <CardTitle className="text-sm font-medium">Tasso Vincita</CardTitle>
             <TrendingUp className="h-4 w-4 text-green-600" />
           </CardHeader>
           <CardContent>
@@ -69,14 +69,14 @@ export default function Dashboard() {
               {performance?.winRate.toFixed(1) || 0}%
             </div>
             <p className="text-xs text-muted-foreground">
-              Successful predictions
+              Previsioni riuscite
             </p>
           </CardContent>
         </Card>
 
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Profit Factor</CardTitle>
+            <CardTitle className="text-sm font-medium">Fattore Profitto</CardTitle>
             <TrendingUp className="h-4 w-4 text-blue-600" />
           </CardHeader>
           <CardContent>
@@ -84,14 +84,14 @@ export default function Dashboard() {
               {performance?.profitFactor.toFixed(2) || 0}
             </div>
             <p className="text-xs text-muted-foreground">
-              Risk-adjusted returns
+              Rendimenti aggiustati per il rischio
             </p>
           </CardContent>
         </Card>
 
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Avg Confidence</CardTitle>
+            <CardTitle className="text-sm font-medium">Confidenza Media</CardTitle>
             <Bot className="h-4 w-4 text-purple-600" />
           </CardHeader>
           <CardContent>
@@ -99,7 +99,7 @@ export default function Dashboard() {
               {performance?.avgConfidence.toFixed(0) || 0}%
             </div>
             <p className="text-xs text-muted-foreground">
-              AI prediction confidence
+              Confidenza previsioni AI
             </p>
           </CardContent>
         </Card>
@@ -108,9 +108,9 @@ export default function Dashboard() {
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         <Card>
           <CardHeader>
-            <CardTitle>Performance Overview</CardTitle>
+            <CardTitle>Panoramica Performance</CardTitle>
             <CardDescription>
-              Trading performance metrics over time
+              Metriche di performance del trading nel tempo
             </CardDescription>
           </CardHeader>
           <CardContent>
@@ -120,9 +120,9 @@ export default function Dashboard() {
 
         <Card>
           <CardHeader>
-            <CardTitle>Recent Signals</CardTitle>
+            <CardTitle>Segnali Recenti</CardTitle>
             <CardDescription>
-              Latest AI-generated trading signals
+              Ultimi segnali di trading generati dall'AI
             </CardDescription>
           </CardHeader>
           <CardContent>

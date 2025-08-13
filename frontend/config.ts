@@ -1,32 +1,32 @@
-// Configuration file for frontend environment variables
+// File di configurazione per le variabili d'ambiente del frontend
 
-// Telegram Bot Configuration
-// TODO: Set this to your Telegram bot username (without @)
-// You can find this in BotFather after creating your bot
+// Configurazione Bot Telegram
+// TODO: Imposta questo al nome utente del tuo bot Telegram (senza @)
+// Puoi trovarlo in BotFather dopo aver creato il tuo bot
 export const telegramBotUsername = "";
 
-// API Base URL
-// This is automatically configured by Leap, but you can override if needed
+// URL Base API
+// Questo è configurato automaticamente da Leap, ma puoi sovrascriverlo se necessario
 export const apiBaseUrl = process.env.NODE_ENV === 'production' 
   ? 'https://your-app.leap.dev' 
   : 'http://localhost:4000';
 
-// Chart Configuration
+// Configurazione Grafici
 export const chartConfig = {
-  // Default chart dimensions
+  // Dimensioni predefinite dei grafici
   width: 800,
   height: 400,
   
-  // Chart theme
+  // Tema grafico
   theme: 'light',
   
-  // Default timeframe for charts
+  // Timeframe predefinito per i grafici
   defaultTimeframe: '5m',
 };
 
-// Trading Configuration
+// Configurazione Trading
 export const tradingConfig = {
-  // Default symbols to show in dropdowns
+  // Simboli predefiniti da mostrare nei dropdown
   defaultSymbols: [
     'BTCUSD',
     'EURUSD', 
@@ -36,102 +36,102 @@ export const tradingConfig = {
     'CRUDE'
   ],
   
-  // Default lot sizes
+  // Dimensioni lotto predefinite
   defaultLotSizes: [0.01, 0.05, 0.1, 0.2, 0.5, 1.0],
   
-  // Minimum confidence threshold for signals
+  // Soglia minima di confidenza per i segnali
   minConfidenceThreshold: 60,
   
-  // Maximum confidence threshold for signals  
+  // Soglia massima di confidenza per i segnali  
   maxConfidenceThreshold: 95,
 };
 
-// UI Configuration
+// Configurazione UI
 export const uiConfig = {
-  // Refresh intervals (in milliseconds)
-  performanceRefreshInterval: 30000, // 30 seconds
-  signalsRefreshInterval: 10000,     // 10 seconds
+  // Intervalli di aggiornamento (in millisecondi)
+  performanceRefreshInterval: 30000, // 30 secondi
+  signalsRefreshInterval: 10000,     // 10 secondi
   
-  // Animation durations
+  // Durata animazioni
   animationDuration: 300,
   
-  // Toast notification duration
+  // Durata notifiche toast
   toastDuration: 5000,
 };
 
-// Feature Flags
+// Flag Funzionalità
 export const features = {
-  // Enable/disable chart generation
+  // Abilita/disabilita generazione grafici
   enableCharts: true,
   
-  // Enable/disable real-time updates
+  // Abilita/disabilita aggiornamenti in tempo reale
   enableRealTimeUpdates: true,
   
-  // Enable/disable advanced analytics
+  // Abilita/disabilita analisi avanzate
   enableAdvancedAnalytics: true,
   
-  // Enable/disable demo mode
+  // Abilita/disabilita modalità demo
   enableDemoMode: false,
 };
 
-// Error Messages
+// Messaggi di Errore
 export const errorMessages = {
-  networkError: "Network error. Please check your connection and try again.",
-  apiError: "API error. Please try again later.",
-  invalidSymbol: "Invalid trading symbol. Please check and try again.",
-  invalidLotSize: "Invalid lot size. Please enter a valid number.",
-  executionFailed: "Trade execution failed. Please check your MT5 connection.",
-  predictionFailed: "Failed to generate prediction. Please try again.",
-  mt5NotConnected: "MT5 not connected. Please check your MetaTrader 5 terminal.",
-  insufficientMargin: "Insufficient margin for this trade size.",
+  networkError: "Errore di rete. Controlla la tua connessione e riprova.",
+  apiError: "Errore API. Riprova più tardi.",
+  invalidSymbol: "Simbolo di trading non valido. Controlla e riprova.",
+  invalidLotSize: "Dimensione lotto non valida. Inserisci un numero valido.",
+  executionFailed: "Esecuzione trade fallita. Controlla la tua connessione MT5.",
+  predictionFailed: "Impossibile generare previsione. Riprova.",
+  mt5NotConnected: "MT5 non connesso. Controlla il tuo terminale MetaTrader 5.",
+  insufficientMargin: "Margine insufficiente per questa dimensione di trade.",
 };
 
-// Success Messages
+// Messaggi di Successo
 export const successMessages = {
-  tradeExecuted: "Trade executed successfully on MT5!",
-  signalGenerated: "Trading signal generated successfully!",
-  settingsSaved: "Settings saved successfully!",
-  mt5Connected: "MT5 connection established successfully!",
+  tradeExecuted: "Trade eseguito con successo su MT5!",
+  signalGenerated: "Segnale di trading generato con successo!",
+  settingsSaved: "Impostazioni salvate con successo!",
+  mt5Connected: "Connessione MT5 stabilita con successo!",
 };
 
-// Validation Rules
+// Regole di Validazione
 export const validation = {
-  // Symbol validation pattern
+  // Pattern di validazione simbolo
   symbolPattern: /^[A-Z]{3,8}$/,
   
-  // Lot size limits
+  // Limiti dimensione lotto
   minLotSize: 0.01,
   maxLotSize: 100,
   
-  // Confidence limits
+  // Limiti confidenza
   minConfidence: 0,
   maxConfidence: 100,
 };
 
-// MT5 Configuration
+// Configurazione MT5
 export const mt5Config = {
-  // Default connection settings
+  // Impostazioni di connessione predefinite
   defaultHost: 'localhost',
   defaultPort: 8080,
   
-  // Connection timeout (milliseconds)
+  // Timeout connessione (millisecondi)
   connectionTimeout: 10000,
   
-  // Retry attempts for failed connections
+  // Tentativi di riconnessione per connessioni fallite
   maxRetries: 3,
   
-  // Order execution settings
-  defaultDeviation: 20, // Price deviation in points
-  defaultMagic: 234000, // Expert Advisor ID
+  // Impostazioni esecuzione ordini
+  defaultDeviation: 20, // Deviazione prezzo in punti
+  defaultMagic: 234000, // ID Expert Advisor
   
-  // Risk management
+  // Gestione del rischio
   maxLotSizePerTrade: 10.0,
   maxDailyTrades: 50,
   
-  // Supported order types
+  // Tipi di ordine supportati
   supportedOrderTypes: ['MARKET', 'PENDING', 'STOP', 'LIMIT'],
   
-  // Common symbol mappings for different brokers
+  // Mappature simboli comuni per diversi broker
   symbolMappings: {
     'BTCUSD': ['BTCUSD', 'BTCUSDm', 'BITCOIN'],
     'EURUSD': ['EURUSD', 'EURUSDm', 'EUR/USD'],
