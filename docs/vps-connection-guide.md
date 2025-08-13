@@ -69,18 +69,26 @@ Ora creiamo il programma che fa da ponte.
 3.  Apri il "Prompt dei comandi" (Command Prompt):
     *   Premi il tasto `Windows`.
     *   Scrivi `cmd` e premi Invio.
-4.  Nel prompt dei comandi nero, scrivi questi comandi uno alla volta e premi Invio dopo ognuno:
+4.  Nel prompt dei comandi nero, scrivi questi comandi **uno alla volta** e premi Invio dopo ognuno:
+
+    **Comando 1: Installa gli strumenti necessari**
     ```bash
     pip install MetaTrader5 flask flask-cors
     ```
-    (Aspetta che finisca di installare)
+    (Aspetta che finisca di installare. Potrebbero volerci un paio di minuti.)
+
+    **Comando 2: Entra nella cartella del bot**
     ```bash
     cd C:\TradingBot
     ```
+
+    **Comando 3: Avvia il ponte!**
     ```bash
     python mt5-python-server.py
     ```
-5.  Se tutto va bene, vedrai un messaggio che dice `Starting MT5 Python Server...`. **Lascia questa finestra nera aperta!** Se la chiudi, il ponte crolla.
+    **ATTENZIONE:** Il comando è `python` seguito da uno spazio e poi `mt5-python-server.py`. Non scrivere "TradingBot" o altro. Questo è il comando corretto per avviare il server.
+
+5.  Se tutto va bene, vedrai un messaggio che dice `=== AI TRADING BOT - MT5 PY-SERVER ===`. Questo significa che il ponte è attivo! **Lascia questa finestra nera aperta!** Se la chiudi, il ponte crolla e il bot smette di funzionare.
 
 ---
 

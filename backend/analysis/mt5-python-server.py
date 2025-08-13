@@ -491,9 +491,30 @@ def calculate_margin():
         return jsonify({'error': str(e)}), 500
 
 if __name__ == '__main__':
+    print("=======================================")
+    print("=== AI TRADING BOT - MT5 PY-SERVER ===")
+    print("=======================================")
+    print("Inizializzazione in corso...")
+    
     # Initialize MT5 on startup
     if initialize_mt5():
-        logger.info("Starting MT5 Python Server on port 8080")
-        app.run(host='0.0.0.0', port=8080, debug=False)
+        print("✅ MT5 connesso con successo!")
+        print("🚀 Avvio server su porta 8080...")
+        print("📡 Il bot può ora ricevere dati in tempo reale da MT5!")
+        print("\n💡 IMPORTANTE: Lascia questa finestra aperta!")
+        print("   Se la chiudi, il bot non potrà più comunicare con MT5.\n")
+        
+        try:
+            app.run(host='0.0.0.0', port=8080, debug=False)
+        except KeyboardInterrupt:
+            print("\n🛑 Server fermato dall'utente")
+        except Exception as e:
+            print(f"\n❌ Errore server: {e}")
     else:
-        logger.error("Failed to initialize MT5. Please ensure MetaTrader 5 is installed and running.")
+        print("❌ Impossibile connettersi a MT5!")
+        print("\n🔧 SOLUZIONI:")
+        print("1. Assicurati che MetaTrader 5 sia aperto e connesso.")
+        print("2. Verifica di essere loggato al tuo account.")
+        print("3. Controlla che il trading automatico sia abilitato in 'Strumenti -> Opzioni'.")
+        print("4. Riavvia MT5 e questo script.")
+        input("\nPremi Invio per chiudere...")

@@ -283,7 +283,9 @@ def get_positions():
         return jsonify({'error': str(e)}), 500
 
 if __name__ == '__main__':
-    print("=== AI TRADING BOT - MT5 SERVER ===")
+    print("=======================================")
+    print("=== AI TRADING BOT - MT5 PY-SERVER ===")
+    print("=======================================")
     print("Inizializzazione in corso...")
     
     # Inizializza MT5 all'avvio
@@ -303,8 +305,8 @@ if __name__ == '__main__':
     else:
         print("❌ Impossibile connettersi a MT5!")
         print("\n🔧 SOLUZIONI:")
-        print("1. Assicurati che MetaTrader 5 sia aperto e connesso")
-        print("2. Verifica di essere loggato al tuo account")
-        print("3. Controlla che il trading automatico sia abilitato")
-        print("4. Riavvia MT5 e riprova")
+        print("1. Assicurati che MetaTrader 5 sia aperto e connesso.")
+        print("2. Verifica di essere loggato al tuo account.")
+        print("3. Controlla che il trading automatico sia abilitato in 'Strumenti -> Opzioni'.")
+        print("4. Riavvia MT5 e questo script.")
         input("\nPremi Invio per chiudere...")
