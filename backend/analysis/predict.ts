@@ -21,11 +21,24 @@ export interface TradingSignal {
   chartUrl?: string;
   analysis: {
     technical: {
-      rsi: number;
-      macd: string;
-      atr: number;
+      trend: string;
+      structure: string;
+      keyLevels: number[];
+      breakoutProbability: number;
       support: number;
       resistance: number;
+    };
+    smartMoney: {
+      institutionalFlow: string;
+      volumeProfile: string;
+      orderFlow: string;
+      liquidityZones: number[];
+    };
+    professional: {
+      topTraders: string[];
+      consensusView: string;
+      riskReward: number;
+      timeframe: string;
     };
     sentiment: {
       score: number;
@@ -39,7 +52,7 @@ export interface TradingSignal {
   };
 }
 
-// Generates AI-powered trading predictions for a given symbol.
+// Generates AI-powered trading predictions for a given symbol using advanced ML and professional trading concepts.
 export const predict = api<PredictRequest, TradingSignal>(
   { expose: true, method: "POST", path: "/analysis/predict" },
   async (req) => {
@@ -49,8 +62,8 @@ export const predict = api<PredictRequest, TradingSignal>(
     // Fetch multi-timeframe market data
     const marketData = await fetchMarketData(symbol, ["5m", "15m", "30m"]);
     
-    // Perform AI analysis with Gemini
-    const aiAnalysis = await analyzeWithAI(marketData);
+    // Perform advanced AI analysis with professional trading concepts
+    const aiAnalysis = await analyzeWithAI(marketData, symbol);
     
     // Perform sentiment analysis
     const sentimentAnalysis = await analyzeSentiment(symbol);
@@ -58,7 +71,7 @@ export const predict = api<PredictRequest, TradingSignal>(
     // Generate chart
     const chartUrl = await generateChart(symbol, marketData, aiAnalysis);
     
-    // Calculate entry, TP, and SL based on AI analysis and ATR
+    // Calculate entry, TP, and SL based on professional risk management
     const currentPrice = marketData["5m"].close;
     const atr = marketData["5m"].indicators.atr;
     
@@ -66,14 +79,48 @@ export const predict = api<PredictRequest, TradingSignal>(
     let takeProfit: number;
     let stopLoss: number;
     
+    // Professional risk management: Use ATR and key levels
     if (aiAnalysis.direction === "LONG") {
       entryPrice = currentPrice;
-      takeProfit = currentPrice + (atr * 2);
-      stopLoss = currentPrice - (atr * 1.5);
+      
+      // Take profit at next resistance or 2-3 ATR
+      const nextResistance = aiAnalysis.smartMoney.liquidityZones
+        .filter(zone => zone > currentPrice)
+        .sort((a, b) => a - b)[0];
+      
+      takeProfit = nextResistance && (nextResistance - currentPrice) < (atr * 4) 
+        ? nextResistance * 0.999  // Just before resistance
+        : currentPrice + (atr * aiAnalysis.professionalAnalysis.riskReward);
+      
+      // Stop loss below support or 1.5 ATR
+      const nearestSupport = aiAnalysis.smartMoney.liquidityZones
+        .filter(zone => zone < currentPrice)
+        .sort((a, b) => b - a)[0];
+      
+      stopLoss = nearestSupport && (currentPrice - nearestSupport) < (atr * 2)
+        ? nearestSupport * 0.999  // Just below support
+        : currentPrice - (atr * 1.5);
+        
     } else {
       entryPrice = currentPrice;
-      takeProfit = currentPrice - (atr * 2);
-      stopLoss = currentPrice + (atr * 1.5);
+      
+      // Take profit at next support or 2-3 ATR
+      const nextSupport = aiAnalysis.smartMoney.liquidityZones
+        .filter(zone => zone < currentPrice)
+        .sort((a, b) => b - a)[0];
+      
+      takeProfit = nextSupport && (currentPrice - nextSupport) < (atr * 4)
+        ? nextSupport * 1.001  // Just above support
+        : currentPrice - (atr * aiAnalysis.professionalAnalysis.riskReward);
+      
+      // Stop loss above resistance or 1.5 ATR
+      const nearestResistance = aiAnalysis.smartMoney.liquidityZones
+        .filter(zone => zone > currentPrice)
+        .sort((a, b) => a - b)[0];
+      
+      stopLoss = nearestResistance && (nearestResistance - currentPrice) < (atr * 2)
+        ? nearestResistance * 1.001  // Just above resistance
+        : currentPrice + (atr * 1.5);
     }
 
     const signal: TradingSignal = {
@@ -87,11 +134,24 @@ export const predict = api<PredictRequest, TradingSignal>(
       chartUrl,
       analysis: {
         technical: {
-          rsi: marketData["5m"].indicators.rsi,
-          macd: marketData["5m"].indicators.macd > 0 ? "BULLISH" : "BEARISH",
-          atr: atr,
+          trend: aiAnalysis.priceAction.trend,
+          structure: aiAnalysis.priceAction.structure,
+          keyLevels: aiAnalysis.priceAction.keyLevels,
+          breakoutProbability: aiAnalysis.priceAction.breakoutProbability,
           support: aiAnalysis.support,
           resistance: aiAnalysis.resistance,
+        },
+        smartMoney: {
+          institutionalFlow: aiAnalysis.smartMoney.institutionalFlow,
+          volumeProfile: aiAnalysis.smartMoney.volumeProfile,
+          orderFlow: aiAnalysis.smartMoney.orderFlow,
+          liquidityZones: aiAnalysis.smartMoney.liquidityZones,
+        },
+        professional: {
+          topTraders: aiAnalysis.professionalAnalysis.topTraders,
+          consensusView: aiAnalysis.professionalAnalysis.consensusView,
+          riskReward: aiAnalysis.professionalAnalysis.riskReward,
+          timeframe: aiAnalysis.professionalAnalysis.timeframe,
         },
         sentiment: {
           score: sentimentAnalysis.score,
