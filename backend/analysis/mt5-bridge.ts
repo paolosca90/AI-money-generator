@@ -74,25 +74,27 @@ export async function fetchWithTimeout(resource: string, options: any = {}, time
 export async function executeMT5Order(order: MT5OrderRequest): Promise<MT5OrderResult> {
   try {
     console.log(`🔄 Attempting to execute ${order.direction} order for ${order.symbol}`);
-    const directResult = await tryDirectMT5Connection(order);
-    if (directResult.success) {
-      console.log(`✅ Direct MT5 execution successful for ${order.symbol}`);
-      return directResult;
-    }
-    console.log(`❌ Direct MT5 connection failed: ${directResult.error}`);
     
-    // Prova con un endpoint alternativo se il primo fallisce
-    console.log("🔄 Trying alternative endpoint...");
-    const alternativeResult = await tryAlternativeEndpoint(order);
-    if (alternativeResult.success) {
-      console.log(`✅ Alternative endpoint successful for ${order.symbol}`);
-      return alternativeResult;
+    // Prima tenta senza specificare filling mode
+    const simpleResult = await tryWithoutFillingMode(order);
+    if (simpleResult.success) {
+      console.log(`✅ MT5 execution successful for ${order.symbol} without filling mode`);
+      return simpleResult;
     }
-    console.log(`❌ Alternative endpoint failed: ${alternativeResult.error}`);
+    console.log(`❌ MT5 execution failed: ${simpleResult.error}`);
+    
+    // Se fallisce, prova a inviare un ordine market semplificato
+    console.log("🔄 Trying simple market order format...");
+    const simpleMarketResult = await trySimpleMarketOrder(order);
+    if (simpleMarketResult.success) {
+      console.log(`✅ Simple market order successful for ${order.symbol}`);
+      return simpleMarketResult;
+    }
+    console.log(`❌ Simple market order failed: ${simpleMarketResult.error}`);
     
     return {
       success: false,
-      error: `MT5 connection failed: ${directResult.error || "Unknown error"}`
+      error: `MT5 execution failed: ${simpleResult.error || "Unknown error"}`
     };
   } catch (error: any) {
     console.error("❌ MT5 execution error:", error);
@@ -103,9 +105,8 @@ export async function executeMT5Order(order: MT5OrderRequest): Promise<MT5OrderR
   }
 }
 
-// --- Direct connection to MT5 Python server ---
-
-export async function tryDirectMT5Connection(order: MT5OrderRequest): Promise<MT5OrderResult> {
+// --- Try order without filling mode ---
+async function tryWithoutFillingMode(order: MT5OrderRequest): Promise<MT5OrderResult> {
   try {
     const host = mt5ServerHost();
     const port = mt5ServerPort();
@@ -117,25 +118,22 @@ export async function tryDirectMT5Connection(order: MT5OrderRequest): Promise<MT
 
     console.log(`🔗 Connecting to MT5 execution endpoint: ${url}`);
 
-    // Modifica del formato del payload per compatibilità
-    // Nota: aggiunti campi aggiuntivi che potrebbero essere richiesti dall'API MT5
+    // Modifica del formato del payload - rimosso type_filling
     const symbol = order.symbol.endsWith("pm") ? order.symbol : `${order.symbol}pm`;
     const action = order.direction === "LONG" ? "BUY" : "SELL";
 
     const payload = {
-      symbol: symbol,                  // Uso BTCUSDpm invece di BTCUSD
-      action: action,                  // BUY o SELL
-      type: "ORDER_TYPE_MARKET",       // Tipo ordine esplicito
-      volume: order.lotSize,           // Mantiene il volume
-      price: 0,                        // Price 0 per ordini market
-      sl: order.stopLoss,              // Stop loss
-      tp: order.takeProfit,            // Take profit
-      deviation: 10,                   // Deviazione di prezzo accettabile
-      magic: 12345,                    // Magic number per identificare ordini
-      comment: order.comment || "AI Trading Bot",  // Commento
-      type_time: "ORDER_TIME_GTC",     // Good till cancelled
-      type_filling: "ORDER_FILLING_FOK" // Fill or kill
+      symbol: symbol,
+      action: action,
+      type: "MARKET", // Semplificato da ORDER_TYPE_MARKET a MARKET
+      volume: order.lotSize,
+      sl: order.stopLoss,
+      tp: order.takeProfit,
+      comment: order.comment || "AI Trading Bot",
+      // Rimosso type_filling
     };
+
+    console.log(`📊 Sending payload: ${JSON.stringify(payload)}`);
 
     const response = await fetchWithTimeout(url, {
       method: "POST",
@@ -145,7 +143,7 @@ export async function tryDirectMT5Connection(order: MT5OrderRequest): Promise<MT
 
     if (!response.ok) {
       const resText = await response.text();
-      return { success: false, error: `MT5 Python server error: ${response.status} - ${resText}` };
+      return { success: false, error: `MT5 server error: ${response.status} - ${resText}` };
     }
 
     const result = await response.json();
@@ -170,8 +168,8 @@ export async function tryDirectMT5Connection(order: MT5OrderRequest): Promise<MT
   }
 }
 
-// --- Try alternative endpoint format ---
-async function tryAlternativeEndpoint(order: MT5OrderRequest): Promise<MT5OrderResult> {
+// --- Try simple market order format ---
+async function trySimpleMarketOrder(order: MT5OrderRequest): Promise<MT5OrderResult> {
   try {
     const host = mt5ServerHost();
     const port = mt5ServerPort();
@@ -179,25 +177,24 @@ async function tryAlternativeEndpoint(order: MT5OrderRequest): Promise<MT5OrderR
       return { success: false, error: "MT5 server host/port not configured" };
     }
     const baseUrl = host.includes(":") ? `http://${host}` : `http://${host}:${port}`;
-    
-    // Prova con endpoint alternativo
-    const url = `${baseUrl}/order`;
-    console.log(`🔗 Trying alternative endpoint: ${url}`);
+    const url = `${baseUrl}/execute`;
 
-    // Formato alternativo del payload
+    console.log(`🔗 Trying simple market order format`);
+
+    // Formato molto semplificato
     const symbol = order.symbol.endsWith("pm") ? order.symbol : `${order.symbol}pm`;
     const action = order.direction === "LONG" ? "BUY" : "SELL";
 
+    // Payload minimo
     const payload = {
-      command: "ORDER_SEND",
       symbol: symbol,
-      cmd: action === "BUY" ? 0 : 1,   // 0=BUY, 1=SELL - formato numerico
+      action: action,
       volume: order.lotSize,
-      price: order.entryPrice,
       sl: order.stopLoss,
       tp: order.takeProfit,
-      comment: order.comment || "AI Trading Bot"
     };
+
+    console.log(`📊 Sending simplified payload: ${JSON.stringify(payload)}`);
 
     const response = await fetchWithTimeout(url, {
       method: "POST",
@@ -207,7 +204,7 @@ async function tryAlternativeEndpoint(order: MT5OrderRequest): Promise<MT5OrderR
 
     if (!response.ok) {
       const resText = await response.text();
-      return { success: false, error: `Alternative endpoint error: ${response.status} - ${resText}` };
+      return { success: false, error: `Simple market order error: ${response.status} - ${resText}` };
     }
 
     const result = await response.json();
@@ -221,13 +218,13 @@ async function tryAlternativeEndpoint(order: MT5OrderRequest): Promise<MT5OrderR
     } else {
       return {
         success: false,
-        error: result.error || `Alternative endpoint error code ${result.retcode}`,
+        error: result.error || `Simple market order error code ${result.retcode}`,
       };
     }
   } catch (error: any) {
     return {
       success: false,
-      error: `Alternative endpoint failed: ${error.message || error}`,
+      error: `Simple market order failed: ${error.message || error}`,
     };
   }
 }
@@ -262,12 +259,10 @@ export async function simulateMT5Execution(order: MT5OrderRequest): Promise<MT5O
 // --- Symbol helpers ---
 
 export function getSymbolVariations(symbol: string): string[] {
-  // Esempio: aggiungi qui logica per generare varianti dei simboli
-  // EURUSD -> EURUSD, EURUSDm, EURUSD.r, EURUSDpro, EURUSD.
   return [
     symbol,
     symbol + "m",
-    symbol + "pm",  // Aggiungo "pm" dalla conversione vista nei log per BTCUSD -> BTCUSDpm
+    symbol + "pm",
     symbol + ".",
     symbol + "r",
     symbol + "pro",
