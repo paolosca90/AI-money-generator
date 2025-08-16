@@ -160,7 +160,8 @@ def get_symbol_info():
                 'point': symbol_info.point,
                 'volume_min': symbol_info.volume_min,
                 'volume_max': symbol_info.volume_max,
-                'volume_step': symbol_info.volume_step
+                'volume_step': symbol_info.volume_step,
+                'filling_mode': symbol_info.filling_mode
             }
         })
         
@@ -170,7 +171,7 @@ def get_symbol_info():
 
 @app.route('/execute', methods=['POST'])
 def execute_order():
-    """Execute an order on MT5"""
+    """Execute an order on MT5 with multiple filling mode attempts"""
     try:
         if not mt5_connected:
             return jsonify({
@@ -221,56 +222,70 @@ def execute_order():
         # Use appropriate price (ask for BUY, bid for SELL)
         price = tick.ask if action.upper() == 'BUY' else tick.bid
         
-        # Prepare order request
-        request_dict = {
-            "action": mt5.TRADE_ACTION_DEAL,
-            "symbol": symbol,
-            "volume": float(volume),
-            "type": order_type,
-            "price": price,
-            "deviation": 20,
-            "magic": 12345,
-            "comment": comment,
-            "type_time": mt5.ORDER_TIME_GTC,
-            "type_filling": mt5.ORDER_FILLING_IOC,
-        }
+        # Try different filling modes in order of preference
+        filling_modes = [
+            mt5.ORDER_FILLING_RETURN,  # Most compatible
+            mt5.ORDER_FILLING_IOC,     # Immediate or Cancel
+            mt5.ORDER_FILLING_FOK,     # Fill or Kill
+        ]
         
-        # Add SL and TP if specified
-        if sl > 0:
-            request_dict["sl"] = float(sl)
-        if tp > 0:
-            request_dict["tp"] = float(tp)
+        last_error = None
         
-        logger.info(f"Executing order: {request_dict}")
+        for filling_mode in filling_modes:
+            # Prepare order request
+            request_dict = {
+                "action": mt5.TRADE_ACTION_DEAL,
+                "symbol": symbol,
+                "volume": float(volume),
+                "type": order_type,
+                "price": price,
+                "deviation": 20,
+                "magic": 12345,
+                "comment": comment,
+                "type_time": mt5.ORDER_TIME_GTC,
+                "type_filling": filling_mode,
+            }
+            
+            # Add SL and TP if specified
+            if sl > 0:
+                request_dict["sl"] = float(sl)
+            if tp > 0:
+                request_dict["tp"] = float(tp)
+            
+            logger.info(f"Trying filling mode {filling_mode} for order: {request_dict}")
+            
+            # Execute the order
+            result = mt5.order_send(request_dict)
+            
+            if result is None:
+                last_error = f"order_send returned None with filling mode {filling_mode}"
+                logger.warning(last_error)
+                continue
+            
+            # Check result
+            if result.retcode == mt5.TRADE_RETCODE_DONE:
+                logger.info(f"✅ Order executed successfully with filling mode {filling_mode}: Order {result.order}")
+                return jsonify({
+                    'success': True,
+                    'order': result.order,
+                    'deal': result.deal,
+                    'price': result.price,
+                    'volume': result.volume,
+                    'comment': result.comment,
+                    'filling_mode_used': filling_mode
+                })
+            else:
+                last_error = f"Filling mode {filling_mode} failed: {result.retcode} - {result.comment}"
+                logger.warning(last_error)
+                continue
         
-        # Execute the order
-        result = mt5.order_send(request_dict)
-        
-        if result is None:
-            return jsonify({
-                'success': False,
-                'error': 'order_send returned None'
-            }), 500
-        
-        # Check result
-        if result.retcode == mt5.TRADE_RETCODE_DONE:
-            logger.info(f"Order executed successfully: {result.order}")
-            return jsonify({
-                'success': True,
-                'order': result.order,
-                'deal': result.deal,
-                'price': result.price,
-                'volume': result.volume,
-                'comment': result.comment
-            })
-        else:
-            error_msg = f"Order execution error: {result.retcode} - {result.comment}"
-            logger.error(error_msg)
-            return jsonify({
-                'success': False,
-                'error': error_msg,
-                'retcode': result.retcode
-            }), 400
+        # If all filling modes failed
+        error_msg = f"All filling modes failed. Last error: {last_error}"
+        logger.error(error_msg)
+        return jsonify({
+            'success': False,
+            'error': error_msg
+        }), 400
             
     except Exception as e:
         logger.error(f"Order execution error: {e}")
@@ -350,35 +365,44 @@ def close_position():
             close_type = mt5.ORDER_TYPE_BUY
             price = mt5.symbol_info_tick(position.symbol).ask
         
-        # Prepare close request
-        close_request = {
-            "action": mt5.TRADE_ACTION_DEAL,
-            "symbol": position.symbol,
-            "volume": position.volume,
-            "type": close_type,
-            "position": ticket,
-            "price": price,
-            "deviation": 20,
-            "magic": 12345,
-            "comment": "Close by AI Bot",
-            "type_time": mt5.ORDER_TIME_GTC,
-            "type_filling": mt5.ORDER_FILLING_IOC,
-        }
+        # Try different filling modes for closing as well
+        filling_modes = [
+            mt5.ORDER_FILLING_RETURN,
+            mt5.ORDER_FILLING_IOC,
+            mt5.ORDER_FILLING_FOK,
+        ]
         
-        # Execute close order
-        result = mt5.order_send(close_request)
+        for filling_mode in filling_modes:
+            # Prepare close request
+            close_request = {
+                "action": mt5.TRADE_ACTION_DEAL,
+                "symbol": position.symbol,
+                "volume": position.volume,
+                "type": close_type,
+                "position": ticket,
+                "price": price,
+                "deviation": 20,
+                "magic": 12345,
+                "comment": "Close by AI Bot",
+                "type_time": mt5.ORDER_TIME_GTC,
+                "type_filling": filling_mode,
+            }
+            
+            # Execute close order
+            result = mt5.order_send(close_request)
+            
+            if result and result.retcode == mt5.TRADE_RETCODE_DONE:
+                return jsonify({
+                    'success': True,
+                    'deal': result.deal,
+                    'price': result.price,
+                    'filling_mode_used': filling_mode
+                })
         
-        if result.retcode == mt5.TRADE_RETCODE_DONE:
-            return jsonify({
-                'success': True,
-                'deal': result.deal,
-                'price': result.price
-            })
-        else:
-            return jsonify({
-                'success': False,
-                'error': f'Close failed: {result.retcode} - {result.comment}'
-            }), 400
+        return jsonify({
+            'success': False,
+            'error': f'Close failed with all filling modes'
+        }), 400
             
     except Exception as e:
         logger.error(f"Close position error: {e}")
