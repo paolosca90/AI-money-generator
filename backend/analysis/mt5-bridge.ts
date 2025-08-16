@@ -48,11 +48,11 @@ export interface SymbolValidationResult {
 
 // --- Helper: find server host/port ---
 function mt5ServerHost(): string | undefined {
-  return process.env.MT5_SERVER_HOST || "154.61.187.189"; // Modificato da "localhost" a "154.61.187.189"
+  return process.env.MT5_SERVER_HOST || "154.61.187.189";
 }
 
 function mt5ServerPort(): string | undefined {
-  return process.env.MT5_SERVER_PORT || "8080"; // Modificato da "5000" a "8080"
+  return process.env.MT5_SERVER_PORT || "8080";
 }
 
 // --- Helper: fetch with timeout ---
@@ -80,21 +80,20 @@ export async function executeMT5Order(order: MT5OrderRequest): Promise<MT5OrderR
       return directResult;
     }
     console.log(`❌ Direct MT5 connection failed: ${directResult.error}`);
-    return {
-      success: false,
-      error: `MT5 connection failed: ${directResult.error || "Unknown error"}`
-    };
-    // Se vuoi la simulazione SOLO in sviluppo, decommenta qui:
-    /*
-    if (process.env.NODE_ENV === "development") {
-      console.log("🔄 Using simulation mode for order execution");
-      return await simulateMT5Execution(order);
+    
+    // Prova con un endpoint alternativo se il primo fallisce
+    console.log("🔄 Trying alternative endpoint...");
+    const alternativeResult = await tryAlternativeEndpoint(order);
+    if (alternativeResult.success) {
+      console.log(`✅ Alternative endpoint successful for ${order.symbol}`);
+      return alternativeResult;
     }
+    console.log(`❌ Alternative endpoint failed: ${alternativeResult.error}`);
+    
     return {
       success: false,
       error: `MT5 connection failed: ${directResult.error || "Unknown error"}`
     };
-    */
   } catch (error: any) {
     console.error("❌ MT5 execution error:", error);
     return {
@@ -116,18 +115,26 @@ export async function tryDirectMT5Connection(order: MT5OrderRequest): Promise<MT
     const baseUrl = host.includes(":") ? `http://${host}` : `http://${host}:${port}`;
     const url = `${baseUrl}/execute`;
 
-    console.log(`🔗 Connecting to MT5 execution endpoint: ${url}`); // Log aggiunto per debug
+    console.log(`🔗 Connecting to MT5 execution endpoint: ${url}`);
 
+    // Modifica del formato del payload per compatibilità
+    // Nota: aggiunti campi aggiuntivi che potrebbero essere richiesti dall'API MT5
+    const symbol = order.symbol.endsWith("pm") ? order.symbol : `${order.symbol}pm`;
     const action = order.direction === "LONG" ? "BUY" : "SELL";
 
     const payload = {
-      symbol: order.symbol,
-      action,
-      volume: order.lotSize,
-      price: order.entryPrice,
-      tp: order.takeProfit,
-      sl: order.stopLoss,
-      comment: order.comment || "AI Trading Bot",
+      symbol: symbol,                  // Uso BTCUSDpm invece di BTCUSD
+      action: action,                  // BUY o SELL
+      type: "ORDER_TYPE_MARKET",       // Tipo ordine esplicito
+      volume: order.lotSize,           // Mantiene il volume
+      price: 0,                        // Price 0 per ordini market
+      sl: order.stopLoss,              // Stop loss
+      tp: order.takeProfit,            // Take profit
+      deviation: 10,                   // Deviazione di prezzo accettabile
+      magic: 12345,                    // Magic number per identificare ordini
+      comment: order.comment || "AI Trading Bot",  // Commento
+      type_time: "ORDER_TIME_GTC",     // Good till cancelled
+      type_filling: "ORDER_FILLING_FOK" // Fill or kill
     };
 
     const response = await fetchWithTimeout(url, {
@@ -146,7 +153,7 @@ export async function tryDirectMT5Connection(order: MT5OrderRequest): Promise<MT
     if (result.success) {
       return {
         success: true,
-        orderId: result.order || result.deal || undefined,
+        orderId: result.order || result.deal || result.ticket || undefined,
         executionPrice: result.price || undefined,
       };
     } else {
@@ -159,6 +166,68 @@ export async function tryDirectMT5Connection(order: MT5OrderRequest): Promise<MT
     return {
       success: false,
       error: `Connection to MT5 server failed: ${error.message || error}`,
+    };
+  }
+}
+
+// --- Try alternative endpoint format ---
+async function tryAlternativeEndpoint(order: MT5OrderRequest): Promise<MT5OrderResult> {
+  try {
+    const host = mt5ServerHost();
+    const port = mt5ServerPort();
+    if (!host || !port) {
+      return { success: false, error: "MT5 server host/port not configured" };
+    }
+    const baseUrl = host.includes(":") ? `http://${host}` : `http://${host}:${port}`;
+    
+    // Prova con endpoint alternativo
+    const url = `${baseUrl}/order`;
+    console.log(`🔗 Trying alternative endpoint: ${url}`);
+
+    // Formato alternativo del payload
+    const symbol = order.symbol.endsWith("pm") ? order.symbol : `${order.symbol}pm`;
+    const action = order.direction === "LONG" ? "BUY" : "SELL";
+
+    const payload = {
+      command: "ORDER_SEND",
+      symbol: symbol,
+      cmd: action === "BUY" ? 0 : 1,   // 0=BUY, 1=SELL - formato numerico
+      volume: order.lotSize,
+      price: order.entryPrice,
+      sl: order.stopLoss,
+      tp: order.takeProfit,
+      comment: order.comment || "AI Trading Bot"
+    };
+
+    const response = await fetchWithTimeout(url, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(payload),
+    }, 8000);
+
+    if (!response.ok) {
+      const resText = await response.text();
+      return { success: false, error: `Alternative endpoint error: ${response.status} - ${resText}` };
+    }
+
+    const result = await response.json();
+
+    if (result.success) {
+      return {
+        success: true,
+        orderId: result.order || result.deal || result.ticket || undefined,
+        executionPrice: result.price || undefined,
+      };
+    } else {
+      return {
+        success: false,
+        error: result.error || `Alternative endpoint error code ${result.retcode}`,
+      };
+    }
+  } catch (error: any) {
+    return {
+      success: false,
+      error: `Alternative endpoint failed: ${error.message || error}`,
     };
   }
 }
@@ -198,7 +267,7 @@ export function getSymbolVariations(symbol: string): string[] {
   return [
     symbol,
     symbol + "m",
-    symbol + "pm",  // Aggiunto "pm" dalla conversione vista nei log per BTCUSD -> BTCUSDpm
+    symbol + "pm",  // Aggiungo "pm" dalla conversione vista nei log per BTCUSD -> BTCUSDpm
     symbol + ".",
     symbol + "r",
     symbol + "pro",
