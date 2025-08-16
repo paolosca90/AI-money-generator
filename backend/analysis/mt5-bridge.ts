@@ -48,11 +48,11 @@ export interface SymbolValidationResult {
 
 // --- Helper: find server host/port ---
 function mt5ServerHost(): string | undefined {
-  return process.env.MT5_SERVER_HOST || "localhost";
+  return process.env.MT5_SERVER_HOST || "154.61.187.189"; // Modificato da "localhost" a "154.61.187.189"
 }
 
 function mt5ServerPort(): string | undefined {
-  return process.env.MT5_SERVER_PORT || "5000";
+  return process.env.MT5_SERVER_PORT || "8080"; // Modificato da "5000" a "8080"
 }
 
 // --- Helper: fetch with timeout ---
@@ -115,6 +115,8 @@ export async function tryDirectMT5Connection(order: MT5OrderRequest): Promise<MT
     }
     const baseUrl = host.includes(":") ? `http://${host}` : `http://${host}:${port}`;
     const url = `${baseUrl}/execute`;
+
+    console.log(`🔗 Connecting to MT5 execution endpoint: ${url}`); // Log aggiunto per debug
 
     const action = order.direction === "LONG" ? "BUY" : "SELL";
 
@@ -196,6 +198,7 @@ export function getSymbolVariations(symbol: string): string[] {
   return [
     symbol,
     symbol + "m",
+    symbol + "pm",  // Aggiunto "pm" dalla conversione vista nei log per BTCUSD -> BTCUSDpm
     symbol + ".",
     symbol + "r",
     symbol + "pro",
