@@ -128,7 +128,7 @@ Consider factors like:
 
 Sentiment Score:`;
 
-    const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash-latest:generateContent?key=${apiKey}`, {
+    const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-pro-latest:generateContent?key=${apiKey}`, {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
@@ -143,7 +143,7 @@ Sentiment Score:`;
           temperature: 0.1,
           topK: 1,
           topP: 1,
-          maxOutputTokens: 50,
+          maxOutputTokens: 100, // Increased for better sentiment analysis
         }
       })
     });

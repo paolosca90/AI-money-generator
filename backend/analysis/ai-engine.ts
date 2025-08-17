@@ -1,5 +1,11 @@
 import { secret } from "encore.dev/config";
 import { TimeframeData } from "./market-data";
+import { analyzeSentiment } from "./sentiment-analyzer";
+import { analyzeVWAP, generateVWAPSignals } from "./vwap-analyzer";
+import { analyzeOrderbook } from "./orderbook-analyzer";
+import { analyzeZDTEOptions } from "./options-analyzer";
+import { analyzeWithML } from "./ml-analyzer";
+import { generateForecasts } from "./forecast-analyzer";
 
 const geminiApiKey = secret("GeminiApiKey");
 
@@ -39,6 +45,15 @@ export interface AIAnalysis {
     macd: number;
     atr: number;
   };
+  // Enhanced analysis components
+  vwap: {
+    analysis: any;
+    signals: any;
+  };
+  orderbook: any;
+  options: any;
+  machineLearning: any;
+  forecasts: any;
 }
 
 // Cache for Gemini responses to reduce API calls
@@ -63,35 +78,64 @@ export async function analyzeWithAI(marketData: TimeframeData, symbol: string): 
   // Professional trader consensus
   const professionalAnalysis = await analyzeProfessionalTraders(symbol, marketData);
 
+  // Enhanced VWAP analysis
+  const vwapAnalysis = analyzeVWAP(marketData, symbol);
+  const vwapSignals = generateVWAPSignals(vwapAnalysis);
+
+  // Orderbook analysis for futures
+  const orderbookAnalysis = analyzeOrderbook(marketData, symbol);
+
+  // 0DTE Options analysis
+  const optionsAnalysis = analyzeZDTEOptions(marketData, symbol);
+
+  // Machine Learning analysis
+  const mlAnalysis = analyzeWithML(marketData, symbol);
+
+  // Forecasting and projections
+  const forecastAnalysis = generateForecasts(marketData, symbol);
+
+  // Enhanced sentiment analysis using real news
+  const sentimentAnalysis = await analyzeSentiment(symbol);
+
   // Use Gemini AI for enhanced analysis with better error handling and caching
   const geminiAnalysis = await analyzeWithGeminiCached(marketData, symbol, {
     priceAction: priceActionAnalysis,
     smartMoney: smartMoneyAnalysis,
     volume: volumeAnalysis,
-    professional: professionalAnalysis
+    professional: professionalAnalysis,
+    vwap: vwapAnalysis,
+    orderbook: orderbookAnalysis,
+    options: optionsAnalysis,
+    ml: mlAnalysis,
+    forecasts: forecastAnalysis
   });
 
   // Calculate enhanced support and resistance using multiple methods
   const enhancedLevels = calculateEnhancedSupportResistance(data5m, data15m, data30m, symbol);
   
-  // Combine all analyses for final decision
-  const finalDirection = determineDirection(
+  // Combine all analyses for final decision with enhanced weighting
+  const finalDirection = determineDirectionEnhanced(
     priceActionAnalysis,
     smartMoneyAnalysis,
     volumeAnalysis,
-    geminiAnalysis
+    geminiAnalysis,
+    vwapSignals,
+    orderbookAnalysis,
+    optionsAnalysis,
+    mlAnalysis
   );
 
-  const finalConfidence = calculateConfidence(
+  const finalConfidence = calculateConfidenceEnhanced(
     priceActionAnalysis,
     smartMoneyAnalysis,
     volumeAnalysis,
     professionalAnalysis,
-    geminiAnalysis
+    geminiAnalysis,
+    vwapSignals,
+    orderbookAnalysis,
+    optionsAnalysis,
+    mlAnalysis
   );
-
-  // Simulate sentiment analysis (in real implementation, this would use news APIs)
-  const sentiment = await simulateSentimentAnalysis();
 
   // Calculate volatility
   const volatility = {
@@ -111,12 +155,24 @@ export async function analyzeWithAI(marketData: TimeframeData, symbol: string): 
     confidence: finalConfidence,
     support: enhancedLevels.support,
     resistance: enhancedLevels.resistance,
-    sentiment,
+    sentiment: {
+      score: sentimentAnalysis.score,
+      sources: sentimentAnalysis.sources,
+    },
     volatility,
     smartMoney: smartMoneyAnalysis,
     priceAction: priceActionAnalysis,
     professionalAnalysis,
     technical,
+    // Enhanced analysis components
+    vwap: {
+      analysis: vwapAnalysis,
+      signals: vwapSignals
+    },
+    orderbook: orderbookAnalysis,
+    options: optionsAnalysis,
+    machineLearning: mlAnalysis,
+    forecasts: forecastAnalysis
   };
 }
 
@@ -692,7 +748,7 @@ async function analyzeWithGeminiCached(
     
     // Simplified single request with longer timeout
     try {
-      const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash-latest:generateContent?key=${apiKey}`, {
+      const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-pro-latest:generateContent?key=${apiKey}`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
@@ -707,7 +763,7 @@ async function analyzeWithGeminiCached(
             temperature: 0.1,
             topK: 1,
             topP: 1,
-            maxOutputTokens: 200, // Reduced to save quota
+            maxOutputTokens: 500, // Increased for better analysis with Pro model
           }
         })
       });
@@ -776,25 +832,52 @@ function createAdvancedTradingPrompt(marketData: TimeframeData, symbol: string, 
   const data15m = marketData["15m"];
   const data30m = marketData["30m"];
 
-  // Simplified prompt to reduce token usage
+  // Enhanced prompt with all new analysis components
   return `
-Analyze ${symbol} trading signal:
+Advanced AI Trading Analysis for ${symbol}:
 
-PRICE DATA:
-5m: ${data5m.close} (Vol: ${data5m.volume})
-15m: ${data15m.close} (Vol: ${data15m.volume})
-30m: ${data30m.close} (Vol: ${data30m.volume})
+MARKET DATA:
+- 5m: Price ${data5m.close}, Volume ${data5m.volume}, RSI ${data5m.indicators.rsi}, MACD ${data5m.indicators.macd}
+- 15m: Price ${data15m.close}, Volume ${data15m.volume}, RSI ${data15m.indicators.rsi}
+- 30m: Price ${data30m.close}, Volume ${data30m.volume}, RSI ${data30m.indicators.rsi}
 
-ANALYSIS:
+TECHNICAL ANALYSIS:
 - Trend: ${additionalData.priceAction.trend}
 - Structure: ${additionalData.priceAction.structure}
-- Smart Money: ${additionalData.smartMoney.institutionalFlow}
-- Volume: ${additionalData.smartMoney.volumeProfile}
+- Breakout Probability: ${additionalData.priceAction.breakoutProbability}%
 
-Provide trading recommendation:
+SMART MONEY FLOW:
+- Institutional Flow: ${additionalData.smartMoney.institutionalFlow}
+- Volume Profile: ${additionalData.smartMoney.volumeProfile}
+- Order Flow: ${additionalData.smartMoney.orderFlow}
+
+VWAP ANALYSIS:
+- Position: ${additionalData.vwap?.position || "Unknown"}
+- Trend: ${additionalData.vwap?.trend || "Unknown"}
+- Strength: ${additionalData.vwap?.strength || 0}%
+
+ORDERBOOK SIGNALS:
+- Liquidity Breakout: ${additionalData.orderbook?.signals?.liquidityBreakout || "Unknown"}
+- Institutional Direction: ${additionalData.orderbook?.signals?.institutionalDirection || "Unknown"}
+
+OPTIONS FLOW:
+- Direction: ${additionalData.options?.signals?.direction || "Unknown"}
+- Pin Risk: ${additionalData.options?.zdte?.pinRisk || 0}%
+
+MACHINE LEARNING:
+- ML Prediction: ${additionalData.ml?.prediction?.direction || "Unknown"}
+- ML Confidence: ${additionalData.ml?.prediction?.confidence || 0}%
+- Ensemble Consensus: ${additionalData.ml?.ensemble?.consensusStrength || 0}%
+
+FORECASTS:
+- Bull Target: ${additionalData.forecasts?.priceTargets?.bullish?.target1 || "Unknown"}
+- Bear Target: ${additionalData.forecasts?.priceTargets?.bearish?.target1 || "Unknown"}
+
+Based on this comprehensive multi-factor analysis, provide:
 DIRECTION: [LONG or SHORT]
 CONFIDENCE: [70-95]
-REASON: [Brief explanation]
+KEY_FACTOR: [Most important factor for this decision]
+RISK: [Main risk to watch]
 `;
 }
 
@@ -944,78 +1027,131 @@ function identifyVolumeNodes(timeframes: any[]) {
   };
 }
 
-function determineDirection(
+function determineDirectionEnhanced(
   priceAction: any,
   smartMoney: any,
   volumeAnalysis: any,
-  geminiAnalysis: any
+  geminiAnalysis: any,
+  vwapSignals: any,
+  orderbookAnalysis: any,
+  optionsAnalysis: any,
+  mlAnalysis: any
 ): "LONG" | "SHORT" {
   let bullishScore = 0;
   let bearishScore = 0;
   
-  // Price action weight: 30%
-  if (priceAction.trend === "UPTREND") bullishScore += 0.15;
-  if (priceAction.trend === "DOWNTREND") bearishScore += 0.15;
-  if (priceAction.structure === "BULLISH") bullishScore += 0.15;
-  if (priceAction.structure === "BEARISH") bearishScore += 0.15;
+  // Price action weight: 20%
+  if (priceAction.trend === "UPTREND") bullishScore += 0.1;
+  if (priceAction.trend === "DOWNTREND") bearishScore += 0.1;
+  if (priceAction.structure === "BULLISH") bullishScore += 0.1;
+  if (priceAction.structure === "BEARISH") bearishScore += 0.1;
   
-  // Smart money weight: 40%
-  if (smartMoney.institutionalFlow === "BUYING") bullishScore += 0.15;
-  if (smartMoney.institutionalFlow === "SELLING") bearishScore += 0.15;
-  if (smartMoney.volumeProfile === "ACCUMULATION") bullishScore += 0.1;
-  if (smartMoney.volumeProfile === "DISTRIBUTION") bearishScore += 0.1;
-  if (smartMoney.orderFlow === "BULLISH") bullishScore += 0.15;
-  if (smartMoney.orderFlow === "BEARISH") bearishScore += 0.15;
+  // Smart money weight: 20%
+  if (smartMoney.institutionalFlow === "BUYING") bullishScore += 0.08;
+  if (smartMoney.institutionalFlow === "SELLING") bearishScore += 0.08;
+  if (smartMoney.volumeProfile === "ACCUMULATION") bullishScore += 0.06;
+  if (smartMoney.volumeProfile === "DISTRIBUTION") bearishScore += 0.06;
+  if (smartMoney.orderFlow === "BULLISH") bullishScore += 0.06;
+  if (smartMoney.orderFlow === "BEARISH") bearishScore += 0.06;
   
-  // Gemini AI weight: 30%
-  if (geminiAnalysis.direction === "LONG") bullishScore += 0.3;
-  if (geminiAnalysis.direction === "SHORT") bearishScore += 0.3;
+  // VWAP signals weight: 15%
+  if (vwapSignals.entry === "BUY") bullishScore += 0.15;
+  if (vwapSignals.entry === "SELL") bearishScore += 0.15;
+  
+  // Orderbook analysis weight: 10%
+  if (orderbookAnalysis.signals.liquidityBreakout === "BULLISH") bullishScore += 0.05;
+  if (orderbookAnalysis.signals.liquidityBreakout === "BEARISH") bearishScore += 0.05;
+  if (orderbookAnalysis.signals.institutionalDirection === "LONG") bullishScore += 0.05;
+  if (orderbookAnalysis.signals.institutionalDirection === "SHORT") bearishScore += 0.05;
+  
+  // Options analysis weight: 10%
+  if (optionsAnalysis.signals.direction === "BULLISH") bullishScore += 0.1;
+  if (optionsAnalysis.signals.direction === "BEARISH") bearishScore += 0.1;
+  
+  // Machine Learning weight: 15%
+  if (mlAnalysis.prediction.direction === "LONG") bullishScore += 0.15;
+  if (mlAnalysis.prediction.direction === "SHORT") bearishScore += 0.15;
+  
+  // Gemini AI weight: 10%
+  if (geminiAnalysis.direction === "LONG") bullishScore += 0.1;
+  if (geminiAnalysis.direction === "SHORT") bearishScore += 0.1;
   
   return bullishScore > bearishScore ? "LONG" : "SHORT";
 }
 
-function calculateConfidence(
+function calculateConfidenceEnhanced(
   priceAction: any,
   smartMoney: any,
   volumeAnalysis: any,
   professionalAnalysis: any,
-  geminiAnalysis: any
+  geminiAnalysis: any,
+  vwapSignals: any,
+  orderbookAnalysis: any,
+  optionsAnalysis: any,
+  mlAnalysis: any
 ): number {
-  let baseConfidence = 70;
+  let baseConfidence = 60; // Lower base due to more complex analysis
   
   // Add confidence based on signal alignment
   let alignmentScore = 0;
   
   // Price action alignment
   if (priceAction.trend !== "SIDEWAYS" && priceAction.structure !== "NEUTRAL") {
-    alignmentScore += 5;
+    alignmentScore += 4;
   }
   
   // Smart money alignment
   if (smartMoney.institutionalFlow !== "NEUTRAL" && smartMoney.orderFlow !== "NEUTRAL") {
-    alignmentScore += 8;
+    alignmentScore += 6;
   }
+  
+  // VWAP signals strength
+  alignmentScore += Math.min(8, vwapSignals.confidence * 0.08);
+  
+  // Orderbook confidence
+  alignmentScore += Math.min(6, orderbookAnalysis.signals.confidence * 0.06);
+  
+  // Options analysis confidence
+  alignmentScore += Math.min(8, optionsAnalysis.signals.confidence * 0.08);
+  
+  // Machine Learning confidence
+  alignmentScore += Math.min(10, mlAnalysis.prediction.confidence * 0.1);
   
   // Professional consensus alignment
   if (professionalAnalysis.consensusView !== "NEUTRAL") {
-    alignmentScore += 5;
+    alignmentScore += 3;
   }
   
-  // Gemini confidence boost (reduced impact to account for fallback)
-  alignmentScore += Math.min(10, (geminiAnalysis.confidence - 70) * 0.2);
+  // Gemini confidence boost (reduced impact due to other strong signals)
+  alignmentScore += Math.min(5, (geminiAnalysis.confidence - 70) * 0.1);
   
   // Breakout probability boost
   if (priceAction.breakoutProbability > 70) {
-    alignmentScore += 5;
+    alignmentScore += 4;
   }
   
-  return Math.min(95, Math.max(70, baseConfidence + alignmentScore));
+  // Consensus boost - when multiple signals agree
+  const allSignals = [
+    priceAction.trend === "UPTREND" ? "BULLISH" : priceAction.trend === "DOWNTREND" ? "BEARISH" : "NEUTRAL",
+    smartMoney.institutionalFlow === "BUYING" ? "BULLISH" : smartMoney.institutionalFlow === "SELLING" ? "BEARISH" : "NEUTRAL",
+    vwapSignals.entry === "BUY" ? "BULLISH" : vwapSignals.entry === "SELL" ? "BEARISH" : "NEUTRAL",
+    orderbookAnalysis.signals.liquidityBreakout,
+    optionsAnalysis.signals.direction,
+    mlAnalysis.prediction.direction === "LONG" ? "BULLISH" : mlAnalysis.prediction.direction === "SHORT" ? "BEARISH" : "NEUTRAL",
+    geminiAnalysis.direction === "LONG" ? "BULLISH" : "BEARISH"
+  ];
+  
+  const bullishCount = allSignals.filter(s => s === "BULLISH").length;
+  const bearishCount = allSignals.filter(s => s === "BEARISH").length;
+  const neutralCount = allSignals.filter(s => s === "NEUTRAL").length;
+  
+  const maxCount = Math.max(bullishCount, bearishCount, neutralCount);
+  const consensusStrength = (maxCount / allSignals.length) * 100;
+  
+  if (consensusStrength > 70) alignmentScore += 8; // Strong consensus
+  else if (consensusStrength > 50) alignmentScore += 4; // Moderate consensus
+  
+  return Math.min(95, Math.max(65, baseConfidence + alignmentScore));
 }
 
-async function simulateSentimentAnalysis(): Promise<{ score: number; sources: string[] }> {
-  // In a real implementation, this would analyze news, social media, etc.
-  const score = -0.5 + Math.random(); // Random sentiment between -0.5 and 0.5
-  const sources = ["Economic Calendar", "Social Media", "News Analysis"];
-  
-  return { score, sources };
-}
+
