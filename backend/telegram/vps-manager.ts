@@ -140,7 +140,7 @@ async function configureVPSAsync(userId: number): Promise<void> {
     `;
 
     // Send error notification
-    await sendVPSNotification(userId, `❌ VPS configuration failed: ${error.message}`);
+    await sendVPSNotification(userId, `❌ VPS configuration failed: ${error instanceof Error ? error.message : "Unknown error"}`);
   }
 }
 
@@ -163,7 +163,7 @@ async function testVPSConnection(config: VPSConfig): Promise<void> {
 
     await sendVPSNotification(config.userId, "🔗 VPS connection established successfully");
   } catch (error) {
-    throw new Error(`VPS connection failed: ${error.message}`);
+    throw new Error(`VPS connection failed: ${error instanceof Error ? error.message : "Unknown error"}`);
   }
 }
 
@@ -188,7 +188,7 @@ async function installSoftwareOnVPS(config: VPSConfig): Promise<void> {
 
     await sendVPSNotification(config.userId, "✅ Software installation completed");
   } catch (error) {
-    throw new Error(`Software installation failed: ${error.message}`);
+    throw new Error(`Software installation failed: ${error instanceof Error ? error.message : "Unknown error"}`);
   }
 }
 
@@ -216,7 +216,7 @@ async function configureMT5OnVPS(config: VPSConfig): Promise<void> {
 
     await sendVPSNotification(config.userId, "✅ MetaTrader 5 configured successfully");
   } catch (error) {
-    throw new Error(`MT5 configuration failed: ${error.message}`);
+    throw new Error(`MT5 configuration failed: ${error instanceof Error ? error.message : "Unknown error"}`);
   }
 }
 
@@ -242,7 +242,7 @@ async function startTradingBotOnVPS(config: VPSConfig): Promise<void> {
 
     await sendVPSNotification(config.userId, "🎉 Trading bot is now running on your VPS!");
   } catch (error) {
-    throw new Error(`Bot startup failed: ${error.message}`);
+    throw new Error(`Bot startup failed: ${error instanceof Error ? error.message : "Unknown error"}`);
   }
 }
 
@@ -373,7 +373,7 @@ async function handleVPSStatus(chatId: number, userId: number): Promise<void> {
 
     let statusInfo = "Unable to fetch real-time status";
     if (response.ok) {
-      const data = await response.json();
+      const data = await response.json() as any;
       statusInfo = `
 **System Status:**
 • CPU Usage: ${data.cpu}%
@@ -471,7 +471,7 @@ async function handleVPSLogs(chatId: number, userId: number): Promise<void> {
     });
 
     if (response.ok) {
-      const data = await response.json();
+      const data = await response.json() as any;
       const message = `
 📋 **Recent VPS Logs**
 
@@ -735,7 +735,7 @@ You'll receive updates as each step completes. Please wait...
       `);
       
     } catch (error) {
-      await sendMessage(chatId, `❌ Configuration failed: ${error.message}`);
+      await sendMessage(chatId, `❌ Configuration failed: ${error instanceof Error ? error.message : "Unknown error"}`);
     }
   } else if (callbackData === "vps_confirm_no") {
     setupStates.delete(userId);

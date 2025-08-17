@@ -133,7 +133,7 @@ async function tryRealExecution(order: MT5OrderRequest): Promise<MT5OrderResult>
       return { success: false, error: `MT5 server error: ${response.status} - ${resText}` };
     }
 
-    const result = await response.json();
+    const result = await response.json() as any;
 
     if (result.success) {
       console.log(`✅ Order executed successfully: Order ID ${result.order}, Deal ID ${result.deal}`);
@@ -209,7 +209,7 @@ export async function getMT5AccountInfo(): Promise<MT5AccountInfo | null> {
     }, 5000);
 
     if (response.ok) {
-      const data = await response.json();
+      const data = await response.json() as any;
       if (data && data.connected) {
         return {
           balance: data.balance || 10000,
@@ -259,7 +259,7 @@ export async function getMT5Positions(): Promise<MT5Position[]> {
     }, 5000);
 
     if (response.ok) {
-      const data = await response.json();
+      const data = await response.json() as any;
       if (data && data.positions) {
         return data.positions.map((pos: any) => ({
           ticket: pos.ticket,
@@ -301,7 +301,7 @@ export async function closeMT5Position(ticket: number): Promise<MT5OrderResult> 
     }, 8000);
 
     if (response.ok) {
-      const result = await response.json();
+      const result = await response.json() as any;
       if (result.success) {
         return {
           success: true,
@@ -375,7 +375,7 @@ export async function findTradableSymbolForExecution(baseUrl: string, symbol: st
         }, 3000);
 
         if (response.ok) {
-          const result = await response.json();
+          const result = await response.json() as any;
           if (result && result.symbol_info && !result.error) {
             const symbolInfo = result.symbol_info;
             const validation = validateSymbolForTrading(symbolInfo, variation);

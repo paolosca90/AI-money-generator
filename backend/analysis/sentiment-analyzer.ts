@@ -60,7 +60,7 @@ async function fetchRecentNews(symbol: string): Promise<Array<{ title: string; d
       return [];
     }
 
-    const data = await response.json();
+    const data = await response.json() as any;
     
     if (data.status === "error") {
       console.error("News API error:", data.message);
@@ -154,7 +154,7 @@ Sentiment Score:`;
       return 0;
     }
 
-    const data = await response.json();
+    const data = await response.json() as any;
     
     if (data.error) {
       console.error("Gemini sentiment API response error:", data.error);

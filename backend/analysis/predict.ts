@@ -123,19 +123,19 @@ export const predict = api<PredictRequest, TradingSignal>(
       
       // Ensure we have required timeframes for strategy analysis
       const requiredTimeframes = ["5m", "15m", "30m"];
-      const completeMarketData = {};
+      const completeMarketData: any = {};
       
       // Find a fallback timeframe (first available, prefer 5m if exists)
       const fallbackTimeframe = availableTimeframes.includes("5m") ? "5m" : availableTimeframes[0];
-      const fallbackData = marketData[fallbackTimeframe];
+      const fallbackData = (marketData as any)[fallbackTimeframe];
 
       for (const tf of requiredTimeframes) {
-        completeMarketData[tf] = marketData[tf] || fallbackData;
+        completeMarketData[tf] = (marketData as any)[tf] || fallbackData;
       }
       
       // Add additional timeframes if available
-      if (marketData["1m"]) completeMarketData["1m"] = marketData["1m"];
-      if (marketData["1h"]) completeMarketData["1h"] = marketData["1h"];
+      if ((marketData as any)["1m"]) completeMarketData["1m"] = (marketData as any)["1m"];
+      if ((marketData as any)["1h"]) completeMarketData["1h"] = (marketData as any)["1h"];
       
       // Perform advanced AI analysis
       console.log(`Performing AI analysis for ${symbol}`);
@@ -276,7 +276,7 @@ export const predict = api<PredictRequest, TradingSignal>(
       console.error(`Error generating prediction for ${symbol}:`, error);
       
       // If it's already an APIError, re-throw it
-      if (error.code) {
+      if (error && typeof error === 'object' && 'code' in error) {
         throw error;
       }
       

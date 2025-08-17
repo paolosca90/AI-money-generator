@@ -1,5 +1,8 @@
 import { sendMessage, sendPhoto, createInlineKeyboard } from "./telegram-client";
-import { analysis } from "~encore/clients";
+import { predict } from "../analysis/predict";
+import { execute } from "../analysis/execute";
+import { getPerformance } from "../analysis/performance";
+import { TradingStrategy } from "../analysis/trading-strategies";
 import { handleVPSCommand, handleVPSSetup, handleVPSSetupCallback } from "./vps-manager";
 
 export async function processMessage(chatId: number, userId: number, text: string): Promise<void> {
@@ -79,7 +82,7 @@ async function executeTradeFromCallback(chatId: number, tradeId: string, lotSize
   try {
     await sendMessage(chatId, `⚡ Executing ${strategy} trade ${tradeId} with ${lotSize} lots...`);
     
-    const result = await analysis.execute({ tradeId, lotSize, strategy });
+    const result = await execute({ tradeId, lotSize, strategy: strategy as TradingStrategy });
     
     if (result.success) {
       const message = `
@@ -110,7 +113,7 @@ async function handlePredictCommand(chatId: number, command: string): Promise<vo
   try {
     await sendMessage(chatId, `🧠 **Advanced ML Analysis for ${symbol}**\n\n🔍 Analyzing market structure, smart money flow, and determining optimal strategy...\n\n⏳ This may take 10-15 seconds for comprehensive analysis.`);
     
-    const prediction = await analysis.predict({ symbol });
+    const prediction = await predict({ symbol });
     
     await sendTradingSignal(chatId, prediction);
   } catch (error) {
@@ -132,7 +135,7 @@ async function handleStrategyCommand(chatId: number, command: string, strategy: 
 
     await sendMessage(chatId, `${strategyEmojis[strategy]} **${strategy} Analysis for ${symbol}**\n\n🔍 Analyzing market for ${strategy.toLowerCase()} opportunities...\n\n⏳ Optimizing entry, stop loss, and take profit levels...`);
     
-    const prediction = await analysis.predict({ symbol, strategy });
+    const prediction = await predict({ symbol, strategy: strategy as TradingStrategy });
     
     await sendTradingSignal(chatId, prediction);
   } catch (error) {
@@ -142,7 +145,7 @@ async function handleStrategyCommand(chatId: number, command: string, strategy: 
 }
 
 async function sendTradingSignal(chatId: number, prediction: any): Promise<void> {
-  const strategyEmojis = {
+  const strategyEmojis: Record<string, string> = {
     "SCALPING": "⚡",
     "INTRADAY": "📈",
     "SWING": "🎯"
@@ -179,7 +182,7 @@ ${prediction.strategyRecommendation}
 • Risk/Reward: **1:${prediction.analysis.professional.riskReward.toFixed(1)}**
 
 🎯 **Key Liquidity Zones:**
-${prediction.analysis.smartMoney.liquidityZones.slice(0, 3).map(zone => `• ${zone.toFixed(5)}`).join('\n')}
+${prediction.analysis.smartMoney.liquidityZones.slice(0, 3).map((zone: number) => `• ${zone.toFixed(5)}`).join('\n')}
 
 📰 **Market Sentiment:** ${getSentimentEmoji(prediction.analysis.sentiment.score)} ${(prediction.analysis.sentiment.score * 100).toFixed(0)}%
 
@@ -236,7 +239,7 @@ async function handleExecuteCommand(chatId: number, command: string): Promise<vo
   try {
     await sendMessage(chatId, `⚡ Executing ${strategy} trade ${tradeId} with ${lotSize} lots...`);
     
-    const result = await analysis.execute({ tradeId, lotSize, strategy });
+    const result = await execute({ tradeId, lotSize, strategy: strategy as TradingStrategy });
     
     if (result.success) {
       const message = `
@@ -512,7 +515,7 @@ Use \`/vps\` to manage your VPS and MT5 connection.
 
 async function handlePerformanceCommand(chatId: number): Promise<void> {
   try {
-    const performance = await analysis.getPerformance();
+    const performance = await getPerformance();
     
     const winRateEmoji = performance.winRate >= 70 ? "🔥" : performance.winRate >= 50 ? "⚡" : "⚠️";
     const profitFactorEmoji = performance.profitFactor >= 2 ? "🔥" : performance.profitFactor >= 1 ? "⚡" : "⚠️";

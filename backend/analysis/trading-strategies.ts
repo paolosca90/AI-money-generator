@@ -234,7 +234,7 @@ function calculateTrendStrength(marketData: any): number {
 }
 
 function getSymbolCharacteristics(symbol: string) {
-  const characteristics = {
+  const characteristics: Record<string, any> = {
     "BTCUSD": {
       volatilityMultiplier: 1.0,
       minMovement: 100,
