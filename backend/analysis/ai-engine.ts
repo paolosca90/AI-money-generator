@@ -1,11 +1,24 @@
 import { secret } from "encore.dev/config";
 import { TimeframeData } from "./market-data";
+import { 
+  calculateEnhancedIndicators, 
+  analyzeMultiTimeframeConfluence, 
+  getMarketConditionContext,
+  MultiTimeframeAnalysis,
+  MarketConditionContext,
+  EnhancedIndicators
+} from "./enhanced-technical-analysis";
+import { 
+  calculateEnhancedConfidence,
+  EnhancedConfidenceResult
+} from "./enhanced-confidence-system";
 
 const geminiApiKey = secret("GeminiApiKey");
 
 export interface AIAnalysis {
   direction: "LONG" | "SHORT";
   confidence: number;
+  enhancedConfidence: EnhancedConfidenceResult; // New enhanced confidence system
   support: number;
   resistance: number;
   sentiment: {
@@ -39,6 +52,13 @@ export interface AIAnalysis {
     macd: number;
     atr: number;
   };
+  enhancedTechnical: {
+    indicators5m: EnhancedIndicators;
+    indicators15m: EnhancedIndicators;
+    indicators30m: EnhancedIndicators;
+    multiTimeframeAnalysis: MultiTimeframeAnalysis;
+    marketContext: MarketConditionContext;
+  };
 }
 
 // Cache for Gemini responses to reduce API calls
@@ -51,6 +71,33 @@ export async function analyzeWithAI(marketData: TimeframeData, symbol: string): 
   const data15m = marketData["15m"];
   const data30m = marketData["30m"];
 
+  console.log(`🔍 Starting enhanced AI analysis for ${symbol}`);
+
+  // ========== ENHANCED TECHNICAL ANALYSIS ==========
+  // Calculate enhanced indicators for each timeframe
+  const indicators5m = calculateEnhancedIndicators(
+    [data5m.open], [data5m.high], [data5m.low], [data5m.close]
+  );
+  
+  const indicators15m = calculateEnhancedIndicators(
+    [data15m.open], [data15m.high], [data15m.low], [data15m.close]
+  );
+  
+  const indicators30m = calculateEnhancedIndicators(
+    [data30m.open], [data30m.high], [data30m.low], [data30m.close]
+  );
+
+  // Analyze multi-timeframe confluence
+  const multiTimeframeAnalysis = analyzeMultiTimeframeConfluence(data5m, data15m, data30m);
+  
+  // Get current market condition context
+  const marketContext = getMarketConditionContext();
+
+  console.log(`📊 Multi-timeframe confluence: ${multiTimeframeAnalysis.confluence}%`);
+  console.log(`⏰ Market session: ${marketContext.sessionType}`);
+  console.log(`📈 Volatility state: ${multiTimeframeAnalysis.volatilityState}`);
+
+  // ========== TRADITIONAL ANALYSIS (Enhanced) ==========
   // Advanced price action analysis with enhanced calculations
   const priceActionAnalysis = analyzePriceActionEnhanced(data5m, data15m, data30m, symbol);
   
@@ -74,15 +121,26 @@ export async function analyzeWithAI(marketData: TimeframeData, symbol: string): 
   // Calculate enhanced support and resistance using multiple methods
   const enhancedLevels = calculateEnhancedSupportResistance(data5m, data15m, data30m, symbol);
   
-  // Combine all analyses for final decision
-  const finalDirection = determineDirection(
+  // ========== ENHANCED DIRECTION DETERMINATION ==========
+  // Determine direction with enhanced multi-factor analysis
+  const traditionalDirection = determineDirection(
     priceActionAnalysis,
     smartMoneyAnalysis,
     volumeAnalysis,
     geminiAnalysis
   );
 
-  const finalConfidence = calculateConfidence(
+  // Use enhanced direction determination with technical confluence
+  const enhancedDirection = determineEnhancedDirection(
+    indicators5m, indicators15m, indicators30m, 
+    multiTimeframeAnalysis, traditionalDirection
+  );
+
+  console.log(`📍 Traditional direction: ${traditionalDirection}, Enhanced direction: ${enhancedDirection}`);
+
+  // ========== ENHANCED CONFIDENCE CALCULATION ==========
+  // Calculate traditional confidence for compatibility
+  const traditionalConfidence = calculateConfidence(
     priceActionAnalysis,
     smartMoneyAnalysis,
     volumeAnalysis,
@@ -90,6 +148,25 @@ export async function analyzeWithAI(marketData: TimeframeData, symbol: string): 
     geminiAnalysis
   );
 
+  // Calculate enhanced confidence with sophisticated scoring
+  const enhancedConfidence = calculateEnhancedConfidence(
+    indicators5m,
+    indicators15m, 
+    indicators30m,
+    multiTimeframeAnalysis,
+    marketContext,
+    enhancedDirection,
+    symbol
+  );
+
+  console.log(`🎯 Enhanced confidence: ${enhancedConfidence.finalConfidence.toFixed(1)}% (Grade: ${enhancedConfidence.confidenceGrade})`);
+  
+  // Log warnings if any
+  if (enhancedConfidence.warnings.length > 0) {
+    console.log(`⚠️ Warnings: ${enhancedConfidence.warnings.join(', ')}`);
+  }
+
+  // ========== SENTIMENT AND VOLATILITY ==========
   // Simulate sentiment analysis (in real implementation, this would use news APIs)
   const sentiment = await simulateSentimentAnalysis();
 
@@ -106,9 +183,12 @@ export async function analyzeWithAI(marketData: TimeframeData, symbol: string): 
     atr: data5m.indicators.atr,
   };
 
+  console.log(`✅ Enhanced AI analysis completed for ${symbol}`);
+
   return {
-    direction: finalDirection,
-    confidence: finalConfidence,
+    direction: enhancedDirection,
+    confidence: enhancedConfidence.finalConfidence, // Use enhanced confidence as primary
+    enhancedConfidence, // Include full enhanced confidence result
     support: enhancedLevels.support,
     resistance: enhancedLevels.resistance,
     sentiment,
@@ -117,6 +197,13 @@ export async function analyzeWithAI(marketData: TimeframeData, symbol: string): 
     priceAction: priceActionAnalysis,
     professionalAnalysis,
     technical,
+    enhancedTechnical: {
+      indicators5m,
+      indicators15m,
+      indicators30m,
+      multiTimeframeAnalysis,
+      marketContext,
+    },
   };
 }
 
@@ -184,7 +271,7 @@ function determineTrendDirection(prices: any[], trendStrength: number): "UPTREND
 
 function analyzeStructureBreakEnhanced(prices: any[], symbol: string): number {
   // Enhanced structure break analysis with symbol-specific thresholds
-  const symbolThresholds = {
+  const symbolThresholds: Record<string, number> = {
     "BTCUSD": 0.02,    // 2% movement needed for BTC
     "ETHUSD": 0.025,   // 2.5% for ETH
     "EURUSD": 0.005,   // 0.5% for major forex
@@ -278,7 +365,7 @@ function calculateTimeCompression(prices: any[]): number {
 }
 
 function getSymbolVolatilityExpectation(symbol: string): number {
-  const volatilityExpectations = {
+  const volatilityExpectations: Record<string, number> = {
     "BTCUSD": 0.15,    // High volatility crypto
     "ETHUSD": 0.12,    // High volatility crypto
     "EURUSD": 0.05,    // Low volatility major pair
@@ -316,7 +403,7 @@ function analyzeSmartMoneyEnhanced(data5m: any, data15m: any, data30m: any, symb
 
 function analyzeInstitutionalFlowEnhanced(volumes: number[], prices: number[], symbol: string): "BUYING" | "SELLING" | "NEUTRAL" {
   // Enhanced analysis with symbol-specific volume thresholds
-  const volumeThresholds = {
+  const volumeThresholds: Record<string, number> = {
     "BTCUSD": 1.5,     // Higher threshold for crypto
     "ETHUSD": 1.4,
     "EURUSD": 1.2,     // Lower threshold for forex
@@ -1018,4 +1105,104 @@ async function simulateSentimentAnalysis(): Promise<{ score: number; sources: st
   const sources = ["Economic Calendar", "Social Media", "News Analysis"];
   
   return { score, sources };
+}
+
+/**
+ * Enhanced direction determination using sophisticated multi-factor analysis
+ */
+function determineEnhancedDirection(
+  indicators5m: EnhancedIndicators,
+  indicators15m: EnhancedIndicators,
+  indicators30m: EnhancedIndicators,
+  multiTimeframeAnalysis: MultiTimeframeAnalysis,
+  traditionalDirection: "LONG" | "SHORT"
+): "LONG" | "SHORT" {
+  let bullishScore = 0;
+  let bearishScore = 0;
+  
+  // Multi-timeframe RSI analysis
+  const rsiValues = [indicators5m.rsi, indicators15m.rsi, indicators30m.rsi];
+  
+  rsiValues.forEach((rsi, index) => {
+    const weight = 3 - index; // 5m gets weight 3, 15m gets weight 2, 30m gets weight 1
+    
+    if (rsi < 30) bullishScore += 2 * weight; // Oversold
+    else if (rsi < 50) bullishScore += 1 * weight; // Bearish but not extreme
+    else if (rsi > 70) bearishScore += 2 * weight; // Overbought
+    else if (rsi > 50) bearishScore += 1 * weight; // Bullish but not extreme
+  });
+  
+  // MACD analysis across timeframes
+  const macdValues = [indicators5m.macd, indicators15m.macd, indicators30m.macd];
+  
+  macdValues.forEach((macd, index) => {
+    const weight = 3 - index;
+    
+    if (macd.line > macd.signal) {
+      bullishScore += 2 * weight;
+      if (macd.histogram > 0) bullishScore += 1 * weight; // Increasing momentum
+    } else {
+      bearishScore += 2 * weight;
+      if (macd.histogram < 0) bearishScore += 1 * weight; // Increasing momentum
+    }
+  });
+  
+  // Moving average trend analysis
+  const smaAnalysis = [indicators5m.sma, indicators15m.sma, indicators30m.sma];
+  
+  smaAnalysis.forEach((sma, index) => {
+    const weight = 3 - index;
+    
+    // Strong trend: SMA20 > SMA50 > SMA200
+    if (sma.sma20 > sma.sma50 && sma.sma50 > sma.sma200) {
+      bullishScore += 3 * weight;
+    } else if (sma.sma20 < sma.sma50 && sma.sma50 < sma.sma200) {
+      bearishScore += 3 * weight;
+    }
+    // Partial trend
+    else if (sma.sma20 > sma.sma50) {
+      bullishScore += 1 * weight;
+    } else if (sma.sma20 < sma.sma50) {
+      bearishScore += 1 * weight;
+    }
+  });
+  
+  // Multi-timeframe confluence bonus
+  if (multiTimeframeAnalysis.confluence > 70) {
+    if (multiTimeframeAnalysis.trendAlignment === "STRONG_BULL" || 
+        multiTimeframeAnalysis.trendAlignment === "BULL") {
+      bullishScore += 5;
+    } else if (multiTimeframeAnalysis.trendAlignment === "STRONG_BEAR" || 
+               multiTimeframeAnalysis.trendAlignment === "BEAR") {
+      bearishScore += 5;
+    }
+  }
+  
+  // Momentum confirmation
+  const momentum5m = indicators5m.momentum.roc;
+  const momentum15m = indicators15m.momentum.roc;
+  
+  if (momentum5m > 0 && momentum15m > 0) {
+    bullishScore += 3;
+  } else if (momentum5m < 0 && momentum15m < 0) {
+    bearishScore += 3;
+  }
+  
+  // Bollinger Bands analysis
+  const bb5m = indicators5m.bollinger;
+  if (bb5m.squeeze) {
+    // During squeeze, look for breakout direction based on other indicators
+    if (bullishScore > bearishScore) bullishScore += 2;
+    else bearishScore += 2;
+  }
+  
+  // Traditional direction as tie-breaker with reduced weight
+  if (traditionalDirection === "LONG") bullishScore += 1;
+  else bearishScore += 1;
+  
+  const enhancedDirection = bullishScore > bearishScore ? "LONG" : "SHORT";
+  
+  console.log(`🎯 Enhanced direction analysis: BULL ${bullishScore} vs BEAR ${bearishScore} = ${enhancedDirection}`);
+  
+  return enhancedDirection;
 }
