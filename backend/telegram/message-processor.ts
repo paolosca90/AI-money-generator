@@ -1,12 +1,23 @@
 import { sendMessage, sendPhoto, createInlineKeyboard } from "./telegram-client";
 import { analysis } from "~encore/clients";
 import { handleVPSCommand, handleVPSSetup, handleVPSSetupCallback, checkVPSSetupState } from "./vps-manager";
+import { handleClientCommands, checkClientFeature } from "./client-manager";
 
 export async function processMessage(chatId: number, userId: number, text: string): Promise<void> {
   const command = text.toLowerCase().trim();
 
   try {
     if (command.startsWith("/predict")) {
+      // Check if user has signal access
+      const hasAccess = await checkClientFeature(userId, "basic_signals") ||
+                       await checkClientFeature(userId, "advanced_signals") ||
+                       await checkClientFeature(userId, "premium_signals");
+      
+      if (!hasAccess) {
+        await sendMessage(chatId, "❌ You need an active subscription to access AI signals. Use `/subscription` to learn more.");
+        return;
+      }
+      
       await handlePredictCommand(chatId, command);
     } else if (command.startsWith("/scalping")) {
       await handleStrategyCommand(chatId, command, "SCALPING");
@@ -29,8 +40,24 @@ export async function processMessage(chatId: number, userId: number, text: strin
     } else if (command.startsWith("/strategies")) {
       await handleStrategiesCommand(chatId);
     } else if (command.startsWith("/vps")) {
+      // Check if user has VPS management access
+      const hasAccess = await checkClientFeature(userId, "vps_management");
+      
+      if (!hasAccess) {
+        await sendMessage(chatId, "❌ You need an active subscription to access VPS management. Use `/subscription` to learn more.");
+        return;
+      }
+      
       await handleVPSCommand(chatId, userId, command);
     } else if (command === "/vps_setup") {
+      // Check if user has VPS management access
+      const hasAccess = await checkClientFeature(userId, "vps_management");
+      
+      if (!hasAccess) {
+        await sendMessage(chatId, "❌ You need an active subscription to access VPS setup. Use `/subscription` to learn more.");
+        return;
+      }
+      
       await handleVPSSetup(chatId, userId);
     } else if (command === "/vps_status") {
       await handleVPSCommand(chatId, userId, "/vps_status");
@@ -38,6 +65,8 @@ export async function processMessage(chatId: number, userId: number, text: strin
       await handleVPSCommand(chatId, userId, "/vps_restart");
     } else if (command === "/vps_logs") {
       await handleVPSCommand(chatId, userId, "/vps_logs");
+    } else if (command === "/subscription" || command === "/features" || command === "/upgrade" || command === "/support") {
+      await handleClientCommands(chatId, userId, command);
     } else {
       // Check if user is in VPS setup mode  
       const setupState = await checkVPSSetupState(userId);
@@ -440,6 +469,12 @@ async function handleHelpCommand(chatId: number): Promise<void> {
 • \`/vps_restart\` - Restart trading bot on VPS
 • \`/vps_logs\` - View recent VPS logs
 
+**💰 Account & Subscription:**
+• \`/subscription\` - View your subscription details
+• \`/features\` - See your available features
+• \`/upgrade\` - Upgrade your plan
+• \`/support\` - Get help and support
+
 **📊 Information Commands:**
 • \`/status\` - Bot and MT5 connection status
 • \`/performance\` - Trading statistics
@@ -475,7 +510,7 @@ async function handleHelpCommand(chatId: number): Promise<void> {
 **⚠️ Risk Warning:**
 This bot uses advanced institutional trading concepts. Always use proper risk management and never trade money you can't afford to lose.
 
-Need more help? Try the specific strategy commands! 💬
+Need more help? Check \`/subscription\` for your plan details! 💬
   `;
   
   await sendMessage(chatId, message);
