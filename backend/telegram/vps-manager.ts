@@ -67,11 +67,11 @@ export const storeVPSConfig = api<{
 
       return {
         success: true,
-        message: "VPS configuration started. You will receive updates via Telegram."
+        message: "Configurazione VPS avviata. Riceverai aggiornamenti via Telegram."
       };
     } catch (error) {
       console.error("Error storing VPS config:", error);
-      throw APIError.internal("Failed to store VPS configuration");
+      throw APIError.internal("Impossibile salvare la configurazione VPS");
     }
   }
 );
@@ -104,7 +104,7 @@ async function configureVPSAsync(userId: number): Promise<void> {
     `;
 
     if (!config) {
-      throw new Error("VPS configuration not found");
+      throw new Error("Configurazione VPS non trovata");
     }
 
     // Step 1: Test VPS connection

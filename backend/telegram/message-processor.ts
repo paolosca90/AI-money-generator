@@ -41,7 +41,7 @@ export async function processMessage(chatId: number, userId: number, text: strin
     }
   } catch (error) {
     console.error("Error processing message:", error);
-    await sendMessage(chatId, "❌ An error occurred while processing your request. Please try again.");
+    await sendMessage(chatId, "❌ Si è verificato un errore durante l'elaborazione della tua richiesta. Riprova.");
   }
 }
 
@@ -61,7 +61,7 @@ export async function processCallbackQuery(chatId: number, userId: number, callb
       const symbol = parts[2] || "BTCUSD";
       await handleStrategyCommand(chatId, `/predict ${symbol}`, strategy);
     } else if (callbackData === "new_analysis") {
-      await sendMessage(chatId, "📊 Choose your trading strategy:\n\n⚡ `/scalping SYMBOL` - Quick trades (1-15 min)\n📈 `/intraday SYMBOL` - Day trading (1-8 hours)\n🎯 `/swing SYMBOL` - Multi-day trades (1-7 days)\n\nExample: `/scalping EURUSD`");
+      await sendMessage(chatId, "📊 Scegli la tua strategia di trading:\n\n⚡ `/scalping SIMBOLO` - Trade veloci (1-15 min)\n📈 `/intraday SIMBOLO` - Day trading (1-8 ore)\n🎯 `/swing SIMBOLO` - Trade multi-giorno (1-7 giorni)\n\nEsempio: `/scalping EURUSD`");
     } else if (callbackData === "show_performance") {
       await handlePerformanceCommand(chatId);
     } else if (callbackData.startsWith("predict_")) {
@@ -74,7 +74,7 @@ export async function processCallbackQuery(chatId: number, userId: number, callb
     }
   } catch (error) {
     console.error("Error processing callback query:", error);
-    await sendMessage(chatId, "❌ An error occurred while processing your request. Please try again.");
+    await sendMessage(chatId, "❌ Si è verificato un errore durante l'elaborazione della tua richiesta. Riprova.");
   }
 }
 
@@ -118,7 +118,7 @@ async function handlePredictCommand(chatId: number, command: string): Promise<vo
     await sendTradingSignal(chatId, prediction);
   } catch (error) {
     console.error("Prediction error:", error);
-    await sendMessage(chatId, "❌ Error generating prediction. Please try again or check if the symbol is valid.");
+    await sendMessage(chatId, "❌ Errore nella generazione della previsione. Riprova o controlla se il simbolo è valido.");
   }
 }
 
@@ -140,7 +140,7 @@ async function handleStrategyCommand(chatId: number, command: string, strategy: 
     await sendTradingSignal(chatId, prediction);
   } catch (error) {
     console.error("Strategy prediction error:", error);
-    await sendMessage(chatId, `❌ Error generating ${strategy.toLowerCase()} analysis. Please try again.`);
+    await sendMessage(chatId, `❌ Errore nella generazione dell'analisi ${strategy.toLowerCase()}. Riprova.`);
   }
 }
 
@@ -202,7 +202,7 @@ ${prediction.analysis.smartMoney.liquidityZones.slice(0, 3).map((zone: number) =
       { text: "🎯 Swing", callback_data: `strategy_SWING_${prediction.symbol}` }
     ],
     [
-      { text: "📊 New Analysis", callback_data: "new_analysis" },
+      { text: "📊 Nuova Analisi", callback_data: "new_analysis" },
       { text: "📈 Performance", callback_data: "show_performance" }
     ]
   ]);
