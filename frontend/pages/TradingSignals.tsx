@@ -519,6 +519,206 @@ export default function TradingSignals() {
               </div>
             )}
 
+            {/* Enhanced VWAP Analysis */}
+            {currentSignal.analysis?.vwap && (
+              <div className="border-t pt-4">
+                <h4 className="font-semibold mb-3">📊 Analisi VWAP</h4>
+                <div className="grid grid-cols-1 md:grid-cols-4 gap-4 text-sm">
+                  <div>
+                    <div className="text-gray-600">VWAP</div>
+                    <div className="font-medium">
+                      {safeToFixed(safeGet(currentSignal, 'analysis.vwap.analysis.vwap'), 5)}
+                    </div>
+                  </div>
+                  <div>
+                    <div className="text-gray-600">Posizione</div>
+                    <div className="font-medium">
+                      <Badge variant={safeGet(currentSignal, 'analysis.vwap.analysis.position') === 'ABOVE' ? 'default' : 'secondary'}>
+                        {safeGet(currentSignal, 'analysis.vwap.analysis.position')}
+                      </Badge>
+                    </div>
+                  </div>
+                  <div>
+                    <div className="text-gray-600">Trend VWAP</div>
+                    <div className="font-medium">
+                      <Badge className={safeGet(currentSignal, 'analysis.vwap.analysis.trend') === 'BULLISH' ? 'bg-green-100 text-green-800' : 
+                                       safeGet(currentSignal, 'analysis.vwap.analysis.trend') === 'BEARISH' ? 'bg-red-100 text-red-800' : 
+                                       'bg-gray-100 text-gray-800'}>
+                        {safeGet(currentSignal, 'analysis.vwap.analysis.trend')}
+                      </Badge>
+                    </div>
+                  </div>
+                  <div>
+                    <div className="text-gray-600">Forza Segnale</div>
+                    <div className="font-medium">
+                      {safeToFixed(safeGet(currentSignal, 'analysis.vwap.analysis.strength'), 0)}%
+                    </div>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {/* Orderbook Analysis */}
+            {currentSignal.analysis?.orderbook && (
+              <div className="border-t pt-4">
+                <h4 className="font-semibold mb-3">📖 Analisi Orderbook</h4>
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-4 text-sm">
+                  <div>
+                    <div className="text-gray-600">Breakout Liquidità</div>
+                    <div className="font-medium">
+                      <Badge className={safeGet(currentSignal, 'analysis.orderbook.signals.liquidityBreakout') === 'BULLISH' ? 'bg-green-100 text-green-800' : 
+                                       safeGet(currentSignal, 'analysis.orderbook.signals.liquidityBreakout') === 'BEARISH' ? 'bg-red-100 text-red-800' : 
+                                       'bg-gray-100 text-gray-800'}>
+                        {safeGet(currentSignal, 'analysis.orderbook.signals.liquidityBreakout')}
+                      </Badge>
+                    </div>
+                  </div>
+                  <div>
+                    <div className="text-gray-600">Direzione Istituzionale</div>
+                    <div className="font-medium">
+                      <Badge className={safeGet(currentSignal, 'analysis.orderbook.signals.institutionalDirection') === 'LONG' ? 'bg-green-100 text-green-800' : 
+                                       safeGet(currentSignal, 'analysis.orderbook.signals.institutionalDirection') === 'SHORT' ? 'bg-red-100 text-red-800' : 
+                                       'bg-gray-100 text-gray-800'}>
+                        {safeGet(currentSignal, 'analysis.orderbook.signals.institutionalDirection')}
+                      </Badge>
+                    </div>
+                  </div>
+                  <div>
+                    <div className="text-gray-600">Confidenza Orderbook</div>
+                    <div className="font-medium">
+                      {safeToFixed(safeGet(currentSignal, 'analysis.orderbook.signals.confidence'), 0)}%
+                    </div>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {/* Options Analysis */}
+            {currentSignal.analysis?.options && (
+              <div className="border-t pt-4">
+                <h4 className="font-semibold mb-3">🎯 Analisi Opzioni 0DTE</h4>
+                <div className="grid grid-cols-1 md:grid-cols-4 gap-4 text-sm">
+                  <div>
+                    <div className="text-gray-600">Direzione Opzioni</div>
+                    <div className="font-medium">
+                      <Badge className={safeGet(currentSignal, 'analysis.options.signals.direction') === 'BULLISH' ? 'bg-green-100 text-green-800' : 
+                                       safeGet(currentSignal, 'analysis.options.signals.direction') === 'BEARISH' ? 'bg-red-100 text-red-800' : 
+                                       'bg-yellow-100 text-yellow-800'}>
+                        {safeGet(currentSignal, 'analysis.options.signals.direction')}
+                      </Badge>
+                    </div>
+                  </div>
+                  <div>
+                    <div className="text-gray-600">Rischio Pin</div>
+                    <div className="font-medium">
+                      {safeToFixed(safeGet(currentSignal, 'analysis.options.zdte.pinRisk'), 0)}%
+                    </div>
+                  </div>
+                  <div>
+                    <div className="text-gray-600">Max Gamma</div>
+                    <div className="font-medium">
+                      {safeToFixed(safeGet(currentSignal, 'analysis.options.gammaLevels.maxGamma'), 5)}
+                    </div>
+                  </div>
+                  <div>
+                    <div className="text-gray-600">Call Wall</div>
+                    <div className="font-medium">
+                      {safeToFixed(safeGet(currentSignal, 'analysis.options.deltaLevels.callWall'), 5)}
+                    </div>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {/* Machine Learning Analysis */}
+            {currentSignal.analysis?.machineLearning && (
+              <div className="border-t pt-4">
+                <h4 className="font-semibold mb-3">🤖 Analisi Machine Learning</h4>
+                <div className="grid grid-cols-1 md:grid-cols-4 gap-4 text-sm">
+                  <div>
+                    <div className="text-gray-600">Previsione ML</div>
+                    <div className="font-medium">
+                      <Badge className={safeGet(currentSignal, 'analysis.machineLearning.prediction.direction') === 'LONG' ? 'bg-green-100 text-green-800' : 
+                                       safeGet(currentSignal, 'analysis.machineLearning.prediction.direction') === 'SHORT' ? 'bg-red-100 text-red-800' : 
+                                       'bg-gray-100 text-gray-800'}>
+                        {safeGet(currentSignal, 'analysis.machineLearning.prediction.direction')}
+                      </Badge>
+                    </div>
+                  </div>
+                  <div>
+                    <div className="text-gray-600">Confidenza ML</div>
+                    <div className="font-medium">
+                      {safeToFixed(safeGet(currentSignal, 'analysis.machineLearning.prediction.confidence'), 0)}%
+                    </div>
+                  </div>
+                  <div>
+                    <div className="text-gray-600">Consenso Ensemble</div>
+                    <div className="font-medium">
+                      {safeToFixed(safeGet(currentSignal, 'analysis.machineLearning.ensemble.consensusStrength'), 0)}%
+                    </div>
+                  </div>
+                  <div>
+                    <div className="text-gray-600">Accuratezza Modello</div>
+                    <div className="font-medium">
+                      {safeToFixed(safeGet(currentSignal, 'analysis.machineLearning.modelValidation.accuracy'), 0)}%
+                    </div>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {/* Forecasting Analysis */}
+            {currentSignal.analysis?.forecasts && (
+              <div className="border-t pt-4">
+                <h4 className="font-semibold mb-3">🔮 Previsioni e Proiezioni</h4>
+                <div className="space-y-4">
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-4 text-sm">
+                    <div className="p-3 bg-green-50 rounded-lg">
+                      <div className="text-green-600 font-medium">Scenario Rialzista</div>
+                      <div className="text-green-800 font-bold text-lg">
+                        {safeToFixed(safeGet(currentSignal, 'analysis.forecasts.priceTargets.bullish.target1'), 5)}
+                      </div>
+                      <div className="text-green-600 text-xs">
+                        Probabilità: {safeToFixed(safeGet(currentSignal, 'analysis.forecasts.priceTargets.bullish.probability'), 0)}%
+                      </div>
+                    </div>
+                    <div className="p-3 bg-red-50 rounded-lg">
+                      <div className="text-red-600 font-medium">Scenario Ribassista</div>
+                      <div className="text-red-800 font-bold text-lg">
+                        {safeToFixed(safeGet(currentSignal, 'analysis.forecasts.priceTargets.bearish.target1'), 5)}
+                      </div>
+                      <div className="text-red-600 text-xs">
+                        Probabilità: {safeToFixed(safeGet(currentSignal, 'analysis.forecasts.priceTargets.bearish.probability'), 0)}%
+                      </div>
+                    </div>
+                    <div className="p-3 bg-blue-50 rounded-lg">
+                      <div className="text-blue-600 font-medium">Previsione 1h</div>
+                      <div className="text-blue-800 font-bold text-lg">
+                        {safeToFixed(safeGet(currentSignal, 'analysis.forecasts.timeHorizons.1h.price'), 5)}
+                      </div>
+                      <div className="text-blue-600 text-xs">
+                        Confidenza: {safeToFixed(safeGet(currentSignal, 'analysis.forecasts.timeHorizons.1h.confidence'), 0)}%
+                      </div>
+                    </div>
+                  </div>
+
+                  <div>
+                    <div className="text-gray-600 text-sm mb-2">Scenario Base Probabile</div>
+                    <div className="bg-gray-50 p-3 rounded-lg text-sm">
+                      <div className="font-medium">
+                        {safeGet(currentSignal, 'analysis.forecasts.scenarios.base.description', 'Nessuna descrizione disponibile')}
+                      </div>
+                      <div className="text-gray-600 mt-1">
+                        Target: {safeToFixed(safeGet(currentSignal, 'analysis.forecasts.scenarios.base.priceTarget'), 5)} | 
+                        Probabilità: {safeToFixed(safeGet(currentSignal, 'analysis.forecasts.scenarios.base.probability'), 0)}% | 
+                        Timeline: {safeGet(currentSignal, 'analysis.forecasts.scenarios.base.timeline', 'N/A')}
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            )}
+
             <div className="border-t pt-4">
               <h4 className="font-semibold mb-3">Esegui Trade</h4>
               
