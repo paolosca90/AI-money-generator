@@ -65,7 +65,7 @@ export function analyzeOrderbook(marketData: TimeframeData, symbol: string): Ord
   };
 }
 
-function simulateOrderbookData(data5m: any, symbol: string): any {
+function simulateOrderbookData(data5m: any, symbol: string): OrderbookData {
   const currentPrice = data5m.close;
   const spread = getTypicalSpread(symbol, currentPrice);
   
