@@ -18,7 +18,7 @@ export interface StrategyConfig {
 export const TRADING_STRATEGIES: Record<TradingStrategy, StrategyConfig> = {
   SCALPING: {
     name: "Scalping",
-    description: "Quick trades capturing small price movements (1-15 minutes)",
+    description: "Trade veloci che catturano piccoli movimenti di prezzo (1-15 minuti)",
     timeframes: ["1m", "5m"],
     riskRewardRatio: 1.5, // 1:1.5 risk/reward
     stopLossMultiplier: 0.8, // Tight stop loss
@@ -33,7 +33,7 @@ export const TRADING_STRATEGIES: Record<TradingStrategy, StrategyConfig> = {
   
   INTRADAY: {
     name: "Intraday",
-    description: "Day trading capturing medium price movements (1-8 hours)",
+    description: "Day trading che cattura movimenti di prezzo medi (1-8 ore)",
     timeframes: ["5m", "15m", "30m"],
     riskRewardRatio: 2.0, // 1:2 risk/reward
     stopLossMultiplier: 1.0, // Standard stop loss
@@ -48,7 +48,7 @@ export const TRADING_STRATEGIES: Record<TradingStrategy, StrategyConfig> = {
   
   SWING: {
     name: "Swing Trading",
-    description: "Multi-day trades capturing large price movements (1-7 days)",
+    description: "Trade multi-giorno che catturano ampi movimenti di prezzo (1-7 giorni)",
     timeframes: ["30m", "1h", "4h"],
     riskRewardRatio: 3.0, // 1:3 risk/reward
     stopLossMultiplier: 1.5, // Wider stop loss
@@ -234,7 +234,7 @@ function calculateTrendStrength(marketData: any): number {
 }
 
 function getSymbolCharacteristics(symbol: string) {
-  const characteristics = {
+  const characteristics: Record<string, any> = {
     "BTCUSD": {
       volatilityMultiplier: 1.0,
       minMovement: 100,

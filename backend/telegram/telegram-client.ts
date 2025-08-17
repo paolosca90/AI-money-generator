@@ -36,7 +36,7 @@ export async function sendMessage(chatId: number, text: string, options?: {
     }),
   });
 
-  const result: SendMessageResponse = await response.json();
+  const result = await response.json() as SendMessageResponse;
   
   if (!result.ok) {
     console.error("Failed to send Telegram message:", result.description);
@@ -64,7 +64,7 @@ export async function sendPhoto(chatId: number, photoUrl: string, caption?: stri
     }),
   });
 
-  const result: SendMessageResponse = await response.json();
+  const result = await response.json() as SendMessageResponse;
   
   if (!result.ok) {
     console.error("Failed to send Telegram photo:", result.description);
@@ -88,7 +88,7 @@ export async function sendDocument(chatId: number, documentUrl: string, caption?
     }),
   });
 
-  const result: SendMessageResponse = await response.json();
+  const result = await response.json() as SendMessageResponse;
   
   if (!result.ok) {
     console.error("Failed to send Telegram document:", result.description);
@@ -116,7 +116,7 @@ export async function editMessage(chatId: number, messageId: number, text: strin
     }),
   });
 
-  const result: SendMessageResponse = await response.json();
+  const result = await response.json() as SendMessageResponse;
   
   if (!result.ok) {
     console.error("Failed to edit Telegram message:", result.description);
@@ -144,7 +144,7 @@ export async function setWebhook(webhookUrl: string, options?: {
     }),
   });
 
-  const result: SendMessageResponse = await response.json();
+  const result = await response.json() as SendMessageResponse;
   
   if (!result.ok) {
     console.error("Failed to set Telegram webhook:", result.description);
@@ -162,7 +162,7 @@ export async function deleteWebhook(): Promise<void> {
     },
   });
 
-  const result: SendMessageResponse = await response.json();
+  const result = await response.json() as SendMessageResponse;
   
   if (!result.ok) {
     console.error("Failed to delete Telegram webhook:", result.description);
@@ -177,7 +177,7 @@ export async function getWebhookInfo(): Promise<any> {
     method: "GET",
   });
 
-  const result: SendMessageResponse = await response.json();
+  const result = await response.json() as SendMessageResponse;
   
   if (!result.ok) {
     console.error("Failed to get webhook info:", result.description);
@@ -200,7 +200,7 @@ export async function getFile(fileId: string): Promise<TelegramFile | null> {
     }),
   });
 
-  const result: SendMessageResponse = await response.json();
+  const result = await response.json() as SendMessageResponse;
   
   if (!result.ok) {
     console.error("Failed to get file info:", result.description);

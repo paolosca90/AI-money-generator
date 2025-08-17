@@ -534,11 +534,14 @@ function identifyLiquidityZonesEnhanced(data5m: any, data15m: any, data30m: any,
   
   // Sort by weight and proximity to current price
   const weightedLevels = levels
-    .map(level => ({
-      ...level,
-      distance: Math.abs(level.price - currentPrice) / currentPrice,
-      score: level.weight / (1 + level.distance * 10) // Closer levels get higher scores
-    }))
+    .map(level => {
+      const distance = Math.abs(level.price - currentPrice) / currentPrice;
+      return {
+        ...level,
+        distance,
+        score: level.weight / (1 + distance * 10) // Closer levels get higher scores
+      };
+    })
     .sort((a, b) => b.score - a.score)
     .slice(0, 8) // Take top 8 levels
     .map(level => level.price)
@@ -549,10 +552,10 @@ function identifyLiquidityZonesEnhanced(data5m: any, data15m: any, data30m: any,
 }
 
 function calculatePsychologicalLevels(currentPrice: number, symbol: string): number[] {
-  const levels = [];
+  const levels: number[] = [];
   
   // Symbol-specific psychological level spacing
-  const spacingMap = {
+  const spacingMap: Record<string, number[]> = {
     "BTCUSD": [1000, 5000, 10000],      // $1k, $5k, $10k levels
     "ETHUSD": [100, 500, 1000],         // $100, $500, $1k levels
     "EURUSD": [0.01, 0.05, 0.1],        // 1 cent, 5 cent, 10 cent levels
@@ -564,7 +567,7 @@ function calculatePsychologicalLevels(currentPrice: number, symbol: string): num
   
   const spacings = spacingMap[symbol] || [currentPrice * 0.01, currentPrice * 0.05, currentPrice * 0.1];
   
-  spacings.forEach(spacing => {
+  spacings.forEach((spacing: number) => {
     const nearestLevel = Math.round(currentPrice / spacing) * spacing;
     levels.push(
       nearestLevel,

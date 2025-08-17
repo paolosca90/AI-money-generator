@@ -119,17 +119,18 @@ export const execute = api<ExecuteRequest, ExecuteResponse>(
       console.error(`Error executing trade ${tradeId}:`, error);
       
       // If it's already an APIError, re-throw it
-      if (error.code) {
+      if (error && typeof error === 'object' && 'code' in error) {
         throw error;
       }
       
       // For database errors or other unexpected errors
-      if (error.message?.includes("relation") || error.message?.includes("column")) {
+      const errorMessage = error && typeof error === 'object' && 'message' in error ? (error as Error).message : '';
+      if (errorMessage?.includes("relation") || errorMessage?.includes("column")) {
         throw APIError.internal("Database error occurred while executing trade");
       }
       
       // Generic error
-      throw APIError.internal(`Failed to execute trade: ${error.message || "Unknown error"}`);
+      throw APIError.internal(`Failed to execute trade: ${errorMessage || "Unknown error"}`);
     }
   }
 );

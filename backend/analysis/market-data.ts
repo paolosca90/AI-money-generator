@@ -41,7 +41,7 @@ export async function fetchMarketData(symbol: string, timeframes: string[]): Pro
       }, 5000);
       
       if (statusResponse.ok) {
-        const statusData = await statusResponse.json();
+        const statusData = await statusResponse.json() as any;
         mt5Available = statusData.connected;
         console.log(`📊 MT5 connection status: ${mt5Available ? 'Connected' : 'Disconnected'}`);
         
@@ -58,8 +58,9 @@ export async function fetchMarketData(symbol: string, timeframes: string[]): Pro
       }
     }
   } catch (error) {
-    console.log(`⚠️ MT5 connection check failed: ${error.message}`);
-    if (error.message.includes("fetch failed") || error.message.includes("ECONNREFUSED")) {
+    const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+    console.log(`⚠️ MT5 connection check failed: ${errorMessage}`);
+    if (errorMessage.includes("fetch failed") || errorMessage.includes("ECONNREFUSED")) {
       console.log("💡 MT5 Connection Help:");
       console.log("1. Ensure MT5 Python server is running: python mt5-python-server.py");
       console.log("2. Check VPS is online and accessible");
@@ -137,7 +138,7 @@ async function fetchMT5Data(symbol: string, timeframe: string): Promise<MarketDa
       return null;
     }
 
-    const result = await response.json();
+    const result = await response.json() as any;
     if (result.error || !result.rates || result.rates.length === 0) {
       console.error("❌ Failed to get rates from MT5:", result.error || "No rates returned");
       return null;
@@ -165,17 +166,18 @@ async function fetchMT5Data(symbol: string, timeframe: string): Promise<MarketDa
 
   } catch (error) {
     // This will catch network errors if the python server is not running
-    console.log(`❌ Error fetching MT5 data for ${symbol}: ${error.message}`);
+    const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+    console.log(`❌ Error fetching MT5 data for ${symbol}: ${errorMessage}`);
     
     // Provide helpful error messages based on error type
-    if (error.message.includes("fetch failed") || error.message.includes("ECONNREFUSED")) {
+    if (errorMessage.includes("fetch failed") || errorMessage.includes("ECONNREFUSED")) {
       console.log("💡 MT5 Setup Help:");
       console.log("1. Make sure your VPS is running and accessible");
       console.log("2. Ensure MT5 Python server is started: python mt5-python-server.py");
       console.log("3. Check that port 8080 is open on your VPS");
       console.log("4. Verify MT5ServerHost and MT5ServerPort in Infrastructure settings");
       console.log("5. If using VPS, MT5ServerHost should be your VPS IP, not 'localhost'");
-    } else if (error.message.includes("timeout") || error.message.includes("aborted")) {
+    } else if (errorMessage.includes("timeout") || errorMessage.includes("aborted")) {
       console.log("💡 Connection timeout - check your VPS network connection");
       console.log("💡 Possible solutions:");
       console.log("  - Check if VPS is online and accessible");
@@ -202,7 +204,7 @@ async function fetchWithTimeout(url: string, options: RequestInit, timeoutMs: nu
     return response;
   } catch (error) {
     clearTimeout(timeoutId);
-    if (error.name === 'AbortError') {
+    if (error instanceof Error && error.name === 'AbortError') {
       throw new Error(`The operation was aborted due to timeout (${timeoutMs}ms)`);
     }
     throw error;
@@ -225,7 +227,7 @@ async function findCorrectSymbolFormat(baseUrl: string, symbol: string): Promise
       }, 3000); // 3 second timeout for symbol check
 
       if (response.ok) {
-        const result = await response.json();
+        const result = await response.json() as any;
         if (result.symbol_info && !result.error) {
           console.log(`✅ Found correct symbol format: ${symbol} → ${variation}`);
           return variation;
@@ -411,7 +413,7 @@ function createEnhancedFallbackData(symbol: string, timeframe: string): MarketDa
 
 function getSymbolBasePrice(symbol: string): number {
   // Updated base prices reflecting current market conditions
-  const basePrices = {
+  const basePrices: Record<string, number> = {
     "BTCUSD": 95000,
     "ETHUSD": 3500,
     "EURUSD": 1.085,
@@ -431,7 +433,7 @@ function getSymbolBasePrice(symbol: string): number {
 
 function getSymbolVolatility(symbol: string): number {
   // Realistic volatility based on current market conditions
-  const volatilities = {
+  const volatilities: Record<string, number> = {
     "BTCUSD": 0.03,
     "ETHUSD": 0.04,
     "EURUSD": 0.005,
@@ -451,7 +453,7 @@ function getSymbolVolatility(symbol: string): number {
 
 function getTrendBias(symbol: string): number {
   // Simulate current market trend bias (-1 to 1)
-  const trendBiases = {
+  const trendBiases: Record<string, number> = {
     "BTCUSD": 0.3,   // Slightly bullish
     "ETHUSD": 0.2,   // Slightly bullish
     "EURUSD": -0.1,  // Slightly bearish
@@ -471,7 +473,7 @@ function getTrendBias(symbol: string): number {
 
 function getBaseVolume(symbol: string, timeframe: string): number {
   // Base volume varies by symbol and timeframe
-  const baseVolumes = {
+  const baseVolumes: Record<string, Record<string, number>> = {
     "BTCUSD": { "5m": 500, "15m": 1500, "30m": 3000 },
     "ETHUSD": { "5m": 800, "15m": 2400, "30m": 4800 },
     "EURUSD": { "5m": 200, "15m": 600, "30m": 1200 },

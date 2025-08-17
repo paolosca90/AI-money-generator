@@ -1,5 +1,8 @@
 import { sendMessage, sendPhoto, createInlineKeyboard } from "./telegram-client";
-import { analysis } from "~encore/clients";
+import { predict } from "../analysis/predict";
+import { execute } from "../analysis/execute";
+import { getPerformance } from "../analysis/performance";
+import { TradingStrategy } from "../analysis/trading-strategies";
 import { handleVPSCommand, handleVPSSetup, handleVPSSetupCallback } from "./vps-manager";
 
 export async function processMessage(chatId: number, userId: number, text: string): Promise<void> {
@@ -38,7 +41,7 @@ export async function processMessage(chatId: number, userId: number, text: strin
     }
   } catch (error) {
     console.error("Error processing message:", error);
-    await sendMessage(chatId, "❌ An error occurred while processing your request. Please try again.");
+    await sendMessage(chatId, "❌ Si è verificato un errore durante l'elaborazione della tua richiesta. Riprova.");
   }
 }
 
@@ -58,7 +61,7 @@ export async function processCallbackQuery(chatId: number, userId: number, callb
       const symbol = parts[2] || "BTCUSD";
       await handleStrategyCommand(chatId, `/predict ${symbol}`, strategy);
     } else if (callbackData === "new_analysis") {
-      await sendMessage(chatId, "📊 Choose your trading strategy:\n\n⚡ `/scalping SYMBOL` - Quick trades (1-15 min)\n📈 `/intraday SYMBOL` - Day trading (1-8 hours)\n🎯 `/swing SYMBOL` - Multi-day trades (1-7 days)\n\nExample: `/scalping EURUSD`");
+      await sendMessage(chatId, "📊 Scegli la tua strategia di trading:\n\n⚡ `/scalping SIMBOLO` - Trade veloci (1-15 min)\n📈 `/intraday SIMBOLO` - Day trading (1-8 ore)\n🎯 `/swing SIMBOLO` - Trade multi-giorno (1-7 giorni)\n\nEsempio: `/scalping EURUSD`");
     } else if (callbackData === "show_performance") {
       await handlePerformanceCommand(chatId);
     } else if (callbackData.startsWith("predict_")) {
@@ -71,7 +74,7 @@ export async function processCallbackQuery(chatId: number, userId: number, callb
     }
   } catch (error) {
     console.error("Error processing callback query:", error);
-    await sendMessage(chatId, "❌ An error occurred while processing your request. Please try again.");
+    await sendMessage(chatId, "❌ Si è verificato un errore durante l'elaborazione della tua richiesta. Riprova.");
   }
 }
 
@@ -79,7 +82,7 @@ async function executeTradeFromCallback(chatId: number, tradeId: string, lotSize
   try {
     await sendMessage(chatId, `⚡ Executing ${strategy} trade ${tradeId} with ${lotSize} lots...`);
     
-    const result = await analysis.execute({ tradeId, lotSize, strategy });
+    const result = await execute({ tradeId, lotSize, strategy: strategy as TradingStrategy });
     
     if (result.success) {
       const message = `
@@ -110,12 +113,12 @@ async function handlePredictCommand(chatId: number, command: string): Promise<vo
   try {
     await sendMessage(chatId, `🧠 **Advanced ML Analysis for ${symbol}**\n\n🔍 Analyzing market structure, smart money flow, and determining optimal strategy...\n\n⏳ This may take 10-15 seconds for comprehensive analysis.`);
     
-    const prediction = await analysis.predict({ symbol });
+    const prediction = await predict({ symbol });
     
     await sendTradingSignal(chatId, prediction);
   } catch (error) {
     console.error("Prediction error:", error);
-    await sendMessage(chatId, "❌ Error generating prediction. Please try again or check if the symbol is valid.");
+    await sendMessage(chatId, "❌ Errore nella generazione della previsione. Riprova o controlla se il simbolo è valido.");
   }
 }
 
@@ -132,17 +135,17 @@ async function handleStrategyCommand(chatId: number, command: string, strategy: 
 
     await sendMessage(chatId, `${strategyEmojis[strategy]} **${strategy} Analysis for ${symbol}**\n\n🔍 Analyzing market for ${strategy.toLowerCase()} opportunities...\n\n⏳ Optimizing entry, stop loss, and take profit levels...`);
     
-    const prediction = await analysis.predict({ symbol, strategy });
+    const prediction = await predict({ symbol, strategy: strategy as TradingStrategy });
     
     await sendTradingSignal(chatId, prediction);
   } catch (error) {
     console.error("Strategy prediction error:", error);
-    await sendMessage(chatId, `❌ Error generating ${strategy.toLowerCase()} analysis. Please try again.`);
+    await sendMessage(chatId, `❌ Errore nella generazione dell'analisi ${strategy.toLowerCase()}. Riprova.`);
   }
 }
 
 async function sendTradingSignal(chatId: number, prediction: any): Promise<void> {
-  const strategyEmojis = {
+  const strategyEmojis: Record<string, string> = {
     "SCALPING": "⚡",
     "INTRADAY": "📈",
     "SWING": "🎯"
@@ -179,7 +182,7 @@ ${prediction.strategyRecommendation}
 • Risk/Reward: **1:${prediction.analysis.professional.riskReward.toFixed(1)}**
 
 🎯 **Key Liquidity Zones:**
-${prediction.analysis.smartMoney.liquidityZones.slice(0, 3).map(zone => `• ${zone.toFixed(5)}`).join('\n')}
+${prediction.analysis.smartMoney.liquidityZones.slice(0, 3).map((zone: number) => `• ${zone.toFixed(5)}`).join('\n')}
 
 📰 **Market Sentiment:** ${getSentimentEmoji(prediction.analysis.sentiment.score)} ${(prediction.analysis.sentiment.score * 100).toFixed(0)}%
 
@@ -199,7 +202,7 @@ ${prediction.analysis.smartMoney.liquidityZones.slice(0, 3).map(zone => `• ${z
       { text: "🎯 Swing", callback_data: `strategy_SWING_${prediction.symbol}` }
     ],
     [
-      { text: "📊 New Analysis", callback_data: "new_analysis" },
+      { text: "📊 Nuova Analisi", callback_data: "new_analysis" },
       { text: "📈 Performance", callback_data: "show_performance" }
     ]
   ]);
@@ -236,7 +239,7 @@ async function handleExecuteCommand(chatId: number, command: string): Promise<vo
   try {
     await sendMessage(chatId, `⚡ Executing ${strategy} trade ${tradeId} with ${lotSize} lots...`);
     
-    const result = await analysis.execute({ tradeId, lotSize, strategy });
+    const result = await execute({ tradeId, lotSize, strategy: strategy as TradingStrategy });
     
     if (result.success) {
       const message = `
@@ -512,7 +515,7 @@ Use \`/vps\` to manage your VPS and MT5 connection.
 
 async function handlePerformanceCommand(chatId: number): Promise<void> {
   try {
-    const performance = await analysis.getPerformance();
+    const performance = await getPerformance();
     
     const winRateEmoji = performance.winRate >= 70 ? "🔥" : performance.winRate >= 50 ? "⚡" : "⚠️";
     const profitFactorEmoji = performance.profitFactor >= 2 ? "🔥" : performance.profitFactor >= 1 ? "⚡" : "⚠️";

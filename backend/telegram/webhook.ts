@@ -64,7 +64,9 @@ export const webhook = api<TelegramUpdate, WebhookResponse>(
         `;
 
         // Process the message
-        await processMessage(chatId, userId, text);
+        if (text) {
+          await processMessage(chatId, userId, text);
+        }
       } else if (update.callback_query) {
         const callbackQuery = update.callback_query;
         const chatId = callbackQuery.message?.chat.id;
