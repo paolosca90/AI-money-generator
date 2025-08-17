@@ -1,6 +1,6 @@
 import { sendMessage, sendPhoto, createInlineKeyboard } from "./telegram-client";
 import { analysis } from "~encore/clients";
-import { handleVPSCommand, handleVPSSetup, handleVPSSetupCallback } from "./vps-manager";
+import { handleVPSCommand, handleVPSSetup, handleVPSSetupCallback, checkVPSSetupState } from "./vps-manager";
 
 export async function processMessage(chatId: number, userId: number, text: string): Promise<void> {
   const command = text.toLowerCase().trim();
@@ -32,9 +32,20 @@ export async function processMessage(chatId: number, userId: number, text: strin
       await handleVPSCommand(chatId, userId, command);
     } else if (command === "/vps_setup") {
       await handleVPSSetup(chatId, userId);
+    } else if (command === "/vps_status") {
+      await handleVPSCommand(chatId, userId, "/vps_status");
+    } else if (command === "/vps_restart") {
+      await handleVPSCommand(chatId, userId, "/vps_restart");
+    } else if (command === "/vps_logs") {
+      await handleVPSCommand(chatId, userId, "/vps_logs");
     } else {
-      // Check if user is in VPS setup mode
-      await handleVPSSetup(chatId, userId, text);
+      // Check if user is in VPS setup mode  
+      const setupState = await checkVPSSetupState(userId);
+      if (setupState) {
+        await handleVPSSetup(chatId, userId, text);
+      } else {
+        await sendMessage(chatId, "❓ Command not recognized. Use `/help` to see available commands.");
+      }
     }
   } catch (error) {
     console.error("Error processing message:", error);

@@ -140,7 +140,8 @@ async function configureVPSAsync(userId: number): Promise<void> {
     `;
 
     // Send error notification
-    await sendVPSNotification(userId, `❌ VPS configuration failed: ${error.message}`);
+    const errorMessage = error instanceof Error ? error.message : String(error);
+    await sendVPSNotification(userId, `❌ VPS configuration failed: ${errorMessage}`);
   }
 }
 
@@ -163,7 +164,8 @@ async function testVPSConnection(config: VPSConfig): Promise<void> {
 
     await sendVPSNotification(config.userId, "🔗 VPS connection established successfully");
   } catch (error) {
-    throw new Error(`VPS connection failed: ${error.message}`);
+    const errorMessage = error instanceof Error ? error.message : String(error);
+    throw new Error(`VPS connection failed: ${errorMessage}`);
   }
 }
 
@@ -188,7 +190,8 @@ async function installSoftwareOnVPS(config: VPSConfig): Promise<void> {
 
     await sendVPSNotification(config.userId, "✅ Software installation completed");
   } catch (error) {
-    throw new Error(`Software installation failed: ${error.message}`);
+    const errorMessage = error instanceof Error ? error.message : String(error);
+    throw new Error(`Software installation failed: ${errorMessage}`);
   }
 }
 
@@ -216,7 +219,8 @@ async function configureMT5OnVPS(config: VPSConfig): Promise<void> {
 
     await sendVPSNotification(config.userId, "✅ MetaTrader 5 configured successfully");
   } catch (error) {
-    throw new Error(`MT5 configuration failed: ${error.message}`);
+    const errorMessage = error instanceof Error ? error.message : String(error);
+    throw new Error(`MT5 configuration failed: ${errorMessage}`);
   }
 }
 
@@ -242,7 +246,8 @@ async function startTradingBotOnVPS(config: VPSConfig): Promise<void> {
 
     await sendVPSNotification(config.userId, "🎉 Trading bot is now running on your VPS!");
   } catch (error) {
-    throw new Error(`Bot startup failed: ${error.message}`);
+    const errorMessage = error instanceof Error ? error.message : String(error);
+    throw new Error(`Bot startup failed: ${errorMessage}`);
   }
 }
 
@@ -373,16 +378,16 @@ async function handleVPSStatus(chatId: number, userId: number): Promise<void> {
 
     let statusInfo = "Unable to fetch real-time status";
     if (response.ok) {
-      const data = await response.json();
+      const data: any = await response.json();
       statusInfo = `
 **System Status:**
-• CPU Usage: ${data.cpu}%
-• Memory Usage: ${data.memory}%
-• Disk Usage: ${data.disk}%
-• Uptime: ${data.uptime}
+• CPU Usage: ${data.cpu || 'N/A'}%
+• Memory Usage: ${data.memory || 'N/A'}%
+• Disk Usage: ${data.disk || 'N/A'}%
+• Uptime: ${data.uptime || 'N/A'}
 
 **Trading Bot:**
-• Status: ${data.botStatus}
+• Status: ${data.botStatus || 'Unknown'}
 • MT5 Connected: ${data.mt5Connected ? "✅" : "❌"}
 • Last Signal: ${data.lastSignal || "None"}
 • Active Trades: ${data.activeTrades || 0}
@@ -471,7 +476,7 @@ async function handleVPSLogs(chatId: number, userId: number): Promise<void> {
     });
 
     if (response.ok) {
-      const data = await response.json();
+      const data: any = await response.json();
       const message = `
 📋 **Recent VPS Logs**
 
@@ -517,6 +522,10 @@ export interface VPSSetupState {
 }
 
 const setupStates = new Map<number, VPSSetupState>();
+
+export async function checkVPSSetupState(userId: number): Promise<boolean> {
+  return setupStates.has(userId);
+}
 
 export async function handleVPSSetup(chatId: number, userId: number, message?: string): Promise<void> {
   const { sendMessage, createInlineKeyboard } = await import("./telegram-client");
@@ -735,7 +744,8 @@ You'll receive updates as each step completes. Please wait...
       `);
       
     } catch (error) {
-      await sendMessage(chatId, `❌ Configuration failed: ${error.message}`);
+      const errorMessage = error instanceof Error ? error.message : String(error);
+      await sendMessage(chatId, `❌ Configuration failed: ${errorMessage}`);
     }
   } else if (callbackData === "vps_confirm_no") {
     setupStates.delete(userId);
