@@ -2,6 +2,7 @@ import { sendMessage, sendPhoto, createInlineKeyboard } from "./telegram-client"
 import { analysis } from "~encore/clients";
 import { handleVPSCommand, handleVPSSetup, handleVPSSetupCallback, checkVPSSetupState } from "./vps-manager";
 import { handleClientCommands, checkClientFeature } from "./client-manager";
+import { handleAdminCommands } from "./admin-manager";
 
 export async function processMessage(chatId: number, userId: number, text: string): Promise<void> {
   const command = text.toLowerCase().trim();
@@ -67,6 +68,8 @@ export async function processMessage(chatId: number, userId: number, text: strin
       await handleVPSCommand(chatId, userId, "/vps_logs");
     } else if (command === "/subscription" || command === "/features" || command === "/upgrade" || command === "/support") {
       await handleClientCommands(chatId, userId, command);
+    } else if (command.startsWith("/admin_")) {
+      await handleAdminCommands(chatId, userId, command);
     } else {
       // Check if user is in VPS setup mode  
       const setupState = await checkVPSSetupState(userId);
