@@ -1090,7 +1090,7 @@ function calculateConfidenceEnhanced(
   optionsAnalysis: any,
   mlAnalysis: any
 ): number {
-  let baseConfidence = 60; // Lower base due to more complex analysis
+  let baseConfidence = BASE_CONFIDENCE_ENHANCED_ANALYSIS;
   
   // Add confidence based on signal alignment
   let alignmentScore = 0;
