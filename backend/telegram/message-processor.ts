@@ -58,7 +58,13 @@ export async function processCallbackQuery(chatId: number, userId: number, callb
       const symbol = parts[2] || "BTCUSD";
       await handleStrategyCommand(chatId, `/predict ${symbol}`, strategy);
     } else if (callbackData === "new_analysis") {
-      await sendMessage(chatId, "📊 Scegli la tua strategia di trading:\n\n⚡ `/scalping SIMBOLO` - Trade veloci (1-15 min)\n📈 `/intraday SIMBOLO` - Trading giornaliero (1-8 ore)\n🎯 `/swing SIMBOLO` - Trade multi-day (1-7 giorni)\n\nEsempio: `/scalping EURUSD`");
+      await sendMessage(chatId, `📊 Scegli la tua strategia di trading:
+
+⚡ \`/scalping SIMBOLO\` - Trade veloci (1-15 min)
+📈 \`/intraday SIMBOLO\` - Trading giornaliero (1-8 ore)
+🎯 \`/swing SIMBOLO\` - Trade multi-day (1-7 giorni)
+
+Esempio: \`/scalping EURUSD\``);
     } else if (callbackData === "show_performance") {
       await handlePerformanceCommand(chatId);
     } else if (callbackData.startsWith("predict_")) {
