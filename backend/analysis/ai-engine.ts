@@ -2,6 +2,11 @@ import { secret } from "encore.dev/config";
 import { TimeframeData } from "./market-data";
 import { calculateAllIndicators, TechnicalIndicators } from "./enhanced-technical-analysis.js";
 import { calculateEnhancedConfidence, ConfidenceResult } from "./enhanced-confidence-system.js";
+import { analyzeVWAP, VWAPAnalysis, getVWAPRecommendations } from "./vwap-analyzer.js";
+import { analyzeOrderbook, OrderbookAnalysis, getOrderbookSignals } from "./orderbook-analyzer.js";
+import { analyzeOptions, OptionsAnalysis, getOptionsSignals } from "./options-analyzer.js";
+import { analyzeWithMLEnsemble, MLAnalysis, getMLRecommendations } from "./ml-analyzer.js";
+import { generateForecasts, ForecastAnalysis, getForecastingInsights } from "./forecast-analyzer.js";
 
 const geminiApiKey = secret("GeminiApiKey");
 
@@ -38,6 +43,13 @@ export interface AIAnalysis {
     timeframe: string;
   };
   technical: TechnicalIndicators; // Enhanced technical indicators
+  // Advanced Analysis Components (PR #2)
+  vwapAnalysis?: VWAPAnalysis;
+  orderbookAnalysis?: OrderbookAnalysis;
+  optionsAnalysis?: OptionsAnalysis;
+  mlAnalysis?: MLAnalysis;
+  forecastAnalysis?: ForecastAnalysis;
+  advancedRecommendations?: string[];
 }
 
 // Cache for Gemini responses to reduce API calls
@@ -70,23 +82,39 @@ export async function analyzeWithAI(marketData: TimeframeData, symbol: string): 
   // Professional trader consensus
   const professionalAnalysis = await analyzeProfessionalTraders(symbol, marketData);
 
-  // Use Gemini AI for enhanced analysis with better error handling and caching
+  // Advanced analysis components (PR #2)
+  const vwapAnalysis = analyzeVWAP(marketData, data5m.close);
+  const orderbookAnalysis = analyzeOrderbook(marketData, symbol);
+  const optionsAnalysis = analyzeOptions(marketData, symbol);
+  const mlAnalysis = analyzeWithMLEnsemble(marketData, symbol);
+  const forecastAnalysis = generateForecasts(marketData, symbol);
+
+  // Use Gemini Pro for enhanced analysis with comprehensive prompt
   const geminiAnalysis = await analyzeWithGeminiCached(marketData, symbol, {
     priceAction: priceActionAnalysis,
     smartMoney: smartMoneyAnalysis,
     volume: volumeAnalysis,
-    professional: professionalAnalysis
+    professional: professionalAnalysis,
+    vwap: vwapAnalysis,
+    orderbook: orderbookAnalysis,
+    options: optionsAnalysis,
+    ml: mlAnalysis,
+    forecast: forecastAnalysis
   });
 
   // Calculate enhanced support and resistance using multiple methods
   const enhancedLevels = calculateEnhancedSupportResistance(data5m, data15m, data30m, symbol);
   
-  // Determine direction using existing analysis
-  const finalDirection = determineDirection(
+  // Determine direction using weighted ensemble approach
+  const finalDirection = determineDirectionWithAdvancedAnalysis(
     priceActionAnalysis,
     smartMoneyAnalysis,
     volumeAnalysis,
-    geminiAnalysis
+    geminiAnalysis,
+    vwapAnalysis,
+    orderbookAnalysis,
+    optionsAnalysis,
+    mlAnalysis
   );
 
   // Use enhanced confidence calculation system
@@ -96,7 +124,17 @@ export async function analyzeWithAI(marketData: TimeframeData, symbol: string): 
     finalDirection,
     data5m.close,
     data5m.volume,
-    75 // Historical accuracy baseline
+    mlAnalysis.backtestingMetrics.accuracy * 100 // Use ML accuracy as historical baseline
+  );
+
+  // Generate advanced recommendations
+  const advancedRecommendations = generateAdvancedRecommendations(
+    vwapAnalysis,
+    orderbookAnalysis,
+    optionsAnalysis,
+    mlAnalysis,
+    forecastAnalysis,
+    finalDirection
   );
 
   // Simulate sentiment analysis (in real implementation, this would use news APIs)
@@ -120,6 +158,12 @@ export async function analyzeWithAI(marketData: TimeframeData, symbol: string): 
     priceAction: priceActionAnalysis,
     professionalAnalysis,
     technical: technicalIndicators,
+    vwapAnalysis,
+    orderbookAnalysis,
+    optionsAnalysis,
+    mlAnalysis,
+    forecastAnalysis,
+    advancedRecommendations,
   };
 }
 
@@ -693,9 +737,9 @@ async function analyzeWithGeminiCached(
 
     const prompt = createAdvancedTradingPrompt(marketData, symbol, additionalData);
     
-    // Simplified single request with longer timeout
+    // Simplified single request with longer timeout to Gemini Pro
     try {
-      const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash-latest:generateContent?key=${apiKey}`, {
+      const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-pro-latest:generateContent?key=${apiKey}`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
@@ -710,7 +754,7 @@ async function analyzeWithGeminiCached(
             temperature: 0.1,
             topK: 1,
             topP: 1,
-            maxOutputTokens: 200, // Reduced to save quota
+            maxOutputTokens: 500, // Increased for comprehensive analysis
           }
         })
       });
@@ -779,25 +823,54 @@ function createAdvancedTradingPrompt(marketData: TimeframeData, symbol: string, 
   const data15m = marketData["15m"];
   const data30m = marketData["30m"];
 
-  // Simplified prompt to reduce token usage
+  // Comprehensive prompt for Gemini Pro with all analysis components
   return `
-Analyze ${symbol} trading signal:
+Comprehensive ${symbol} Trading Signal Analysis:
 
-PRICE DATA:
-5m: ${data5m.close} (Vol: ${data5m.volume})
-15m: ${data15m.close} (Vol: ${data15m.volume})
-30m: ${data30m.close} (Vol: ${data30m.volume})
+MARKET DATA:
+5m: O:${data5m.open} H:${data5m.high} L:${data5m.low} C:${data5m.close} V:${data5m.volume}
+15m: O:${data15m.open} H:${data15m.high} L:${data15m.low} C:${data15m.close} V:${data15m.volume}
+30m: O:${data30m.open} H:${data30m.high} L:${data30m.low} C:${data30m.close} V:${data30m.volume}
 
-ANALYSIS:
+TECHNICAL ANALYSIS:
 - Trend: ${additionalData.priceAction.trend}
 - Structure: ${additionalData.priceAction.structure}
-- Smart Money: ${additionalData.smartMoney.institutionalFlow}
-- Volume: ${additionalData.smartMoney.volumeProfile}
+- RSI: ${data5m.indicators?.rsi?.toFixed(1) || 'N/A'}
+- MACD: ${data5m.indicators?.macd?.toFixed(4) || 'N/A'}
 
-Provide trading recommendation:
-DIRECTION: [LONG or SHORT]
+SMART MONEY FLOW:
+- Institutional: ${additionalData.smartMoney.institutionalFlow}
+- Volume Profile: ${additionalData.smartMoney.volumeProfile}
+- Order Flow: ${additionalData.smartMoney.orderFlow}
+
+VWAP ANALYSIS:
+- Position: ${additionalData.vwap?.position || 'N/A'}
+- Signal: ${additionalData.vwap?.signalType || 'N/A'}
+- Trend Strength: ${additionalData.vwap?.trendStrength?.toFixed(2) || 'N/A'}
+
+ORDERBOOK DEPTH:
+- Institutional Direction: ${additionalData.orderbook?.institutionalFlow?.direction || 'N/A'}
+- Flow Strength: ${additionalData.orderbook?.institutionalFlow?.strength?.toFixed(2) || 'N/A'}
+- Large Orders: ${additionalData.orderbook?.institutionalFlow?.largeOrderDetection || 'N/A'}
+
+ML ENSEMBLE:
+- Signal: ${additionalData.ml?.ensembleConsensus?.signal || 'N/A'}
+- Confidence: ${additionalData.ml?.ensembleConsensus?.confidence?.toFixed(2) || 'N/A'}
+- Agreement: ${additionalData.ml?.ensembleConsensus?.agreement?.toFixed(2) || 'N/A'}
+
+OPTIONS FLOW:
+- Gamma: ${additionalData.options?.gammaExposure?.direction || 'N/A'}
+- Impact: ${additionalData.options?.gammaExposure?.impact || 'N/A'}
+- MM Flow: ${additionalData.options?.marketMakerFlow?.hedgingDirection || 'N/A'}
+
+PROFESSIONAL CONSENSUS: ${additionalData.professional.consensusView}
+
+Analyze all factors and provide:
+DIRECTION: [LONG/SHORT]
 CONFIDENCE: [70-95]
-REASON: [Brief explanation]
+KEY_FACTOR: [Most important analysis component]
+RISK_LEVEL: [LOW/MEDIUM/HIGH]
+REASONING: [2-3 sentence explanation]
 `;
 }
 
@@ -947,34 +1020,98 @@ function identifyVolumeNodes(timeframes: any[]) {
   };
 }
 
-function determineDirection(
+function determineDirectionWithAdvancedAnalysis(
   priceAction: any,
   smartMoney: any,
   volumeAnalysis: any,
-  geminiAnalysis: any
+  geminiAnalysis: any,
+  vwapAnalysis: VWAPAnalysis,
+  orderbookAnalysis: OrderbookAnalysis,
+  optionsAnalysis: OptionsAnalysis,
+  mlAnalysis: MLAnalysis
 ): "LONG" | "SHORT" {
   let bullishScore = 0;
   let bearishScore = 0;
   
-  // Price action weight: 30%
-  if (priceAction.trend === "UPTREND") bullishScore += 0.15;
-  if (priceAction.trend === "DOWNTREND") bearishScore += 0.15;
-  if (priceAction.structure === "BULLISH") bullishScore += 0.15;
-  if (priceAction.structure === "BEARISH") bearishScore += 0.15;
+  // Original analysis weight: 60%
+  // Price action weight: 20%
+  if (priceAction.trend === "UPTREND") bullishScore += 0.10;
+  if (priceAction.trend === "DOWNTREND") bearishScore += 0.10;
+  if (priceAction.structure === "BULLISH") bullishScore += 0.10;
+  if (priceAction.structure === "BEARISH") bearishScore += 0.10;
   
-  // Smart money weight: 40%
-  if (smartMoney.institutionalFlow === "BUYING") bullishScore += 0.15;
-  if (smartMoney.institutionalFlow === "SELLING") bearishScore += 0.15;
-  if (smartMoney.volumeProfile === "ACCUMULATION") bullishScore += 0.1;
-  if (smartMoney.volumeProfile === "DISTRIBUTION") bearishScore += 0.1;
-  if (smartMoney.orderFlow === "BULLISH") bullishScore += 0.15;
-  if (smartMoney.orderFlow === "BEARISH") bearishScore += 0.15;
+  // Smart money weight: 20%
+  if (smartMoney.institutionalFlow === "BUYING") bullishScore += 0.08;
+  if (smartMoney.institutionalFlow === "SELLING") bearishScore += 0.08;
+  if (smartMoney.volumeProfile === "ACCUMULATION") bullishScore += 0.06;
+  if (smartMoney.volumeProfile === "DISTRIBUTION") bearishScore += 0.06;
+  if (smartMoney.orderFlow === "BULLISH") bullishScore += 0.06;
+  if (smartMoney.orderFlow === "BEARISH") bearishScore += 0.06;
   
-  // Gemini AI weight: 30%
-  if (geminiAnalysis.direction === "LONG") bullishScore += 0.3;
-  if (geminiAnalysis.direction === "SHORT") bearishScore += 0.3;
+  // Gemini AI weight: 10%
+  if (geminiAnalysis.direction === "LONG") bullishScore += 0.10;
+  if (geminiAnalysis.direction === "SHORT") bearishScore += 0.10;
+  
+  // Advanced analysis weight: 40%
+  // VWAP analysis weight: 15%
+  if (vwapAnalysis.position === 'ABOVE_VWAP' && vwapAnalysis.signalType === 'TREND_CONTINUATION') {
+    bullishScore += 0.15;
+  } else if (vwapAnalysis.position === 'BELOW_VWAP' && vwapAnalysis.signalType === 'TREND_CONTINUATION') {
+    bearishScore += 0.15;
+  } else if (vwapAnalysis.signalType === 'MEAN_REVERSION') {
+    // Mean reversion signal - opposite bias
+    if (vwapAnalysis.position === 'ABOVE_VWAP') bearishScore += 0.08;
+    else if (vwapAnalysis.position === 'BELOW_VWAP') bullishScore += 0.08;
+  }
+  
+  // ML Ensemble weight: 15%
+  if (mlAnalysis.ensembleConsensus.signal === 'LONG') {
+    bullishScore += 0.15 * mlAnalysis.ensembleConsensus.confidence;
+  } else if (mlAnalysis.ensembleConsensus.signal === 'SHORT') {
+    bearishScore += 0.15 * mlAnalysis.ensembleConsensus.confidence;
+  }
+  
+  // Orderbook analysis weight: 10%
+  if (orderbookAnalysis.institutionalFlow.direction === 'BUYING' && orderbookAnalysis.institutionalFlow.strength > 0.6) {
+    bullishScore += 0.10;
+  } else if (orderbookAnalysis.institutionalFlow.direction === 'SELLING' && orderbookAnalysis.institutionalFlow.strength > 0.6) {
+    bearishScore += 0.10;
+  }
   
   return bullishScore > bearishScore ? "LONG" : "SHORT";
+}
+
+function generateAdvancedRecommendations(
+  vwapAnalysis: VWAPAnalysis,
+  orderbookAnalysis: OrderbookAnalysis,
+  optionsAnalysis: OptionsAnalysis,
+  mlAnalysis: MLAnalysis,
+  forecastAnalysis: ForecastAnalysis,
+  direction: "LONG" | "SHORT"
+): string[] {
+  const recommendations: string[] = [];
+  
+  // VWAP recommendations
+  const vwapRecs = getVWAPRecommendations(vwapAnalysis, direction);
+  recommendations.push(...vwapRecs);
+  
+  // Orderbook recommendations
+  const orderbookSignals = getOrderbookSignals(orderbookAnalysis);
+  recommendations.push(...orderbookSignals);
+  
+  // Options recommendations
+  const optionsSignals = getOptionsSignals(optionsAnalysis, forecastAnalysis.priceForecasts['1h'].price);
+  recommendations.push(...optionsSignals);
+  
+  // ML recommendations
+  const mlRecs = getMLRecommendations(mlAnalysis);
+  recommendations.push(...mlRecs);
+  
+  // Forecasting recommendations
+  const forecastInsights = getForecastingInsights(forecastAnalysis);
+  recommendations.push(...forecastInsights);
+  
+  return recommendations;
 }
 
 function calculateConfidence(
