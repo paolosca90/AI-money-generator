@@ -396,75 +396,75 @@ Ogni strategia è ottimizzata per diverse condizioni di mercato e stili di tradi
 
 async function handleHelpCommand(chatId: number): Promise<void> {
   const message = `
-📚 **Professional AI Trading Bot - Complete Guide**
+📚 **Bot AI Trading Professionale - Guida Completa**
 
-**⚡ SCALPING Commands:**
-• \`/scalping BTCUSD\` - Quick Bitcoin scalp (1-15 min)
-• \`/scalping EURUSD\` - Euro scalping opportunity
-• \`/scalping XAUUSD\` - Gold scalping signal
+**⚡ Comandi SCALPING:**
+• \`/scalping BTCUSD\` - Scalping Bitcoin veloce (1-15 min)
+• \`/scalping EURUSD\` - Opportunità scalping Euro
+• \`/scalping XAUUSD\` - Segnale scalping Oro
 
-**📈 INTRADAY Commands:**
-• \`/intraday EURUSD\` - Euro day trading (1-8 hours)
-• \`/intraday GBPUSD\` - Pound intraday analysis
-• \`/intraday CRUDE\` - Oil day trading signal
+**📈 Comandi INTRADAY:**
+• \`/intraday EURUSD\` - Day trading Euro (1-8 ore)
+• \`/intraday GBPUSD\` - Analisi intraday Sterlina
+• \`/intraday CRUDE\` - Segnale day trading Petrolio
 
-**🎯 SWING Commands:**
-• \`/swing BTCUSD\` - Bitcoin swing trade (1-7 days)
-• \`/swing XAUUSD\` - Gold swing opportunity
-• \`/swing CRUDE\` - Oil swing analysis
+**🎯 Comandi SWING:**
+• \`/swing BTCUSD\` - Trade swing Bitcoin (1-7 giorni)
+• \`/swing XAUUSD\` - Opportunità swing Oro
+• \`/swing CRUDE\` - Analisi swing Petrolio
 
-**📊 General Analysis:**
-• \`/predict SYMBOL\` - Auto-select optimal strategy
-• \`/predict\` - Analyze BTCUSD (default)
+**📊 Analisi Generale:**
+• \`/predict SIMBOLO\` - Selezione automatica strategia ottimale
+• \`/predict\` - Analizza BTCUSD (predefinito)
 
-**⚡ Execution Commands:**
-• \`/execute BTC-001 0.1\` - Execute with 0.1 lots
-• \`/execute EUR-002 0.05 SCALPING\` - Execute scalping trade
-• \`/execute XAU-003 0.2 SWING\` - Execute swing trade
+**⚡ Comandi Esecuzione:**
+• \`/execute BTC-001 0.1\` - Esegui con 0.1 lotti
+• \`/execute EUR-002 0.05 SCALPING\` - Esegui trade scalping
+• \`/execute XAU-003 0.2 SWING\` - Esegui trade swing
 
-**🖥️ VPS Management:**
-• \`/vps\` - VPS dashboard and management
-• \`/vps_setup\` - Automatic VPS configuration
-• \`/vps_status\` - Check VPS and MT5 status
-• \`/vps_restart\` - Restart trading bot on VPS
-• \`/vps_logs\` - View recent VPS logs
+**🖥️ Gestione VPS:**
+• \`/vps\` - Dashboard e gestione VPS
+• \`/vps_setup\` - Configurazione automatica VPS
+• \`/vps_status\` - Controlla stato VPS e MT5
+• \`/vps_restart\` - Riavvia bot trading su VPS
+• \`/vps_logs\` - Visualizza log VPS recenti
 
-**📊 Information Commands:**
-• \`/status\` - Bot and MT5 connection status
-• \`/performance\` - Trading statistics
-• \`/strategies\` - Detailed strategy guide
-• \`/symbols\` - All supported trading symbols
+**📊 Comandi Informativi:**
+• \`/status\` - Stato connessione bot e MT5
+• \`/performance\` - Statistiche di trading
+• \`/strategies\` - Guida dettagliata strategie
+• \`/symbols\` - Tutti i simboli di trading supportati
 
-**🎯 Strategy Features:**
+**🎯 Caratteristiche Strategie:**
 
 **⚡ SCALPING (1-15 min):**
-• Tight stops for capital protection
-• Quick profit taking
-• High confidence signals only
-• Best during high volume sessions
+• Stop stretti per protezione capitale
+• Presa di profitto veloce
+• Solo segnali ad alta confidenza
+• Ottimale durante sessioni ad alto volume
 
-**📈 INTRADAY (1-8 hours):**
-• Balanced risk/reward ratio
-• Follow trend direction
-• Close before market close
-• Monitor news and events
+**📈 INTRADAY (1-8 ore):**
+• Rapporto rischio/rendimento bilanciato
+• Seguire direzione del trend
+• Chiudere prima della chiusura mercato
+• Monitorare notizie ed eventi
 
-**🎯 SWING (1-7 days):**
-• Wider stops for volatility
-• Larger profit targets
-• Less frequent monitoring
-• Focus on weekly trends
+**🎯 SWING (1-7 giorni):**
+• Stop più ampi per volatilità
+• Target di profitto più grandi
+• Monitoraggio meno frequente
+• Focus su trend settimanali
 
-**💡 Professional Tips:**
-• **Risk Management:** Never risk more than 2% per trade
-• **Strategy Selection:** Choose based on available time and market conditions
-• **Position Sizing:** Use recommended lot sizes for optimal risk
-• **Monitoring:** Scalping requires active monitoring, swing allows passive approach
+**💡 Consigli Professionali:**
+• **Gestione Rischio:** Non rischiare mai più del 2% per trade
+• **Selezione Strategia:** Scegli in base al tempo disponibile e condizioni di mercato
+• **Dimensione Posizione:** Usa le dimensioni lotto consigliate per rischio ottimale
+• **Monitoraggio:** Scalping richiede monitoraggio attivo, swing permette approccio passivo
 
-**⚠️ Risk Warning:**
-This bot uses advanced institutional trading concepts. Always use proper risk management and never trade money you can't afford to lose.
+**⚠️ Avviso di Rischio:**
+Questo bot utilizza concetti di trading istituzionali avanzati. Usa sempre una gestione del rischio appropriata e non fare mai trading con denaro che non puoi permetterti di perdere.
 
-Need more help? Try the specific strategy commands! 💬
+Hai bisogno di più aiuto? Prova i comandi specifici delle strategie! 💬
   `;
   
   await sendMessage(chatId, message);
@@ -474,39 +474,39 @@ async function handleStatusCommand(chatId: number): Promise<void> {
   try {
     // This would check actual system status
     const message = `
-🔧 **Professional Trading System Status**
+🔧 **Stato Sistema Trading Professionale**
 
-🧠 **ML Engine:** ✅ Online (Advanced Models Active)
-🤖 **Gemini AI:** ✅ Connected (Professional Analysis)
-📊 **Smart Money Tracker:** ✅ Active (Institutional Flow)
-📈 **Order Flow Analyzer:** ✅ Streaming (Real-time)
-📰 **News Sentiment:** ✅ Active (Multi-source)
-⚡ **MT5 Bridge:** ✅ Connected (Professional Execution)
-🖥️ **VPS Manager:** ✅ Active (24/7 Monitoring)
+🧠 **Motore ML:** ✅ Online (Modelli Avanzati Attivi)
+🤖 **Gemini AI:** ✅ Connesso (Analisi Professionale)
+📊 **Smart Money Tracker:** ✅ Attivo (Flusso Istituzionale)
+📈 **Analizzatore Order Flow:** ✅ Streaming (Tempo Reale)
+📰 **Sentiment Notizie:** ✅ Attivo (Multi-sorgente)
+⚡ **Bridge MT5:** ✅ Connesso (Esecuzione Professionale)
+🖥️ **Gestore VPS:** ✅ Attivo (Monitoraggio 24/7)
 
-💰 **Account Info:**
-• Balance: $10,000.00
-• Free Margin: $9,500.00
-• Open Positions: 0
-• Risk Level: Conservative
+💰 **Info Account:**
+• Saldo: $10.000,00
+• Margine Libero: $9.500,00
+• Posizioni Aperte: 0
+• Livello Rischio: Conservativo
 
-🎯 **Strategy Capabilities:**
-• ⚡ Scalping: ✅ Active (1-15 min trades)
-• 📈 Intraday: ✅ Active (1-8 hour trades)
-• 🎯 Swing: ✅ Active (1-7 day trades)
-• 📊 Auto-Strategy: ✅ Active (Optimal selection)
+🎯 **Capacità Strategie:**
+• ⚡ Scalping: ✅ Attivo (trade 1-15 min)
+• 📈 Intraday: ✅ Attivo (trade 1-8 ore)
+• 🎯 Swing: ✅ Attivo (trade 1-7 giorni)
+• 📊 Auto-Strategia: ✅ Attivo (Selezione ottimale)
 
-🕐 **Last Update:** ${new Date().toLocaleString()}
+🕐 **Ultimo Aggiornamento:** ${new Date().toLocaleString()}
 
-All professional trading systems operational! 🚀
+Tutti i sistemi di trading professionali operativi! 🚀
 
-Use \`/vps\` to manage your VPS and MT5 connection.
+Usa \`/vps\` per gestire la tua connessione VPS e MT5.
     `;
     
     await sendMessage(chatId, message);
   } catch (error) {
     console.error("Status check error:", error);
-    await sendMessage(chatId, "❌ Error checking system status. Please try again.");
+    await sendMessage(chatId, "❌ Errore nel controllo dello stato del sistema. Riprova.");
   }
 }
 
@@ -518,86 +518,86 @@ async function handlePerformanceCommand(chatId: number): Promise<void> {
     const profitFactorEmoji = performance.profitFactor >= 2 ? "🔥" : performance.profitFactor >= 1 ? "⚡" : "⚠️";
     
     const message = `
-📊 **Professional Trading Performance**
+📊 **Performance Trading Professionale**
 
-${winRateEmoji} **Win Rate:** ${performance.winRate.toFixed(1)}%
-${profitFactorEmoji} **Profit Factor:** ${performance.profitFactor.toFixed(2)}
-📈 **Total Signals:** ${performance.totalTrades}
-💰 **Avg Profit:** $${performance.avgProfit.toFixed(2)}
-📉 **Avg Loss:** $${performance.avgLoss.toFixed(2)}
-🎯 **Best Trade:** $${performance.bestTrade.toFixed(2)}
-📊 **Avg Confidence:** ${performance.avgConfidence.toFixed(0)}%
+${winRateEmoji} **Tasso Vincita:** ${performance.winRate.toFixed(1)}%
+${profitFactorEmoji} **Fattore Profitto:** ${performance.profitFactor.toFixed(2)}
+📈 **Totale Segnali:** ${performance.totalTrades}
+💰 **Profitto Medio:** $${performance.avgProfit.toFixed(2)}
+📉 **Perdita Media:** $${performance.avgLoss.toFixed(2)}
+🎯 **Miglior Trade:** $${performance.bestTrade.toFixed(2)}
+📊 **Confidenza Media:** ${performance.avgConfidence.toFixed(0)}%
 
-**🧠 ML Model Performance:**
+**🧠 Performance Modello ML:**
 ${getMLPerformanceRating(performance.winRate, performance.profitFactor)}
 
-**📈 Strategy Performance:**
-• ⚡ Scalping: High frequency, tight risk management
-• 📈 Intraday: Balanced approach, good for beginners
-• 🎯 Swing: Larger moves, less monitoring required
+**📈 Performance Strategie:**
+• ⚡ Scalping: Alta frequenza, gestione rischio stretta
+• 📈 Intraday: Approccio bilanciato, buono per principianti
+• 🎯 Swing: Movimenti più ampi, monitoraggio ridotto richiesto
 
-**🎯 Professional Metrics:**
-• Risk/Reward Ratio: 1:${performance.profitFactor.toFixed(1)}
+**🎯 Metriche Professionali:**
+• Rapporto Rischio/Rendimento: 1:${performance.profitFactor.toFixed(1)}
 • Sharpe Ratio: ${calculateSharpeRatio(performance)}
-• Maximum Drawdown: ${calculateMaxDrawdown(performance)}%
-• Recovery Factor: ${calculateRecoveryFactor(performance)}
+• Drawdown Massimo: ${calculateMaxDrawdown(performance)}%
+• Fattore Recupero: ${calculateRecoveryFactor(performance)}
 
-**🚀 Strategy Recommendations:**
-• Use **SCALPING** for quick profits during high volume
-• Use **INTRADAY** for balanced daily trading
-• Use **SWING** for larger moves with less monitoring
+**🚀 Raccomandazioni Strategie:**
+• Usa **SCALPING** per profitti veloci durante alto volume
+• Usa **INTRADAY** per trading giornaliero bilanciato
+• Usa **SWING** per movimenti più ampi con meno monitoraggio
 
-Keep following the smart money! 🚀
+Continua a seguire lo smart money! 🚀
     `;
     
     await sendMessage(chatId, message);
   } catch (error) {
     console.error("Performance error:", error);
-    await sendMessage(chatId, "❌ Error retrieving performance data. Please try again.");
+    await sendMessage(chatId, "❌ Errore nel recupero dei dati di performance. Riprova.");
   }
 }
 
 async function handleSymbolsCommand(chatId: number): Promise<void> {
   const message = `
-📊 **Supported Trading Symbols with Multi-Strategy Analysis**
+📊 **Simboli di Trading Supportati con Analisi Multi-Strategia**
 
-**💰 Cryptocurrencies:**
-• **BTCUSD** - Bitcoin (All strategies: ⚡📈🎯)
-• **ETHUSD** - Ethereum (All strategies: ⚡📈🎯)
+**💰 Criptovalute:**
+• **BTCUSD** - Bitcoin (Tutte le strategie: ⚡📈🎯)
+• **ETHUSD** - Ethereum (Tutte le strategie: ⚡📈🎯)
 
-**💱 Major Forex Pairs:**
-• **EURUSD** - Euro/Dollar (Best for: ⚡📈)
-• **GBPUSD** - Pound/Dollar (Best for: ⚡📈🎯)
-• **USDJPY** - Dollar/Yen (Best for: ⚡📈)
-• **AUDUSD** - Australian Dollar (Best for: 📈🎯)
-• **USDCAD** - Dollar/Canadian (Best for: 📈🎯)
-• **USDCHF** - Dollar/Swiss Franc (Best for: 📈🎯)
+**💱 Coppie Forex Principali:**
+• **EURUSD** - Euro/Dollaro (Ottimale per: ⚡📈)
+• **GBPUSD** - Sterlina/Dollaro (Ottimale per: ⚡📈🎯)
+• **USDJPY** - Dollaro/Yen (Ottimale per: ⚡📈)
+• **AUDUSD** - Dollaro Australiano (Ottimale per: 📈🎯)
+• **USDCAD** - Dollaro/Canadese (Ottimale per: 📈🎯)
+• **USDCHF** - Dollaro/Franco Svizzero (Ottimale per: 📈🎯)
 
-**🥇 Precious Metals:**
-• **XAUUSD** - Gold (Best for: 📈🎯)
+**🥇 Metalli Preziosi:**
+• **XAUUSD** - Oro (Ottimale per: 📈🎯)
 
 **🛢️ Commodities:**
-• **CRUDE** - WTI Oil (Best for: 📈🎯)
-• **BRENT** - Brent Oil (Best for: 📈🎯)
+• **CRUDE** - Petrolio WTI (Ottimale per: 📈🎯)
+• **BRENT** - Petrolio Brent (Ottimale per: 📈🎯)
 
-**🎯 Strategy Symbols:**
-⚡ = Excellent for SCALPING (1-15 min)
-📈 = Excellent for INTRADAY (1-8 hours)  
-🎯 = Excellent for SWING (1-7 days)
+**🎯 Simboli Strategie:**
+⚡ = Eccellente per SCALPING (1-15 min)
+📈 = Eccellente per INTRADAY (1-8 ore)  
+🎯 = Eccellente per SWING (1-7 giorni)
 
-**Usage Examples:**
-• \`/scalping BTCUSD\` - Bitcoin scalping
-• \`/intraday EURUSD\` - Euro day trading
-• \`/swing XAUUSD\` - Gold swing trading
-• \`/predict GBPUSD\` - Auto-select best strategy
+**Esempi di Utilizzo:**
+• \`/scalping BTCUSD\` - Scalping Bitcoin
+• \`/intraday EURUSD\` - Day trading Euro
+• \`/swing XAUUSD\` - Swing trading Oro
+• \`/predict GBPUSD\` - Selezione automatica strategia migliore
 
-**💡 Strategy Selection Tips:**
-• **Crypto (BTC/ETH):** Great for all strategies due to 24/7 trading
-• **Major Forex:** Best for scalping and intraday during market hours
-• **Gold/Oil:** Excellent for swing trading due to larger moves
-• **Minor Pairs:** Better for intraday and swing strategies
+**💡 Consigli Selezione Strategia:**
+• **Crypto (BTC/ETH):** Ottime per tutte le strategie grazie al trading 24/7
+• **Forex Principali:** Migliori per scalping e intraday durante ore di mercato
+• **Oro/Petrolio:** Eccellenti per swing trading grazie a movimenti più ampi
+• **Coppie Minori:** Migliori per strategie intraday e swing
 
-More symbols and advanced features coming soon! 🚀
+Altri simboli e funzionalità avanzate in arrivo presto! 🚀
   `;
   
   await sendMessage(chatId, message);
@@ -613,13 +613,13 @@ function getSentimentEmoji(score: number): string {
 
 function getMLPerformanceRating(winRate: number, profitFactor: number): string {
   if (winRate >= 75 && profitFactor >= 2.5) {
-    return "🔥 **Exceptional** - Institutional-grade performance!";
+    return "🔥 **Eccezionale** - Performance di livello istituzionale!";
   } else if (winRate >= 65 && profitFactor >= 2) {
-    return "⚡ **Professional** - High-quality ML predictions!";
+    return "⚡ **Professionale** - Previsioni ML di alta qualità!";
   } else if (winRate >= 55 && profitFactor >= 1.5) {
-    return "📊 **Good** - Solid machine learning results!";
+    return "📊 **Buono** - Risultati machine learning solidi!";
   } else {
-    return "⚠️ **Learning** - ML models adapting to market conditions.";
+    return "⚠️ **Apprendimento** - Modelli ML che si adattano alle condizioni di mercato.";
   }
 }
 
