@@ -362,7 +362,19 @@ function validateModels(historicalData: any[], symbol: string): any {
       winRate: 58 + Math.random() * 17, // 58-75% win rate
       avgReturn: 0.015 + Math.random() * 0.02, // 1.5-3.5% avg return
       sharpeRatio: 1.2 + Math.random() * 0.8, // 1.2-2.0 Sharpe ratio
-      maxDrawdown: 0.08 + Math.random() * 0.12 // 8-20% max drawdown
+  // TODO: Replace these static placeholder metrics with real backtesting results using historicalData.
+  // These values are fixed for deterministic validation and should not be used in production.
+  return {
+    accuracy: 75, // placeholder: 75% accuracy
+    precision: 0.72, // placeholder: 72% precision
+    recall: 0.70, // placeholder: 70% recall
+    f1Score: 0.71, // placeholder: 71% F1 score
+    backtestResults: {
+      totalTrades: 500, // placeholder: 500 trades
+      winRate: 65, // placeholder: 65% win rate
+      avgReturn: 0.025, // placeholder: 2.5% avg return
+      sharpeRatio: 1.6, // placeholder: 1.6 Sharpe ratio
+      maxDrawdown: 0.12 // placeholder: 12% max drawdown
     }
   };
 }
