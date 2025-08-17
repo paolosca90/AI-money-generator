@@ -290,7 +290,11 @@ export const extendClientSubscription = api(
             updated_at = NOW()
         WHERE id = $1
         RETURNING telegram_user_id, subscription_end_date
-      `, [clientId]);
+        SET subscription_end_date = COALESCE(subscription_end_date, NOW()) + make_interval(days := $2),
+            updated_at = NOW()
+        WHERE id = $1
+        RETURNING telegram_user_id, subscription_end_date
+      `, [clientId, days]);
 
       if (result.rows.length === 0) {
         return { success: false, message: 'Client not found' };
