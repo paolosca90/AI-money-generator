@@ -34,6 +34,15 @@ export function analyzeVWAP(marketData: TimeframeData, symbol: string): VWAPAnal
   // Simulate 1h and 4h VWAP (in real implementation would use actual data)
   const vwap1h = vwap30m * (1 + (Math.random() - 0.5) * 0.002);
   const vwap4h = vwap30m * (1 + (Math.random() - 0.5) * 0.005);
+  const data1h = marketData["1h"];
+  const data4h = marketData["4h"];
+  
+  // Calculate multi-timeframe VWAP
+  const vwap5m = calculateVWAP([data5m]);
+  const vwap15m = calculateVWAP([data5m, data15m]);
+  const vwap30m = calculateVWAP([data5m, data15m, data30m]);
+  const vwap1h = data1h ? calculateVWAP([data1h]) : NaN;
+  const vwap4h = data4h ? calculateVWAP([data4h]) : NaN;
   
   const currentPrice = data5m.close;
   const mainVWAP = vwap15m; // Use 15m as main VWAP
