@@ -1,11 +1,14 @@
 import { secret } from "encore.dev/config";
 import { TimeframeData } from "./market-data";
+import { calculateAllIndicators, TechnicalIndicators } from "./enhanced-technical-analysis.js";
+import { calculateEnhancedConfidence, ConfidenceResult } from "./enhanced-confidence-system.js";
 
 const geminiApiKey = secret("GeminiApiKey");
 
 export interface AIAnalysis {
   direction: "LONG" | "SHORT";
   confidence: number;
+  confidenceResult?: ConfidenceResult; // Enhanced confidence breakdown
   support: number;
   resistance: number;
   sentiment: {
@@ -34,11 +37,7 @@ export interface AIAnalysis {
     riskReward: number;
     timeframe: string;
   };
-  technical: {
-    rsi: number;
-    macd: number;
-    atr: number;
-  };
+  technical: TechnicalIndicators; // Enhanced technical indicators
 }
 
 // Cache for Gemini responses to reduce API calls
@@ -50,6 +49,14 @@ export async function analyzeWithAI(marketData: TimeframeData, symbol: string): 
   const data5m = marketData["5m"];
   const data15m = marketData["15m"];
   const data30m = marketData["30m"];
+
+  // Calculate enhanced technical indicators
+  const highs = [data5m.high, data15m.high, data30m.high];
+  const lows = [data5m.low, data15m.low, data30m.low];
+  const closes = [data5m.close, data15m.close, data30m.close];
+  const volumes = [data5m.volume, data15m.volume, data30m.volume];
+  
+  const technicalIndicators = calculateAllIndicators(highs, lows, closes, volumes);
 
   // Advanced price action analysis with enhanced calculations
   const priceActionAnalysis = analyzePriceActionEnhanced(data5m, data15m, data30m, symbol);
@@ -74,7 +81,7 @@ export async function analyzeWithAI(marketData: TimeframeData, symbol: string): 
   // Calculate enhanced support and resistance using multiple methods
   const enhancedLevels = calculateEnhancedSupportResistance(data5m, data15m, data30m, symbol);
   
-  // Combine all analyses for final decision
+  // Determine direction using existing analysis
   const finalDirection = determineDirection(
     priceActionAnalysis,
     smartMoneyAnalysis,
@@ -82,12 +89,14 @@ export async function analyzeWithAI(marketData: TimeframeData, symbol: string): 
     geminiAnalysis
   );
 
-  const finalConfidence = calculateConfidence(
-    priceActionAnalysis,
-    smartMoneyAnalysis,
-    volumeAnalysis,
-    professionalAnalysis,
-    geminiAnalysis
+  // Use enhanced confidence calculation system
+  const confidenceResult = calculateEnhancedConfidence(
+    technicalIndicators,
+    symbol,
+    finalDirection,
+    data5m.close,
+    data5m.volume,
+    75 // Historical accuracy baseline
   );
 
   // Simulate sentiment analysis (in real implementation, this would use news APIs)
@@ -99,16 +108,10 @@ export async function analyzeWithAI(marketData: TimeframeData, symbol: string): 
     daily: data30m.indicators.atr / data30m.close,
   };
 
-  // Extract technical indicators for frontend compatibility
-  const technical = {
-    rsi: data5m.indicators.rsi,
-    macd: data5m.indicators.macd,
-    atr: data5m.indicators.atr,
-  };
-
   return {
     direction: finalDirection,
-    confidence: finalConfidence,
+    confidence: confidenceResult.overall,
+    confidenceResult,
     support: enhancedLevels.support,
     resistance: enhancedLevels.resistance,
     sentiment,
@@ -116,7 +119,7 @@ export async function analyzeWithAI(marketData: TimeframeData, symbol: string): 
     smartMoney: smartMoneyAnalysis,
     priceAction: priceActionAnalysis,
     professionalAnalysis,
-    technical,
+    technical: technicalIndicators,
   };
 }
 

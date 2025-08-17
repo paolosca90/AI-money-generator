@@ -24,7 +24,7 @@ export const TRADING_STRATEGIES: Record<TradingStrategy, StrategyConfig> = {
     stopLossMultiplier: 0.8, // Tight stop loss
     takeProfitMultiplier: 1.2, // Quick profit taking
     maxHoldingTime: 0.25, // 15 minutes max
-    minConfidence: 85, // High confidence required
+    minConfidence: 90, // Enhanced threshold - A+ grade required
     maxLotSize: 0.5, // Moderate position size
     volatilityThreshold: 0.002, // Low volatility preferred
     trendStrengthRequired: 0.7, // Strong trend required
@@ -39,7 +39,7 @@ export const TRADING_STRATEGIES: Record<TradingStrategy, StrategyConfig> = {
     stopLossMultiplier: 1.0, // Standard stop loss
     takeProfitMultiplier: 2.0, // Standard profit taking
     maxHoldingTime: 8, // 8 hours max
-    minConfidence: 75, // Medium-high confidence
+    minConfidence: 80, // Enhanced threshold - B+ grade minimum
     maxLotSize: 1.0, // Standard position size
     volatilityThreshold: 0.005, // Medium volatility
     trendStrengthRequired: 0.5, // Moderate trend required
@@ -54,7 +54,7 @@ export const TRADING_STRATEGIES: Record<TradingStrategy, StrategyConfig> = {
     stopLossMultiplier: 1.5, // Wider stop loss
     takeProfitMultiplier: 4.5, // Larger profit targets
     maxHoldingTime: 168, // 7 days max
-    minConfidence: 70, // Lower confidence acceptable
+    minConfidence: 75, // Enhanced threshold - B grade minimum
     maxLotSize: 2.0, // Larger position size
     volatilityThreshold: 0.01, // Higher volatility acceptable
     trendStrengthRequired: 0.3, // Trend not strictly required
