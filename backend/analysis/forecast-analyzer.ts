@@ -124,7 +124,7 @@ function generateSingleForecast(currentPrice: number, volatility: number, timefr
   const diffusion = volatility * Math.sqrt(scaleFactor);
   
   // Generate random walk component
-  const randomComponent = (Math.random() - 0.5) * 2; // -1 to 1
+  const randomComponent = (secureRandom() - 0.5) * 2; // -1 to 1
   const normalizedRandom = randomComponent * 0.7; // Reduce extreme movements
   
   // Calculate forecasted price
