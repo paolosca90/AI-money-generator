@@ -39,11 +39,22 @@ export const tradingConfig = {
   // Dimensioni lotto predefinite
   defaultLotSizes: [0.01, 0.05, 0.1, 0.2, 0.5, 1.0],
   
-  // Soglia minima di confidenza per i segnali
-  minConfidenceThreshold: 60,
+  // Soglia minima di confidenza per i segnali (enhanced system)
+  minConfidenceThreshold: 75, // Increased from 60 to filter higher quality signals
   
   // Soglia massima di confidenza per i segnali  
   maxConfidenceThreshold: 95,
+
+  // Enhanced confidence grading thresholds
+  confidenceGrades: {
+    "A+": 90,  // Excellent signals
+    "A": 85,   // Very good signals
+    "B+": 80,  // Good signals
+    "B": 75,   // Acceptable signals
+    "C": 60,   // Marginal signals
+    "D": 45,   // Poor signals
+    "F": 0     // Failed signals
+  },
 };
 
 // Configurazione UI
