@@ -543,7 +543,7 @@ export default function TradingSignals() {
                     <div className="font-medium">
                       <Badge className={safeGet(currentSignal, 'analysis.vwap.analysis.trend') === 'BULLISH' ? 'bg-green-100 text-green-800' : 
                                        safeGet(currentSignal, 'analysis.vwap.analysis.trend') === 'BEARISH' ? 'bg-red-100 text-red-800' : 
-                                       'bg-gray-100 text-gray-800'}>
+                      <Badge className={getTrendBadgeClassName(safeGet(currentSignal, 'analysis.vwap.analysis.trend'))}>
                         {safeGet(currentSignal, 'analysis.vwap.analysis.trend')}
                       </Badge>
                     </div>
