@@ -68,11 +68,22 @@ Benvenuto nel tuo AI Trading Bot! Questo sistema utilizza intelligenza artificia
 
 ### **Come Leggere il Segnale**
 
-#### **🎯 Confidence Level**
-- **90-95%**: Segnale molto forte ⭐⭐⭐
-- **80-89%**: Segnale forte ⭐⭐
-- **70-79%**: Segnale medio ⭐
-- **60-69%**: Segnale debole ⚠️
+#### **🎯 Confidence Level (Enhanced System)**
+- **90-95%**: Segnale eccellente ⭐⭐⭐⭐ (Grade A+)
+- **85-89%**: Segnale molto forte ⭐⭐⭐ (Grade A)
+- **80-84%**: Segnale forte ⭐⭐⭐ (Grade B+)
+- **75-79%**: Segnale buono ⭐⭐ (Grade B)
+- **60-74%**: Segnale medio ⭐ (Grade C)
+- **45-59%**: Segnale debole ⚠️ (Grade D)
+- **<45%**: Segnale scartato ❌ (Grade F)
+
+#### **🔍 Enhanced Quality Factors**
+- **Multi-Timeframe Confluence**: Analisi su 5m, 15m, 30m
+- **Market Session Awareness**: Bonus durante sovrapposizioni di sessioni
+- **Volatility Filter**: Adeguamento basato su volatilità del simbolo
+- **Technical Alignment**: RSI, MACD, Bollinger Bands su più timeframe
+- **Historical Performance**: Integrazione storico performance
+- **Risk Adjustment**: Scoring basato su condizioni di rischio
 
 #### **📊 Indicatori Tecnici**
 - **RSI < 30**: Ipervenduto (possibile rimbalzo)
@@ -178,24 +189,26 @@ Benvenuto nel tuo AI Trading Bot! Questo sistema utilizza intelligenza artificia
 
 ## 🎯 Strategie di Trading
 
-### **Strategia Conservativa**
-- **Confidence minima**: 80%
+### **Strategia Conservativa (Enhanced)**
+- **Confidence minima**: 85% (Grade A+/A)
 - **Lot size**: 0.01-0.05
 - **Simboli**: Major pairs (EUR/USD, GBP/USD)
 - **Obiettivo**: 5-10% mensile
+- **Filtri**: Solo segnali con multi-timeframe confluence >70%
 
-### **Strategia Bilanciata**
-- **Confidence minima**: 75%
+### **Strategia Bilanciata (Enhanced)**
+- **Confidence minima**: 80% (Grade B+)
 - **Lot size**: 0.05-0.1
 - **Simboli**: Major + Minor pairs
 - **Obiettivo**: 10-20% mensile
+- **Filtri**: Sessioni di trading attive, volatilità normale
 
-### **Strategia Aggressiva**
-- **Confidence minima**: 70%
+### **Strategia Aggressiva (Enhanced)**
+- **Confidence minima**: 75% (Grade B)
 - **Lot size**: 0.1-0.5
 - **Simboli**: Tutti i simboli disponibili
 - **Obiettivo**: 20-50% mensile
-- **⚠️ Rischio**: Alto
+- **⚠️ Rischio**: Alto ma con filtri di qualità migliorati
 
 ## 🚨 Gestione Errori Comuni
 

@@ -221,7 +221,7 @@ function analyzePriceActionEnhanced(data5m: any, data15m: any, data30m: any, sym
   
   // Enhanced market structure analysis
   const structureBreak = analyzeStructureBreakEnhanced(prices, symbol);
-  const structure = structureBreak > 0.3 ? "BULLISH" : structureBreak < -0.3 ? "BEARISH" : "NEUTRAL";
+  const structure: "BULLISH" | "BEARISH" | "NEUTRAL" = structureBreak > 0.3 ? "BULLISH" : structureBreak < -0.3 ? "BEARISH" : "NEUTRAL";
   
   // Calculate enhanced key levels using multiple methods
   const keyLevels = calculateEnhancedSwingLevels(prices, symbol);
@@ -493,7 +493,7 @@ function analyzeOrderFlowEnhanced(volumes: number[], prices: number[], symbol: s
 
 function identifyLiquidityZonesEnhanced(data5m: any, data15m: any, data30m: any, symbol: string): number[] {
   const currentPrice = data5m.close;
-  const levels = [];
+  const levels: Array<{price: number, weight: number}> = [];
   
   // Previous highs and lows with enhanced weighting
   levels.push(
@@ -642,7 +642,7 @@ async function analyzeProfessionalTraders(symbol: string, marketData: TimeframeD
 }
 
 function getTopTradersForAsset(symbol: string): string[] {
-  const traderDatabase = {
+  const traderDatabase: Record<string, string[]> = {
     "BTCUSD": [
       "Plan B (S2F Model Creator)",
       "Willy Woo (On-chain Analyst)", 
@@ -740,7 +740,7 @@ function calculateProfessionalRiskReward(marketData: TimeframeData): number {
 }
 
 function determineOptimalTimeframe(symbol: string): string {
-  const timeframeMap = {
+  const timeframeMap: Record<string, string> = {
     "BTCUSD": "15m-1h", // Crypto moves fast
     "ETHUSD": "15m-1h",
     "EURUSD": "5m-15m", // Forex scalping
@@ -810,14 +810,14 @@ async function analyzeWithGeminiCached(
         return enhancedFallbackAnalysis(marketData, additionalData);
       }
 
-      const data = await response.json();
+      const data = await response.json() as any;
       
-      if (data.error) {
+      if (data && data.error) {
         console.error("Gemini API response error:", data.error);
         return enhancedFallbackAnalysis(marketData, additionalData);
       }
       
-      const text = data.candidates?.[0]?.content?.parts?.[0]?.text;
+      const text = data && data.candidates?.[0]?.content?.parts?.[0]?.text;
       
       if (!text) {
         console.log("No text response from Gemini, using enhanced fallback");
