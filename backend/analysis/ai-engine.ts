@@ -1,5 +1,7 @@
 import { secret } from "encore.dev/config";
 import { TimeframeData } from "./market-data";
+import { analyzeSentiment } from "./sentiment-analyzer";
+import { analyzeVWAP, generateVWAPSignals } from "./vwap-analyzer";
 import { 
   calculateEnhancedIndicators, 
   analyzeMultiTimeframeConfluence, 
@@ -59,6 +61,11 @@ export interface AIAnalysis {
     multiTimeframeAnalysis: MultiTimeframeAnalysis;
     marketContext: MarketConditionContext;
   };
+  // Enhanced analysis components
+  vwap: {
+    analysis: any;
+    signals: any;
+  };
 }
 
 // Cache for Gemini responses to reduce API calls
@@ -110,12 +117,20 @@ export async function analyzeWithAI(marketData: TimeframeData, symbol: string): 
   // Professional trader consensus
   const professionalAnalysis = await analyzeProfessionalTraders(symbol, marketData);
 
+  // Enhanced VWAP analysis
+  const vwapAnalysis = analyzeVWAP(marketData, symbol);
+  const vwapSignals = generateVWAPSignals(vwapAnalysis);
+
+  // Enhanced sentiment analysis using real news
+  const sentimentAnalysis = await analyzeSentiment(symbol);
+
   // Use Gemini AI for enhanced analysis with better error handling and caching
   const geminiAnalysis = await analyzeWithGeminiCached(marketData, symbol, {
     priceAction: priceActionAnalysis,
     smartMoney: smartMoneyAnalysis,
     volume: volumeAnalysis,
-    professional: professionalAnalysis
+    professional: professionalAnalysis,
+    vwap: vwapAnalysis
   });
 
   // Calculate enhanced support and resistance using multiple methods
@@ -167,9 +182,6 @@ export async function analyzeWithAI(marketData: TimeframeData, symbol: string): 
   }
 
   // ========== SENTIMENT AND VOLATILITY ==========
-  // Simulate sentiment analysis (in real implementation, this would use news APIs)
-  const sentiment = await simulateSentimentAnalysis();
-
   // Calculate volatility
   const volatility = {
     hourly: data5m.indicators.atr / data5m.close,
@@ -191,7 +203,10 @@ export async function analyzeWithAI(marketData: TimeframeData, symbol: string): 
     enhancedConfidence, // Include full enhanced confidence result
     support: enhancedLevels.support,
     resistance: enhancedLevels.resistance,
-    sentiment,
+    sentiment: {
+      score: sentimentAnalysis.score,
+      sources: sentimentAnalysis.sources,
+    },
     volatility,
     smartMoney: smartMoneyAnalysis,
     priceAction: priceActionAnalysis,
@@ -203,6 +218,11 @@ export async function analyzeWithAI(marketData: TimeframeData, symbol: string): 
       indicators30m,
       multiTimeframeAnalysis,
       marketContext,
+    },
+    // Enhanced analysis components
+    vwap: {
+      analysis: vwapAnalysis,
+      signals: vwapSignals
     },
   };
 }
