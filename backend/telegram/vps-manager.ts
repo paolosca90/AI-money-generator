@@ -67,11 +67,11 @@ export const storeVPSConfig = api<{
 
       return {
         success: true,
-        message: "VPS configuration started. You will receive updates via Telegram."
+        message: "Configurazione VPS avviata. Riceverai aggiornamenti via Telegram."
       };
     } catch (error) {
       console.error("Error storing VPS config:", error);
-      throw APIError.internal("Failed to store VPS configuration");
+      throw APIError.internal("Impossibile salvare la configurazione VPS");
     }
   }
 );
@@ -104,7 +104,7 @@ async function configureVPSAsync(userId: number): Promise<void> {
     `;
 
     if (!config) {
-      throw new Error("VPS configuration not found");
+      throw new Error("Configurazione VPS non trovata");
     }
 
     // Step 1: Test VPS connection
@@ -127,7 +127,7 @@ async function configureVPSAsync(userId: number): Promise<void> {
     `;
 
     // Send success notification
-    await sendVPSNotification(userId, "✅ VPS configured successfully! Your trading bot is now active.");
+    await sendVPSNotification(userId, "✅ VPS configurato con successo! Il tuo bot di trading è ora attivo.");
 
   } catch (error) {
     console.error("VPS configuration error:", error);
@@ -140,7 +140,7 @@ async function configureVPSAsync(userId: number): Promise<void> {
     `;
 
     // Send error notification
-    await sendVPSNotification(userId, `❌ VPS configuration failed: ${error.message}`);
+    await sendVPSNotification(userId, `❌ Configurazione VPS fallita: ${error.message}`);
   }
 }
 
@@ -158,18 +158,18 @@ async function testVPSConnection(config: VPSConfig): Promise<void> {
     });
 
     if (!response.ok) {
-      throw new Error("Failed to connect to VPS");
+      throw new Error("Impossibile connettersi al VPS");
     }
 
-    await sendVPSNotification(config.userId, "🔗 VPS connection established successfully");
+    await sendVPSNotification(config.userId, "🔗 Connessione VPS stabilita con successo");
   } catch (error) {
-    throw new Error(`VPS connection failed: ${error.message}`);
+    throw new Error(`Connessione VPS fallita: ${error.message}`);
   }
 }
 
 async function installSoftwareOnVPS(config: VPSConfig): Promise<void> {
   try {
-    await sendVPSNotification(config.userId, "📦 Installing required software on VPS...");
+    await sendVPSNotification(config.userId, "📦 Installazione software richiesto su VPS...");
 
     // Install Python, MetaTrader 5, and dependencies
     const response = await fetch(`http://vps-manager-service:3000/install-software`, {
@@ -183,18 +183,18 @@ async function installSoftwareOnVPS(config: VPSConfig): Promise<void> {
     });
 
     if (!response.ok) {
-      throw new Error("Failed to install software on VPS");
+      throw new Error("Impossibile installare software su VPS");
     }
 
-    await sendVPSNotification(config.userId, "✅ Software installation completed");
+    await sendVPSNotification(config.userId, "✅ Installazione software completata");
   } catch (error) {
-    throw new Error(`Software installation failed: ${error.message}`);
+    throw new Error(`Installazione software fallita: ${error.message}`);
   }
 }
 
 async function configureMT5OnVPS(config: VPSConfig): Promise<void> {
   try {
-    await sendVPSNotification(config.userId, "🔧 Configuring MetaTrader 5...");
+    await sendVPSNotification(config.userId, "🔧 Configurazione MetaTrader 5...");
 
     // Configure MT5 with user's account details
     const response = await fetch(`http://vps-manager-service:3000/configure-mt5`, {
@@ -211,18 +211,18 @@ async function configureMT5OnVPS(config: VPSConfig): Promise<void> {
     });
 
     if (!response.ok) {
-      throw new Error("Failed to configure MT5");
+      throw new Error("Impossibile configurare MT5");
     }
 
-    await sendVPSNotification(config.userId, "✅ MetaTrader 5 configured successfully");
+    await sendVPSNotification(config.userId, "✅ MetaTrader 5 configurato con successo");
   } catch (error) {
-    throw new Error(`MT5 configuration failed: ${error.message}`);
+    throw new Error(`Configurazione MT5 fallita: ${error.message}`);
   }
 }
 
 async function startTradingBotOnVPS(config: VPSConfig): Promise<void> {
   try {
-    await sendVPSNotification(config.userId, "🚀 Starting trading bot...");
+    await sendVPSNotification(config.userId, "🚀 Avvio trading bot...");
 
     // Deploy and start the trading bot on VPS
     const response = await fetch(`http://vps-manager-service:3000/start-bot`, {
@@ -237,12 +237,12 @@ async function startTradingBotOnVPS(config: VPSConfig): Promise<void> {
     });
 
     if (!response.ok) {
-      throw new Error("Failed to start trading bot");
+      throw new Error("Impossibile avviare il trading bot");
     }
 
-    await sendVPSNotification(config.userId, "🎉 Trading bot is now running on your VPS!");
+    await sendVPSNotification(config.userId, "🎉 Il trading bot è ora in esecuzione sul tuo VPS!");
   } catch (error) {
-    throw new Error(`Bot startup failed: ${error.message}`);
+    throw new Error(`Avvio bot fallito: ${error.message}`);
   }
 }
 
@@ -289,57 +289,57 @@ async function handleVPSMainMenu(chatId: number, userId: number): Promise<void> 
 
   if (!config) {
     const message = `
-🖥️ **VPS Management**
+🖥️ **Gestione VPS**
 
-You haven't configured a VPS yet. To get started:
+Non hai ancora configurato un VPS. Per iniziare:
 
-1️⃣ Purchase a Windows VPS from a provider
-2️⃣ Use \`/vps_setup\` to configure your VPS
-3️⃣ I'll automatically install and configure everything!
+1️⃣ Acquista un VPS Windows da un provider
+2️⃣ Usa \`/vps_setup\` per configurare il tuo VPS
+3️⃣ Installerò e configurerò tutto automaticamente!
 
-**Recommended VPS Providers:**
-• Contabo (€12/month)
-• Vultr ($24/month)
-• DigitalOcean ($48/month)
+**Provider VPS Consigliati:**
+• Contabo (€12/mese)
+• Vultr ($24/mese)
+• DigitalOcean ($48/mese)
 
-**Requirements:**
+**Requisiti:**
 • Windows Server 2019/2022
-• 4GB RAM minimum
+• 4GB RAM minimo
 • 50GB storage
-• RDP access enabled
+• Accesso RDP abilitato
     `;
 
     const keyboard = createInlineKeyboard([
-      [{ text: "🔧 Setup VPS", callback_data: "vps_setup" }],
-      [{ text: "📚 VPS Guide", callback_data: "vps_guide" }],
+      [{ text: "🔧 Configura VPS", callback_data: "vps_setup" }],
+      [{ text: "📚 Guida VPS", callback_data: "vps_guide" }],
     ]);
 
     await sendMessage(chatId, message, { replyMarkup: keyboard });
   } else {
     const statusEmoji = getStatusEmoji(config.status);
     const message = `
-🖥️ **VPS Management**
+🖥️ **Gestione VPS**
 
-**Status:** ${statusEmoji} ${config.status.toUpperCase()}
+**Stato:** ${statusEmoji} ${config.status.toUpperCase()}
 **Host:** ${config.vpsHost}
-**MT5 Server:** ${config.mt5Server}
-**Last Update:** ${new Date(config.updatedAt).toLocaleString()}
+**Server MT5:** ${config.mt5Server}
+**Ultimo Aggiornamento:** ${new Date(config.updatedAt).toLocaleString()}
 
-**Available Commands:**
-• \`/vps_status\` - Check detailed status
-• \`/vps_restart\` - Restart trading bot
-• \`/vps_logs\` - View recent logs
-• \`/vps_update\` - Update configuration
+**Comandi Disponibili:**
+• \`/vps_status\` - Controlla stato dettagliato
+• \`/vps_restart\` - Riavvia trading bot
+• \`/vps_logs\` - Visualizza log recenti
+• \`/vps_update\` - Aggiorna configurazione
     `;
 
     const keyboard = createInlineKeyboard([
       [
-        { text: "📊 Status", callback_data: "vps_status" },
-        { text: "🔄 Restart", callback_data: "vps_restart" }
+        { text: "📊 Stato", callback_data: "vps_status" },
+        { text: "🔄 Riavvia", callback_data: "vps_restart" }
       ],
       [
-        { text: "📋 Logs", callback_data: "vps_logs" },
-        { text: "⚙️ Update", callback_data: "vps_update" }
+        { text: "📋 Log", callback_data: "vps_logs" },
+        { text: "⚙️ Aggiorna", callback_data: "vps_update" }
       ],
     ]);
 
@@ -355,7 +355,7 @@ async function handleVPSStatus(chatId: number, userId: number): Promise<void> {
   `;
 
   if (!config) {
-    await sendMessage(chatId, "❌ No VPS configuration found. Use `/vps` to get started.");
+    await sendMessage(chatId, "❌ Nessuna configurazione VPS trovata. Usa `/vps` per iniziare.");
     return;
   }
 
@@ -371,42 +371,42 @@ async function handleVPSStatus(chatId: number, userId: number): Promise<void> {
       }),
     });
 
-    let statusInfo = "Unable to fetch real-time status";
+    let statusInfo = "Impossibile recuperare stato tempo reale";
     if (response.ok) {
       const data = await response.json();
       statusInfo = `
-**System Status:**
-• CPU Usage: ${data.cpu}%
-• Memory Usage: ${data.memory}%
-• Disk Usage: ${data.disk}%
+**Stato Sistema:**
+• Utilizzo CPU: ${data.cpu}%
+• Utilizzo Memoria: ${data.memory}%
+• Utilizzo Disco: ${data.disk}%
 • Uptime: ${data.uptime}
 
 **Trading Bot:**
-• Status: ${data.botStatus}
-• MT5 Connected: ${data.mt5Connected ? "✅" : "❌"}
-• Last Signal: ${data.lastSignal || "None"}
-• Active Trades: ${data.activeTrades || 0}
+• Stato: ${data.botStatus}
+• MT5 Connesso: ${data.mt5Connected ? "✅" : "❌"}
+• Ultimo Segnale: ${data.lastSignal || "Nessuno"}
+• Trade Attivi: ${data.activeTrades || 0}
       `;
     }
 
     const message = `
-🖥️ **VPS Status Report**
+🖥️ **Report Stato VPS**
 
-**Configuration:**
+**Configurazione:**
 • Host: ${config.vpsHost}
-• Status: ${getStatusEmoji(config.status)} ${config.status.toUpperCase()}
-• MT5 Account: ${config.mt5Login}
-• MT5 Server: ${config.mt5Server}
+• Stato: ${getStatusEmoji(config.status)} ${config.status.toUpperCase()}
+• Account MT5: ${config.mt5Login}
+• Server MT5: ${config.mt5Server}
 
 ${statusInfo}
 
-**Last Updated:** ${new Date().toLocaleString()}
+**Ultimo Aggiornamento:** ${new Date().toLocaleString()}
     `;
 
     await sendMessage(chatId, message);
   } catch (error) {
     console.error("VPS status error:", error);
-    await sendMessage(chatId, "❌ Failed to get VPS status. Please try again later.");
+    await sendMessage(chatId, "❌ Impossibile ottenere lo stato VPS. Riprova più tardi.");
   }
 }
 
@@ -418,12 +418,12 @@ async function handleVPSRestart(chatId: number, userId: number): Promise<void> {
   `;
 
   if (!config) {
-    await sendMessage(chatId, "❌ No VPS configuration found.");
+    await sendMessage(chatId, "❌ Nessuna configurazione VPS trovata.");
     return;
   }
 
   try {
-    await sendMessage(chatId, "🔄 Restarting trading bot on VPS...");
+    await sendMessage(chatId, "🔄 Riavvio trading bot su VPS...");
 
     const response = await fetch(`http://vps-manager-service:3000/restart-bot`, {
       method: "POST",
@@ -436,13 +436,13 @@ async function handleVPSRestart(chatId: number, userId: number): Promise<void> {
     });
 
     if (response.ok) {
-      await sendMessage(chatId, "✅ Trading bot restarted successfully!");
+      await sendMessage(chatId, "✅ Trading bot riavviato con successo!");
     } else {
-      await sendMessage(chatId, "❌ Failed to restart trading bot. Please check VPS connection.");
+      await sendMessage(chatId, "❌ Impossibile riavviare il trading bot. Controlla la connessione VPS.");
     }
   } catch (error) {
     console.error("VPS restart error:", error);
-    await sendMessage(chatId, "❌ Error restarting bot. Please try again later.");
+    await sendMessage(chatId, "❌ Errore nel riavvio del bot. Riprova più tardi.");
   }
 }
 
@@ -454,7 +454,7 @@ async function handleVPSLogs(chatId: number, userId: number): Promise<void> {
   `;
 
   if (!config) {
-    await sendMessage(chatId, "❌ No VPS configuration found.");
+    await sendMessage(chatId, "❌ Nessuna configurazione VPS trovata.");
     return;
   }
 
@@ -473,21 +473,21 @@ async function handleVPSLogs(chatId: number, userId: number): Promise<void> {
     if (response.ok) {
       const data = await response.json();
       const message = `
-📋 **Recent VPS Logs**
+📋 **Log VPS Recenti**
 
 \`\`\`
-${data.logs || "No recent logs available"}
+${data.logs || "Nessun log recente disponibile"}
 \`\`\`
 
-**Log Time:** ${new Date().toLocaleString()}
+**Ora Log:** ${new Date().toLocaleString()}
       `;
       await sendMessage(chatId, message);
     } else {
-      await sendMessage(chatId, "❌ Failed to retrieve logs from VPS.");
+      await sendMessage(chatId, "❌ Impossibile recuperare i log dal VPS.");
     }
   } catch (error) {
     console.error("VPS logs error:", error);
-    await sendMessage(chatId, "❌ Error retrieving logs. Please try again later.");
+    await sendMessage(chatId, "❌ Errore nel recupero dei log. Riprova più tardi.");
   }
 }
 
@@ -536,17 +536,17 @@ export async function handleVPSSetup(chatId: number, userId: number, message?: s
   switch (state.step) {
     case "provider":
       const providerMessage = `
-🖥️ **VPS Setup Wizard - Step 1/6**
+🖥️ **Wizard Configurazione VPS - Passo 1/6**
 
-Which VPS provider are you using?
+Quale provider VPS stai utilizzando?
 
-**Popular Options:**
-• Contabo - Great value (€12/month)
-• Vultr - Reliable (€24/month)  
-• DigitalOcean - Premium (€48/month)
-• Other - Custom provider
+**Opzioni Popolari:**
+• Contabo - Ottimo valore (€12/mese)
+• Vultr - Affidabile (€24/mese)  
+• DigitalOcean - Premium (€48/mese)
+• Altro - Provider personalizzato
 
-Please select your provider:
+Seleziona il tuo provider:
       `;
 
       const providerKeyboard = createInlineKeyboard([
@@ -556,7 +556,7 @@ Please select your provider:
         ],
         [
           { text: "DigitalOcean", callback_data: "vps_provider_digitalocean" },
-          { text: "Other", callback_data: "vps_provider_other" }
+          { text: "Altro", callback_data: "vps_provider_other" }
         ],
       ]);
 
@@ -565,13 +565,13 @@ Please select your provider:
 
     case "host":
       await sendMessage(chatId, `
-🖥️ **VPS Setup Wizard - Step 2/6**
+🖥️ **Wizard Configurazione VPS - Passo 2/6**
 
-Please enter your VPS IP address or hostname:
+Inserisci l'indirizzo IP o hostname del tuo VPS:
 
-**Example:** \`192.168.1.100\` or \`my-vps.example.com\`
+**Esempio:** \`192.168.1.100\` o \`my-vps.example.com\`
 
-You can find this in your ${state.data.provider} dashboard.
+Puoi trovarlo nella dashboard di ${state.data.provider}.
       `);
       break;
 
@@ -580,15 +580,15 @@ You can find this in your ${state.data.provider} dashboard.
         state.data.host = message.trim();
         state.step = "mt5_login";
         await sendMessage(chatId, `
-🖥️ **VPS Setup Wizard - Step 3/6**
+🖥️ **Wizard Configurazione VPS - Passo 3/6**
 
-Please enter your VPS username and password in this format:
+Inserisci username e password del tuo VPS in questo formato:
 
 \`username:password\`
 
-**Example:** \`Administrator:MySecurePassword123\`
+**Esempio:** \`Administrator:MiaPasswordSicura123\`
 
-⚠️ **Security Note:** This information is encrypted and stored securely.
+⚠️ **Nota Sicurezza:** Queste informazioni sono criptate e archiviate in sicurezza.
         `);
       }
       break;
@@ -601,16 +601,16 @@ Please enter your VPS username and password in this format:
         state.step = "mt5_password";
         
         await sendMessage(chatId, `
-🖥️ **VPS Setup Wizard - Step 4/6**
+🖥️ **Wizard Configurazione VPS - Passo 4/6**
 
-Please enter your MetaTrader 5 account login number:
+Inserisci il numero di login del tuo account MetaTrader 5:
 
-**Example:** \`12345678\`
+**Esempio:** \`12345678\`
 
-You can find this in your MT5 terminal or broker account.
+Puoi trovarlo nel tuo terminale MT5 o account broker.
         `);
       } else {
-        await sendMessage(chatId, "❌ Please enter credentials in the format: `username:password`");
+        await sendMessage(chatId, "❌ Inserisci le credenziali nel formato: `username:password`");
       }
       break;
 
@@ -620,11 +620,11 @@ You can find this in your MT5 terminal or broker account.
         state.step = "mt5_server";
         
         await sendMessage(chatId, `
-🖥️ **VPS Setup Wizard - Step 5/6**
+🖥️ **Wizard Configurazione VPS - Passo 5/6**
 
-Please enter your MetaTrader 5 account password:
+Inserisci la password del tuo account MetaTrader 5:
 
-⚠️ **Security Note:** This will be encrypted and stored securely.
+⚠️ **Nota Sicurezza:** Sarà criptata e archiviata in sicurezza.
         `);
       }
       break;
@@ -635,16 +635,16 @@ Please enter your MetaTrader 5 account password:
         state.step = "confirm";
         
         await sendMessage(chatId, `
-🖥️ **VPS Setup Wizard - Step 6/6**
+🖥️ **Wizard Configurazione VPS - Passo 6/6**
 
-Please enter your MetaTrader 5 server name:
+Inserisci il nome del server MetaTrader 5:
 
-**Examples:**
+**Esempi:**
 • \`XMGlobal-Demo\`
 • \`ICMarkets-Live01\`
 • \`FXCM-Server\`
 
-You can find this in your MT5 terminal connection settings.
+Puoi trovarlo nelle impostazioni di connessione del tuo terminale MT5.
         `);
       }
       break;
@@ -654,35 +654,35 @@ You can find this in your MT5 terminal connection settings.
         state.data.mt5Server = message.trim();
         
         const confirmMessage = `
-🖥️ **VPS Setup Wizard - Confirmation**
+🖥️ **Wizard Configurazione VPS - Conferma**
 
-Please confirm your configuration:
+Conferma la tua configurazione:
 
-**VPS Details:**
+**Dettagli VPS:**
 • Provider: ${state.data.provider}
 • Host: ${state.data.host}
 • Username: ${state.data.username}
 
-**MT5 Details:**
+**Dettagli MT5:**
 • Login: ${state.data.mt5Login}
 • Server: ${state.data.mt5Server}
 
-**Next Steps:**
-1. I'll connect to your VPS
-2. Install required software (Python, MT5, etc.)
-3. Configure your MT5 account
-4. Start the trading bot
-5. Send you status updates
+**Prossimi Passi:**
+1. Mi connetterò al tuo VPS
+2. Installerò il software richiesto (Python, MT5, ecc.)
+3. Configurerò il tuo account MT5
+4. Avvierò il trading bot
+5. Ti invierò aggiornamenti di stato
 
-⚠️ **Important:** Make sure your VPS is running and RDP is enabled.
+⚠️ **Importante:** Assicurati che il tuo VPS sia in esecuzione e RDP sia abilitato.
 
-Ready to proceed?
+Pronto per procedere?
         `;
 
         const confirmKeyboard = createInlineKeyboard([
           [
-            { text: "✅ Confirm & Start", callback_data: "vps_confirm_yes" },
-            { text: "❌ Cancel", callback_data: "vps_confirm_no" }
+            { text: "✅ Conferma e Avvia", callback_data: "vps_confirm_yes" },
+            { text: "❌ Annulla", callback_data: "vps_confirm_no" }
           ],
         ]);
 
@@ -721,24 +721,24 @@ export async function handleVPSSetupCallback(chatId: number, userId: number, cal
       setupStates.delete(userId);
       
       await sendMessage(chatId, `
-🚀 **VPS Configuration Started!**
+🚀 **Configurazione VPS Avviata!**
 
-I'm now setting up your VPS automatically. This process takes 5-10 minutes.
+Sto configurando il tuo VPS automaticamente. Questo processo richiede 5-10 minuti.
 
-**What I'm doing:**
-1. ⏳ Connecting to your VPS...
-2. ⏳ Installing Python and dependencies...
-3. ⏳ Configuring MetaTrader 5...
-4. ⏳ Starting the trading bot...
+**Cosa sto facendo:**
+1. ⏳ Connessione al tuo VPS...
+2. ⏳ Installazione Python e dipendenze...
+3. ⏳ Configurazione MetaTrader 5...
+4. ⏳ Avvio del trading bot...
 
-You'll receive updates as each step completes. Please wait...
+Riceverai aggiornamenti al completamento di ogni passaggio. Attendi...
       `);
       
     } catch (error) {
-      await sendMessage(chatId, `❌ Configuration failed: ${error.message}`);
+      await sendMessage(chatId, `❌ Configurazione fallita: ${error.message}`);
     }
   } else if (callbackData === "vps_confirm_no") {
     setupStates.delete(userId);
-    await sendMessage(chatId, "❌ VPS setup cancelled. Use `/vps` to start again.");
+    await sendMessage(chatId, "❌ Configurazione VPS annullata. Usa `/vps` per iniziare di nuovo.");
   }
 }
