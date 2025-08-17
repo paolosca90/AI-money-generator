@@ -38,7 +38,7 @@ export async function processMessage(chatId: number, userId: number, text: strin
     }
   } catch (error) {
     console.error("Error processing message:", error);
-    await sendMessage(chatId, "❌ An error occurred while processing your request. Please try again.");
+    await sendMessage(chatId, "❌ Si è verificato un errore durante l'elaborazione della tua richiesta. Riprova.");
   }
 }
 
@@ -58,7 +58,7 @@ export async function processCallbackQuery(chatId: number, userId: number, callb
       const symbol = parts[2] || "BTCUSD";
       await handleStrategyCommand(chatId, `/predict ${symbol}`, strategy);
     } else if (callbackData === "new_analysis") {
-      await sendMessage(chatId, "📊 Choose your trading strategy:\n\n⚡ `/scalping SYMBOL` - Quick trades (1-15 min)\n📈 `/intraday SYMBOL` - Day trading (1-8 hours)\n🎯 `/swing SYMBOL` - Multi-day trades (1-7 days)\n\nExample: `/scalping EURUSD`");
+      await sendMessage(chatId, "📊 Scegli la tua strategia di trading:\n\n⚡ `/scalping SIMBOLO` - Trade veloci (1-15 min)\n📈 `/intraday SIMBOLO` - Day trading (1-8 ore)\n🎯 `/swing SIMBOLO` - Trade multi-giorno (1-7 giorni)\n\nEsempio: `/scalping EURUSD`");
     } else if (callbackData === "show_performance") {
       await handlePerformanceCommand(chatId);
     } else if (callbackData.startsWith("predict_")) {
@@ -71,35 +71,35 @@ export async function processCallbackQuery(chatId: number, userId: number, callb
     }
   } catch (error) {
     console.error("Error processing callback query:", error);
-    await sendMessage(chatId, "❌ An error occurred while processing your request. Please try again.");
+    await sendMessage(chatId, "❌ Si è verificato un errore durante l'elaborazione della tua richiesta. Riprova.");
   }
 }
 
 async function executeTradeFromCallback(chatId: number, tradeId: string, lotSize: number, strategy: string): Promise<void> {
   try {
-    await sendMessage(chatId, `⚡ Executing ${strategy} trade ${tradeId} with ${lotSize} lots...`);
+    await sendMessage(chatId, `⚡ Esecuzione trade ${strategy} ${tradeId} con ${lotSize} lotti...`);
     
     const result = await analysis.execute({ tradeId, lotSize, strategy });
     
     if (result.success) {
       const message = `
-✅ **${strategy} Trade Executed Successfully**
+✅ **Trade ${strategy} Eseguito con Successo**
 
-🆔 Trade ID: \`${tradeId}\`
-📋 MT5 Order: #${result.orderId}
-💰 Lot Size: ${lotSize}
-💵 Entry Price: ${result.executionPrice}
-⏱️ Estimated Hold: ${result.estimatedHoldingTime}
+🆔 ID Trade: \`${tradeId}\`
+📋 Ordine MT5: #${result.orderId}
+💰 Dimensione Lotto: ${lotSize}
+💵 Prezzo di Ingresso: ${result.executionPrice}
+⏱️ Durata Stimata: ${result.estimatedHoldingTime}
 
-🎯 Your ${strategy.toLowerCase()} trade is now active on MT5!
+🎯 Il tuo trade ${strategy.toLowerCase()} è ora attivo su MT5!
       `;
       await sendMessage(chatId, message);
     } else {
-      await sendMessage(chatId, `❌ **Trade execution failed**\n\n🚫 Error: ${result.error}\n\nPlease check your MT5 connection and try again.`);
+      await sendMessage(chatId, `❌ **Esecuzione trade fallita**\n\n🚫 Errore: ${result.error}\n\nControlla la tua connessione MT5 e riprova.`);
     }
   } catch (error) {
     console.error("Execution error:", error);
-    await sendMessage(chatId, "❌ Error executing trade. Please check your MT5 connection and try again.");
+    await sendMessage(chatId, "❌ Errore nell'esecuzione del trade. Controlla la tua connessione MT5 e riprova.");
   }
 }
 
@@ -108,14 +108,14 @@ async function handlePredictCommand(chatId: number, command: string): Promise<vo
   const symbol = parts[1]?.toUpperCase() || "BTCUSD";
 
   try {
-    await sendMessage(chatId, `🧠 **Advanced ML Analysis for ${symbol}**\n\n🔍 Analyzing market structure, smart money flow, and determining optimal strategy...\n\n⏳ This may take 10-15 seconds for comprehensive analysis.`);
+    await sendMessage(chatId, `🧠 **Analisi ML Avanzata per ${symbol}**\n\n🔍 Analizzando struttura di mercato, flusso smart money e determinando strategia ottimale...\n\n⏳ Potrebbero volerci 10-15 secondi per un'analisi completa.`);
     
     const prediction = await analysis.predict({ symbol });
     
     await sendTradingSignal(chatId, prediction);
   } catch (error) {
     console.error("Prediction error:", error);
-    await sendMessage(chatId, "❌ Error generating prediction. Please try again or check if the symbol is valid.");
+    await sendMessage(chatId, "❌ Errore nella generazione della previsione. Riprova o controlla se il simbolo è valido.");
   }
 }
 
@@ -130,14 +130,14 @@ async function handleStrategyCommand(chatId: number, command: string, strategy: 
       "SWING": "🎯"
     };
 
-    await sendMessage(chatId, `${strategyEmojis[strategy]} **${strategy} Analysis for ${symbol}**\n\n🔍 Analyzing market for ${strategy.toLowerCase()} opportunities...\n\n⏳ Optimizing entry, stop loss, and take profit levels...`);
+    await sendMessage(chatId, `${strategyEmojis[strategy]} **Analisi ${strategy} per ${symbol}**\n\n🔍 Analizzando il mercato per opportunità ${strategy.toLowerCase()}...\n\n⏳ Ottimizzando livelli di ingresso, stop loss e take profit...`);
     
     const prediction = await analysis.predict({ symbol, strategy });
     
     await sendTradingSignal(chatId, prediction);
   } catch (error) {
     console.error("Strategy prediction error:", error);
-    await sendMessage(chatId, `❌ Error generating ${strategy.toLowerCase()} analysis. Please try again.`);
+    await sendMessage(chatId, `❌ Errore nella generazione dell'analisi ${strategy.toLowerCase()}. Riprova.`);
   }
 }
 
@@ -153,45 +153,45 @@ async function sendTradingSignal(chatId: number, prediction: any): Promise<void>
   const strategyEmoji = strategyEmojis[prediction.strategy] || "📊";
   
   const message = `
-${strategyEmoji} **${prediction.strategy} Signal - ${prediction.symbol}**
+${strategyEmoji} **Segnale ${prediction.strategy} - ${prediction.symbol}**
 
-🆔 Trade ID: \`${prediction.tradeId}\`
-${directionEmoji} **Direction: ${prediction.direction}**
-💰 **Entry Price:** \`${prediction.entryPrice}\`
+🆔 ID Trade: \`${prediction.tradeId}\`
+${directionEmoji} **Direzione: ${prediction.direction}**
+💰 **Prezzo di Ingresso:** \`${prediction.entryPrice}\`
 🎯 **Take Profit:** \`${prediction.takeProfit}\`
 🛡️ **Stop Loss:** \`${prediction.stopLoss}\`
-${confidenceEmoji} **Confidence:** **${prediction.confidence}%**
-📊 **Risk/Reward:** 1:${prediction.riskRewardRatio}
-💎 **Recommended Size:** ${prediction.recommendedLotSize} lots
-⏱️ **Max Hold Time:** ${prediction.maxHoldingTime}h
+${confidenceEmoji} **Confidenza:** **${prediction.confidence}%**
+📊 **Rischio/Rendimento:** 1:${prediction.riskRewardRatio}
+💎 **Dimensione Consigliata:** ${prediction.recommendedLotSize} lotti
+⏱️ **Durata Max:** ${prediction.maxHoldingTime}h
 
-📊 **Strategy Analysis:**
+📊 **Analisi Strategia:**
 ${prediction.strategyRecommendation}
 
-📈 **Price Action Analysis:**
-• Market Structure: **${prediction.analysis.technical.structure}**
+📈 **Analisi Price Action:**
+• Struttura di Mercato: **${prediction.analysis.technical.structure}**
 • Trend: **${prediction.analysis.technical.trend}**
-• Breakout Probability: **${prediction.analysis.technical.breakoutProbability}%**
+• Probabilità Breakout: **${prediction.analysis.technical.breakoutProbability}%**
 
-👥 **Professional Trader Consensus:**
-• Top Traders: ${prediction.analysis.professional.topTraders.slice(0, 2).join(", ")}
-• Consensus: **${prediction.analysis.professional.consensusView}**
-• Risk/Reward: **1:${prediction.analysis.professional.riskReward.toFixed(1)}**
+👥 **Consenso Trader Professionali:**
+• Top Trader: ${prediction.analysis.professional.topTraders.slice(0, 2).join(", ")}
+• Consenso: **${prediction.analysis.professional.consensusView}**
+• Rischio/Rendimento: **1:${prediction.analysis.professional.riskReward.toFixed(1)}**
 
-🎯 **Key Liquidity Zones:**
+🎯 **Zone di Liquidità Chiave:**
 ${prediction.analysis.smartMoney.liquidityZones.slice(0, 3).map(zone => `• ${zone.toFixed(5)}`).join('\n')}
 
-📰 **Market Sentiment:** ${getSentimentEmoji(prediction.analysis.sentiment.score)} ${(prediction.analysis.sentiment.score * 100).toFixed(0)}%
+📰 **Sentiment di Mercato:** ${getSentimentEmoji(prediction.analysis.sentiment.score)} ${(prediction.analysis.sentiment.score * 100).toFixed(0)}%
 
-⚡ **Quick Execute:**
+⚡ **Esecuzione Rapida:**
 \`/execute ${prediction.tradeId} ${prediction.recommendedLotSize}\`
   `;
 
   // Create inline keyboard for quick actions
   const keyboard = createInlineKeyboard([
     [
-      { text: `${strategyEmoji} Execute ${prediction.recommendedLotSize}`, callback_data: `execute_${prediction.tradeId}_${prediction.recommendedLotSize}_${prediction.strategy}` },
-      { text: `${strategyEmoji} Execute 0.01`, callback_data: `execute_${prediction.tradeId}_0.01_${prediction.strategy}` }
+      { text: `${strategyEmoji} Esegui ${prediction.recommendedLotSize}`, callback_data: `execute_${prediction.tradeId}_${prediction.recommendedLotSize}_${prediction.strategy}` },
+      { text: `${strategyEmoji} Esegui 0.01`, callback_data: `execute_${prediction.tradeId}_0.01_${prediction.strategy}` }
     ],
     [
       { text: "⚡ Scalping", callback_data: `strategy_SCALPING_${prediction.symbol}` },
@@ -199,7 +199,7 @@ ${prediction.analysis.smartMoney.liquidityZones.slice(0, 3).map(zone => `• ${z
       { text: "🎯 Swing", callback_data: `strategy_SWING_${prediction.symbol}` }
     ],
     [
-      { text: "📊 New Analysis", callback_data: "new_analysis" },
+      { text: "📊 Nuova Analisi", callback_data: "new_analysis" },
       { text: "📈 Performance", callback_data: "show_performance" }
     ]
   ]);
@@ -209,10 +209,10 @@ ${prediction.analysis.smartMoney.liquidityZones.slice(0, 3).map(zone => `• ${z
   // Send chart image if available
   if (prediction.chartUrl) {
     try {
-      await sendPhoto(chatId, prediction.chartUrl, `📊 ${prediction.strategy} Chart Analysis for ${prediction.symbol}`);
+      await sendPhoto(chatId, prediction.chartUrl, `📊 Analisi Grafico ${prediction.strategy} per ${prediction.symbol}`);
     } catch (error) {
       console.error("Error sending chart:", error);
-      await sendMessage(chatId, `📊 Chart: ${prediction.chartUrl}`);
+      await sendMessage(chatId, `📊 Grafico: ${prediction.chartUrl}`);
     }
   }
 }
@@ -224,84 +224,84 @@ async function handleExecuteCommand(chatId: number, command: string): Promise<vo
   const strategy = parts[3] || "INTRADAY";
 
   if (!tradeId) {
-    await sendMessage(chatId, "❌ Please provide a trade ID. Usage: `/execute TRADE_ID LOT_SIZE [STRATEGY]`");
+    await sendMessage(chatId, "❌ Fornisci un ID trade. Utilizzo: `/execute ID_TRADE DIMENSIONE_LOTTO [STRATEGIA]`");
     return;
   }
 
   if (isNaN(lotSize) || lotSize <= 0) {
-    await sendMessage(chatId, "❌ Please provide a valid lot size. Usage: `/execute TRADE_ID LOT_SIZE [STRATEGY]`");
+    await sendMessage(chatId, "❌ Fornisci una dimensione lotto valida. Utilizzo: `/execute ID_TRADE DIMENSIONE_LOTTO [STRATEGIA]`");
     return;
   }
 
   try {
-    await sendMessage(chatId, `⚡ Executing ${strategy} trade ${tradeId} with ${lotSize} lots...`);
+    await sendMessage(chatId, `⚡ Esecuzione trade ${strategy} ${tradeId} con ${lotSize} lotti...`);
     
     const result = await analysis.execute({ tradeId, lotSize, strategy });
     
     if (result.success) {
       const message = `
-✅ **${strategy} Trade Executed Successfully**
+✅ **Trade ${strategy} Eseguito con Successo**
 
-🆔 Trade ID: \`${tradeId}\`
-📋 MT5 Order: #${result.orderId}
-💰 Lot Size: ${lotSize}
-💵 Entry Price: ${result.executionPrice}
-⏱️ Estimated Hold: ${result.estimatedHoldingTime}
+🆔 ID Trade: \`${tradeId}\`
+📋 Ordine MT5: #${result.orderId}
+💰 Dimensione Lotto: ${lotSize}
+💵 Prezzo di Ingresso: ${result.executionPrice}
+⏱️ Durata Stimata: ${result.estimatedHoldingTime}
 
-🎯 Your ${strategy.toLowerCase()} trade is now active on MT5!
+🎯 Il tuo trade ${strategy.toLowerCase()} è ora attivo su MT5!
       `;
       await sendMessage(chatId, message);
     } else {
-      await sendMessage(chatId, `❌ **Trade execution failed**\n\n🚫 Error: ${result.error}\n\nPlease check your MT5 connection and try again.`);
+      await sendMessage(chatId, `❌ **Esecuzione trade fallita**\n\n🚫 Errore: ${result.error}\n\nControlla la tua connessione MT5 e riprova.`);
     }
   } catch (error) {
     console.error("Execution error:", error);
-    await sendMessage(chatId, "❌ Error executing trade. Please check your MT5 connection and try again.");
+    await sendMessage(chatId, "❌ Errore nell'esecuzione del trade. Controlla la tua connessione MT5 e riprova.");
   }
 }
 
 async function handleStartCommand(chatId: number): Promise<void> {
   const message = `
-🤖 **Welcome to Professional AI Trading Bot**
+🤖 **Benvenuto nel Bot AI Trading Professionale**
 
-I'm your institutional-grade trading assistant with **3 specialized strategies**! 
+Sono il tuo assistente di trading di livello istituzionale con **3 strategie specializzate**! 
 
-🧠 **What Makes Me Different:**
-• **Smart Money Analysis** - Track institutional flow and order patterns
-• **Professional Trader Consensus** - Follow top traders for each asset
-• **Advanced Price Action** - Market structure and liquidity zone analysis
-• **ML-Powered Predictions** - No traditional indicators, pure price action
+🧠 **Cosa mi rende diverso:**
+• **Analisi Smart Money** - Segue flussi istituzionali e pattern degli ordini
+• **Consenso Trader Professionali** - Segue i migliori trader per ogni asset
+• **Price Action Avanzata** - Analisi struttura di mercato e zone di liquidità
+• **Previsioni ML** - Nessun indicatore tradizionale, solo price action pura
 
-⚡ **Trading Strategies:**
-• \`/scalping SYMBOL\` - Quick trades (1-15 minutes, tight stops)
-• \`/intraday SYMBOL\` - Day trading (1-8 hours, balanced risk)
-• \`/swing SYMBOL\` - Multi-day trades (1-7 days, larger targets)
+⚡ **Strategie di Trading:**
+• \`/scalping SIMBOLO\` - Trade veloci (1-15 minuti, stop stretti)
+• \`/intraday SIMBOLO\` - Day trading (1-8 ore, rischio bilanciato)
+• \`/swing SIMBOLO\` - Trade multi-giorno (1-7 giorni, target più ampi)
 
-📊 **General Analysis:**
-• \`/predict SYMBOL\` - Auto-select optimal strategy
+📊 **Analisi Generale:**
+• \`/predict SIMBOLO\` - Selezione automatica strategia ottimale
 
-⚡ **Execution Commands:**
-• \`/execute TRADE_ID LOT_SIZE [STRATEGY]\` - Execute trade on MT5
+⚡ **Comandi di Esecuzione:**
+• \`/execute ID_TRADE DIMENSIONE_LOTTO [STRATEGIA]\` - Esegui trade su MT5
 
-🖥️ **VPS Management:**
-• \`/vps\` - Manage your VPS and MT5 setup
-• \`/vps_setup\` - Configure new VPS automatically
+🖥️ **Gestione VPS:**
+• \`/vps\` - Gestisci il tuo VPS e configurazione MT5
+• \`/vps_setup\` - Configura nuovo VPS automaticamente
 
-📈 **Information Commands:**
-• \`/status\` - Check bot and MT5 status
-• \`/performance\` - View trading performance
-• \`/strategies\` - Learn about trading strategies
-• \`/symbols\` - List supported symbols
+📈 **Comandi Informativi:**
+• \`/status\` - Controlla stato bot e MT5
+• \`/performance\` - Visualizza performance di trading
+• \`/strategies\` - Impara le strategie di trading
+• \`/symbols\` - Lista simboli supportati
 
-📚 **Help:**
-• \`/help\` - Show detailed help
+📚 **Aiuto:**
+• \`/help\` - Mostra aiuto dettagliato
 
-🚀 **Quick Start:**
-1. Use \`/vps_setup\` to configure your VPS and MT5
-2. Try \`/scalping BTCUSD\` for a quick scalping signal!
-3. Or \`/swing EURUSD\` for a swing trading opportunity!
+🚀 **Avvio Rapido:**
+1. Usa \`/vps_setup\` per configurare il tuo VPS e MT5
+2. Prova \`/scalping BTCUSD\` per un segnale scalping veloce!
+3. Oppure \`/swing EURUSD\` per un'opportunità swing trading!
 
-💡 **Professional Tip:** Each strategy has optimized risk/reward ratios and holding times. Choose based on your trading style and available time.
+💡 **Consiglio Professionale:** Ogni strategia ha rapporti rischio/rendimento e tempi di mantenimento ottimizzati. Scegli in base al tuo stile di trading e tempo disponibile.
   `;
   
   const keyboard = createInlineKeyboard([
@@ -311,11 +311,11 @@ I'm your institutional-grade trading assistant with **3 specialized strategies**
     ],
     [
       { text: "🎯 Swing XAUUSD", callback_data: "strategy_SWING_XAUUSD" },
-      { text: "🖥️ Setup VPS", callback_data: "vps_setup" }
+      { text: "🖥️ Configura VPS", callback_data: "vps_setup" }
     ],
     [
-      { text: "📊 Strategies Guide", callback_data: "show_strategies" },
-      { text: "❓ Help", callback_data: "show_help" }
+      { text: "📊 Guida Strategie", callback_data: "show_strategies" },
+      { text: "❓ Aiuto", callback_data: "show_help" }
     ]
   ]);
   
@@ -324,71 +324,71 @@ I'm your institutional-grade trading assistant with **3 specialized strategies**
 
 async function handleStrategiesCommand(chatId: number): Promise<void> {
   const message = `
-📊 **Professional Trading Strategies Guide**
+📊 **Guida Strategie di Trading Professionali**
 
-**⚡ SCALPING STRATEGY**
-• **Timeframe:** 1-15 minutes
-• **Risk/Reward:** 1:1.5
-• **Best For:** Quick profits, high-volume sessions
-• **Stop Loss:** Tight (0.8x ATR)
-• **Take Profit:** Quick (1.2x ATR)
-• **Min Confidence:** 85%
-• **Max Position:** 0.5 lots
-• **Ideal Conditions:** High volume, trending markets, low spreads
+**⚡ STRATEGIA SCALPING**
+• **Timeframe:** 1-15 minuti
+• **Rischio/Rendimento:** 1:1.5
+• **Ideale per:** Profitti veloci, sessioni ad alto volume
+• **Stop Loss:** Stretto (0.8x ATR)
+• **Take Profit:** Veloce (1.2x ATR)
+• **Confidenza Min:** 85%
+• **Posizione Max:** 0.5 lotti
+• **Condizioni Ideali:** Alto volume, mercati in trend, spread bassi
 
-**📈 INTRADAY STRATEGY**
-• **Timeframe:** 1-8 hours
-• **Risk/Reward:** 1:2.0
-• **Best For:** Day trading, balanced approach
+**📈 STRATEGIA INTRADAY**
+• **Timeframe:** 1-8 ore
+• **Rischio/Rendimento:** 1:2.0
+• **Ideale per:** Day trading, approccio bilanciato
 • **Stop Loss:** Standard (1.0x ATR)
 • **Take Profit:** Standard (2.0x ATR)
-• **Min Confidence:** 75%
-• **Max Position:** 1.0 lots
-• **Ideal Conditions:** Normal volume, trending markets, breakouts
+• **Confidenza Min:** 75%
+• **Posizione Max:** 1.0 lotti
+• **Condizioni Ideali:** Volume normale, mercati in trend, breakout
 
-**🎯 SWING STRATEGY**
-• **Timeframe:** 1-7 days
-• **Risk/Reward:** 1:3.0
-• **Best For:** Multi-day trends, larger moves
-• **Stop Loss:** Wide (1.5x ATR)
-• **Take Profit:** Large (4.5x ATR)
-• **Min Confidence:** 70%
-• **Max Position:** 2.0 lots
-• **Ideal Conditions:** Any volume, reversals, consolidations
+**🎯 STRATEGIA SWING**
+• **Timeframe:** 1-7 giorni
+• **Rischio/Rendimento:** 1:3.0
+• **Ideale per:** Trend multi-giorno, movimenti ampi
+• **Stop Loss:** Ampio (1.5x ATR)
+• **Take Profit:** Ampio (4.5x ATR)
+• **Confidenza Min:** 70%
+• **Posizione Max:** 2.0 lotti
+• **Condizioni Ideali:** Qualsiasi volume, inversioni, consolidamenti
 
-**🎓 How to Choose:**
+**🎓 Come Scegliere:**
 
-**Choose SCALPING when:**
-• You can monitor trades actively
-• Market is trending with high volume
-• You want quick profits
-• Low volatility environment
+**Scegli SCALPING quando:**
+• Puoi monitorare i trade attivamente
+• Il mercato è in trend con alto volume
+• Vuoi profitti veloci
+• Ambiente a bassa volatilità
 
-**Choose INTRADAY when:**
-• You trade during market hours
-• Balanced risk/reward approach
-• Following daily trends
-• Normal market conditions
+**Scegli INTRADAY quando:**
+• Fai trading durante le ore di mercato
+• Approccio rischio/rendimento bilanciato
+• Segui trend giornalieri
+• Condizioni di mercato normali
 
-**Choose SWING when:**
-• You prefer less monitoring
-• Looking for larger moves
-• Multi-day trend following
-• Higher volatility acceptable
+**Scegli SWING quando:**
+• Preferisci meno monitoraggio
+• Cerchi movimenti più ampi
+• Segui trend multi-giorno
+• Maggiore volatilità è accettabile
 
-**💡 Pro Tips:**
-• Start with INTRADAY for balanced approach
-• Use SCALPING during high-volume sessions
-• Use SWING for major trend reversals
-• Always respect the strategy's risk limits
+**💡 Consigli Professionali:**
+• Inizia con INTRADAY per approccio bilanciato
+• Usa SCALPING durante sessioni ad alto volume
+• Usa SWING per inversioni di trend importanti
+• Rispetta sempre i limiti di rischio della strategia
 
-**⚡ Quick Commands:**
-• \`/scalping EURUSD\` - Generate scalping signal
-• \`/intraday GBPUSD\` - Generate intraday signal  
-• \`/swing XAUUSD\` - Generate swing signal
-• \`/predict BTCUSD\` - Auto-select best strategy
+**⚡ Comandi Rapidi:**
+• \`/scalping EURUSD\` - Genera segnale scalping
+• \`/intraday GBPUSD\` - Genera segnale intraday  
+• \`/swing XAUUSD\` - Genera segnale swing
+• \`/predict BTCUSD\` - Seleziona automaticamente la strategia migliore
 
-Each strategy is optimized for different market conditions and trading styles! 🚀
+Ogni strategia è ottimizzata per diverse condizioni di mercato e stili di trading! 🚀
   `;
   
   await sendMessage(chatId, message);
