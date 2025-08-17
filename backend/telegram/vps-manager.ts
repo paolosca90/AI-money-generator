@@ -67,7 +67,7 @@ export const storeVPSConfig = api<{
 
       return {
         success: true,
-        message: "VPS configuration started. You will receive updates via Telegram."
+        message: "Configurazione VPS avviata. Riceverai aggiornamenti via Telegram."
       };
     } catch (error) {
       console.error("Error storing VPS config:", error);
@@ -127,7 +127,7 @@ async function configureVPSAsync(userId: number): Promise<void> {
     `;
 
     // Send success notification
-    await sendVPSNotification(userId, "✅ VPS configured successfully! Your trading bot is now active.");
+    await sendVPSNotification(userId, "✅ VPS configurato con successo! Il tuo trading bot è ora attivo.");
 
   } catch (error) {
     console.error("VPS configuration error:", error);
@@ -140,7 +140,7 @@ async function configureVPSAsync(userId: number): Promise<void> {
     `;
 
     // Send error notification
-    await sendVPSNotification(userId, `❌ VPS configuration failed: ${error.message}`);
+    await sendVPSNotification(userId, `❌ Configurazione VPS fallita: ${error.message}`);
   }
 }
 
@@ -161,7 +161,7 @@ async function testVPSConnection(config: VPSConfig): Promise<void> {
       throw new Error("Failed to connect to VPS");
     }
 
-    await sendVPSNotification(config.userId, "🔗 VPS connection established successfully");
+    await sendVPSNotification(config.userId, "🔗 Connessione VPS stabilita con successo");
   } catch (error) {
     throw new Error(`VPS connection failed: ${error.message}`);
   }
@@ -169,7 +169,7 @@ async function testVPSConnection(config: VPSConfig): Promise<void> {
 
 async function installSoftwareOnVPS(config: VPSConfig): Promise<void> {
   try {
-    await sendVPSNotification(config.userId, "📦 Installing required software on VPS...");
+    await sendVPSNotification(config.userId, "📦 Installazione software richiesto su VPS...");
 
     // Install Python, MetaTrader 5, and dependencies
     const response = await fetch(`http://vps-manager-service:3000/install-software`, {
@@ -186,7 +186,7 @@ async function installSoftwareOnVPS(config: VPSConfig): Promise<void> {
       throw new Error("Failed to install software on VPS");
     }
 
-    await sendVPSNotification(config.userId, "✅ Software installation completed");
+    await sendVPSNotification(config.userId, "✅ Installazione software completata");
   } catch (error) {
     throw new Error(`Software installation failed: ${error.message}`);
   }
@@ -194,7 +194,7 @@ async function installSoftwareOnVPS(config: VPSConfig): Promise<void> {
 
 async function configureMT5OnVPS(config: VPSConfig): Promise<void> {
   try {
-    await sendVPSNotification(config.userId, "🔧 Configuring MetaTrader 5...");
+    await sendVPSNotification(config.userId, "🔧 Configurazione MetaTrader 5...");
 
     // Configure MT5 with user's account details
     const response = await fetch(`http://vps-manager-service:3000/configure-mt5`, {
@@ -214,7 +214,7 @@ async function configureMT5OnVPS(config: VPSConfig): Promise<void> {
       throw new Error("Failed to configure MT5");
     }
 
-    await sendVPSNotification(config.userId, "✅ MetaTrader 5 configured successfully");
+    await sendVPSNotification(config.userId, "✅ MetaTrader 5 configurato con successo");
   } catch (error) {
     throw new Error(`MT5 configuration failed: ${error.message}`);
   }
@@ -222,7 +222,7 @@ async function configureMT5OnVPS(config: VPSConfig): Promise<void> {
 
 async function startTradingBotOnVPS(config: VPSConfig): Promise<void> {
   try {
-    await sendVPSNotification(config.userId, "🚀 Starting trading bot...");
+    await sendVPSNotification(config.userId, "🚀 Avvio trading bot...");
 
     // Deploy and start the trading bot on VPS
     const response = await fetch(`http://vps-manager-service:3000/start-bot`, {
@@ -240,7 +240,7 @@ async function startTradingBotOnVPS(config: VPSConfig): Promise<void> {
       throw new Error("Failed to start trading bot");
     }
 
-    await sendVPSNotification(config.userId, "🎉 Trading bot is now running on your VPS!");
+    await sendVPSNotification(config.userId, "🎉 Il trading bot è ora in esecuzione sul tuo VPS!");
   } catch (error) {
     throw new Error(`Bot startup failed: ${error.message}`);
   }
@@ -289,15 +289,15 @@ async function handleVPSMainMenu(chatId: number, userId: number): Promise<void> 
 
   if (!config) {
     const message = `
-🖥️ **VPS Management**
+🖥️ **Gestione VPS**
 
-You haven't configured a VPS yet. To get started:
+Non hai ancora configurato un VPS. Per iniziare:
 
-1️⃣ Purchase a Windows VPS from a provider
-2️⃣ Use \`/vps_setup\` to configure your VPS
-3️⃣ I'll automatically install and configure everything!
+1️⃣ Acquista un VPS Windows da un provider
+2️⃣ Usa \`/vps_setup\` per configurare il tuo VPS
+3️⃣ Installerò e configurerò tutto automaticamente!
 
-**Recommended VPS Providers:**
+**Provider VPS Consigliati:**
 • Contabo (€12/month)
 • Vultr ($24/month)
 • DigitalOcean ($48/month)
