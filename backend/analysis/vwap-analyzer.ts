@@ -88,7 +88,58 @@ function calculateTimeframeVWAP(marketData: any, timeframe: string, currentPrice
   if (currentPrice > vwap * 1.001) position = 'ABOVE';
   else if (currentPrice < vwap * 0.999) position = 'BELOW';
   else position = 'AT';
+/**
+ * Calculate VWAP for a given timeframe using historical price and volume data.
+ * 
+ * NOTE: This function expects `marketData` to contain an array of objects for the given timeframe,
+ * each with `price` and `volume` properties. If such data is not available, this function will
+ * throw an error. This replaces the previous simulation logic with a real VWAP calculation.
+ * 
+ * Example expected structure:
+ *   marketData = {
+ *     '5m': [{ price: number, volume: number }, ...],
+ *     '15m': [...],
+ *     ...
+ *   }
+ * 
+ * @throws Error if marketData[timeframe] is missing or empty.
+ */
+function calculateTimeframeVWAP(marketData: any, timeframe: string, currentPrice: number): VWAPTimeframeData {
+  const data = marketData[timeframe];
+  if (!Array.isArray(data) || data.length === 0) {
+    throw new Error(
+      `VWAP calculation requires historical price and volume data for timeframe "${timeframe}".`
+    );
+  }
 
+  // VWAP = sum(price * volume) / sum(volume)
+  let totalPV = 0;
+  let totalVolume = 0;
+  for (const bar of data) {
+    totalPV += bar.price * bar.volume;
+    totalVolume += bar.volume;
+  }
+  const vwap = totalVolume > 0 ? totalPV / totalVolume : 0;
+  const deviation = vwap > 0 ? Math.abs(currentPrice - vwap) / vwap : 0;
+
+  let position: 'ABOVE' | 'BELOW' | 'AT';
+  if (currentPrice > vwap * 1.001) position = 'ABOVE';
+  else if (currentPrice < vwap * 0.999) position = 'BELOW';
+  else position = 'AT';
+
+  // Calculate volume weight as the proportion of this timeframe's volume to total volume (if available)
+  let volumeWeight = 1;
+  if (marketData && typeof marketData === 'object') {
+    let totalAllVolume = 0;
+    for (const tf in marketData) {
+      if (Array.isArray(marketData[tf])) {
+        totalAllVolume += marketData[tf].reduce((sum, bar) => sum + (bar.volume || 0), 0);
+      }
+    }
+    if (totalAllVolume > 0) {
+      volumeWeight = totalVolume / totalAllVolume;
+    }
+  }
   return {
     vwap,
     position,
