@@ -4,6 +4,7 @@
   "type": "module",
   "packageManager": "bun",
   "dependencies": {
+    "@types/node": "^24.3.0",
     "encore.dev": "^1.48.8",
     "node-fetch": "^3.3.2"
   },

@@ -4,3 +4,32 @@ encore.gen.cue
 /.encore
 node_modules
 /encore.gen
+
+# Build artifacts
+*.tsbuildinfo
+dist/
+build/
+
+# Temporary files
+tmp/
+temp/
+.temp/
+
+# IDE files
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Logs
+*.log
+logs/
+
+# Environment files
+.env
+.env.local
+.env.production
