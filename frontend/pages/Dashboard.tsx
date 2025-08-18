@@ -15,14 +15,23 @@ import { useState, useEffect } from "react";
 
 // Mock function to generate auto signals for major forex, gold, and US indices
 const generateAutoSignals = () => {
-  const symbols = ["EURUSD", "GBPUSD", "USDJPY", "XAUUSD", "US500", "US100"];
+  const symbols = ["EURUSD", "GBPUSD", "USDJPY", "USDCHF", "AUDUSD", "USDCAD", "NZDUSD", "XAUUSD", "US500", "US100"];
   const strategies = ["Scalping", "Intraday"];
   const timeframes = ["5m", "15m", "30m"];
   const trends = ["Rialzista", "Ribassista", "Laterale"];
   
   return symbols.map(symbol => {
     const direction = Math.random() > 0.5 ? "LONG" : "SHORT";
-    const confidence = Math.floor(Math.random() * 25) + 70; // 70-95%
+    
+    // Simulate a more realistic confidence score based on multiple factors
+    const technicalScore = 70 + Math.random() * 25; // 70-95
+    const sentimentScore = 65 + Math.random() * 25; // 65-90
+    const smartMoneyScore = 75 + Math.random() * 20; // 75-95
+
+    // Weighted average to simulate backend logic
+    const rawConfidence = (technicalScore * 0.4) + (sentimentScore * 0.2) + (smartMoneyScore * 0.4);
+    const confidence = Math.floor(rawConfidence);
+
     const basePrice = getBasePrice(symbol);
     const volatility = getVolatility(symbol);
     
@@ -64,6 +73,10 @@ const getBasePrice = (symbol: string): number => {
     "EURUSD": 1.085,
     "GBPUSD": 1.275,
     "USDJPY": 150.5,
+    "USDCHF": 0.885,
+    "AUDUSD": 0.665,
+    "USDCAD": 1.365,
+    "NZDUSD": 0.615,
     "XAUUSD": 2050,
     "US500": 5800,
     "US100": 20500,
@@ -76,6 +89,10 @@ const getVolatility = (symbol: string): number => {
     "EURUSD": 0.005,
     "GBPUSD": 0.008,
     "USDJPY": 0.006,
+    "USDCHF": 0.005,
+    "AUDUSD": 0.007,
+    "USDCAD": 0.006,
+    "NZDUSD": 0.008,
     "XAUUSD": 0.015,
     "US500": 0.012,
     "US100": 0.018,
@@ -381,7 +398,7 @@ export default function Dashboard() {
             <h4 className="font-semibold text-blue-800">Segnali Automatici AI</h4>
           </div>
           <p className="text-sm text-blue-700">
-            Questi segnali vengono generati automaticamente ogni 30 secondi analizzando i major forex (EUR/USD, GBP/USD, USD/JPY), 
+            Questi segnali vengono generati automaticamente ogni 30 secondi analizzando i major forex, 
             l'oro (XAU/USD) e gli indici USA (US500, US100). Sono ordinati per confidenza decrescente.
           </p>
         </div>
