@@ -1,14 +1,8 @@
-export type TradingStrategy = "SCALPING" | "INTRADAY" | "SWING";
-
-// TradingStrategy enum as requested in the problem statement (for compatibility)
-export enum TradingStrategyEnum {
-  SCALPING = "SCALPING",
-  INTRADAY = "INTRADAY", 
-  SWING = "SWING"
+export enum TradingStrategy {
+    SCALPING = "SCALPING",
+    INTRADAY = "INTRADAY",
+    SWING = "SWING"
 }
-
-// Additional strategy types for technical analysis (for future extensibility)
-export type TechnicalAnalysisStrategy = "MOVING_AVERAGE" | "BOLLINGER_BANDS" | "RSI" | "MACD" | "SUPPORT_RESISTANCE";
 
 // Technical analysis strategy enum with common trading strategies
 export enum TechnicalAnalysisStrategyEnum {
@@ -35,7 +29,7 @@ export interface StrategyConfig {
 }
 
 export const TRADING_STRATEGIES: Record<TradingStrategy, StrategyConfig> = {
-  SCALPING: {
+  [TradingStrategy.SCALPING]: {
     name: "Scalping",
     description: "Trade veloci che catturano piccoli movimenti di prezzo (1-15 minuti)",
     timeframes: ["1m", "5m"],
@@ -50,7 +44,7 @@ export const TRADING_STRATEGIES: Record<TradingStrategy, StrategyConfig> = {
     marketConditions: ["HIGH_VOLUME", "TRENDING", "LOW_SPREAD"]
   },
   
-  INTRADAY: {
+  [TradingStrategy.INTRADAY]: {
     name: "Intraday",
     description: "Day trading che cattura movimenti di prezzo medi (1-8 ore)",
     timeframes: ["5m", "15m", "30m"],
@@ -65,7 +59,7 @@ export const TRADING_STRATEGIES: Record<TradingStrategy, StrategyConfig> = {
     marketConditions: ["NORMAL_VOLUME", "TRENDING", "BREAKOUT"]
   },
   
-  SWING: {
+  [TradingStrategy.SWING]: {
     name: "Swing Trading",
     description: "Trade multi-giorno che catturano ampi movimenti di prezzo (1-7 giorni)",
     timeframes: ["30m", "1h", "4h"],
@@ -206,14 +200,14 @@ export function getOptimalStrategy(
   
   // Score each strategy based on current conditions
   const scores = {
-    SCALPING: calculateStrategyScore("SCALPING", volatility, trendStrength, confidence),
-    INTRADAY: calculateStrategyScore("INTRADAY", volatility, trendStrength, confidence),
-    SWING: calculateStrategyScore("SWING", volatility, trendStrength, confidence)
+    [TradingStrategy.SCALPING]: calculateStrategyScore(TradingStrategy.SCALPING, volatility, trendStrength, confidence),
+    [TradingStrategy.INTRADAY]: calculateStrategyScore(TradingStrategy.INTRADAY, volatility, trendStrength, confidence),
+    [TradingStrategy.SWING]: calculateStrategyScore(TradingStrategy.SWING, volatility, trendStrength, confidence)
   };
   
   // Return strategy with highest score
   return Object.entries(scores).reduce((best, [strategy, score]) => 
-    score > scores[best] ? strategy as TradingStrategy : best, "INTRADAY" as TradingStrategy
+    score > (scores as any)[best] ? strategy as TradingStrategy : best, TradingStrategy.INTRADAY
   );
 }
 

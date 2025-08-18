@@ -6,7 +6,7 @@ import { analyzeWithAI } from "./ai-engine";
 import { generateChart } from "./chart-generator";
 import { analyzeSentiment } from "./sentiment-analyzer";
 import { 
-  TradingStrategy, 
+  TradingStrategy,
   TRADING_STRATEGIES, 
   calculateStrategyTargets, 
   getOptimalStrategy,

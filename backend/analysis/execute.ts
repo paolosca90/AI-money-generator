@@ -56,7 +56,7 @@ export const execute = api<ExecuteRequest, ExecuteResponse>(
       const lotSize = requestedLotSize || signal.recommended_lot_size || 0.1;
       
       // Use requested strategy or strategy from signal
-      const strategy = requestedStrategy || signal.strategy || "INTRADAY";
+      const strategy = (requestedStrategy || signal.strategy || "INTRADAY") as TradingStrategy;
 
       // Validate lot size
       if (isNaN(lotSize) || lotSize <= 0 || lotSize > 100) {
