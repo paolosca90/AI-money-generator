@@ -1,9 +1,8 @@
-// import { cron } from "encore.dev/crons";
+import { cron } from "encore.dev/cron";
 import { analysisDB } from "../analysis/db";
 import { closeMT5Position } from "../analysis/mt5-bridge";
 import { user } from "~encore/clients";
 
-/*
 // This cron job runs every minute to check for trades that need to be automatically closed.
 export const checkExpiredTrades = cron("check-expired-trades", {
   every: "1m",
@@ -66,6 +65,5 @@ export const checkExpiredTrades = cron("check-expired-trades", {
     } catch (error) {
       console.error("Scheduler: Error checking for expired trades:", error);
     }
-  }
+  },
 });
-*/
