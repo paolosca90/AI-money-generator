@@ -307,6 +307,54 @@ export function getStrategyRecommendation(
   recommendation += `• Forza Trend: ${(trendStrength * 100).toFixed(0)}%\n`;
   recommendation += `• Confidenza: ${aiAnalysis.confidence}%\n`;
   
+  // NEW: Institutional Analysis Section
+  if (aiAnalysis.institutionalAnalysis) {
+    const institutional = aiAnalysis.institutionalAnalysis;
+    recommendation += `\n🏛️ ANALISI ISTITUZIONALE:\n`;
+    
+    // Market Maker Model
+    recommendation += `• Fase Market Maker: ${institutional.marketMakerModel.phase}\n`;
+    recommendation += `• Smart Money: ${institutional.marketMakerModel.smartMoneyDirection}\n`;
+    recommendation += `• Flusso Istituzionale: ${institutional.marketMakerModel.institutionalFlow}\n`;
+    
+    // Order Blocks
+    if (institutional.orderBlocks.length > 0) {
+      const bullishOBs = institutional.orderBlocks.filter((ob: any) => ob.type === "BULLISH").length;
+      const bearishOBs = institutional.orderBlocks.filter((ob: any) => ob.type === "BEARISH").length;
+      recommendation += `• Order Blocks: ${bullishOBs} Bullish, ${bearishOBs} Bearish\n`;
+    }
+    
+    // Fair Value Gaps
+    if (institutional.fairValueGaps.length > 0) {
+      const openFVGs = institutional.fairValueGaps.filter((fvg: any) => fvg.status === "OPEN").length;
+      recommendation += `• Fair Value Gaps Aperti: ${openFVGs}\n`;
+    }
+    
+    // Supply/Demand Zones
+    if (institutional.supplyDemandZones.length > 0) {
+      const freshZones = institutional.supplyDemandZones.filter((zone: any) => zone.status === "FRESH").length;
+      recommendation += `• Zone S/D Fresche: ${freshZones}\n`;
+    }
+    
+    // Active Sessions
+    if (institutional.activeSessions.length > 0) {
+      const sessionNames = institutional.activeSessions.map((s: any) => s.name).join(", ");
+      recommendation += `• Sessioni Attive: ${sessionNames}\n`;
+    }
+    
+    // Kill Zones
+    const activeKillZone = institutional.killZones.find((kz: any) => kz.isActive);
+    if (activeKillZone) {
+      recommendation += `• Kill Zone Attiva: ${activeKillZone.name} (${activeKillZone.volatilityExpected})\n`;
+    }
+    
+    // Enhanced Confidence
+    if (aiAnalysis.enhancedConfidence && aiAnalysis.enhancedConfidence.institutionalScore) {
+      recommendation += `• Score Istituzionale: ${aiAnalysis.enhancedConfidence.institutionalScore.toFixed(1)}%\n`;
+      recommendation += `• Bias Istituzionale: ${aiAnalysis.enhancedConfidence.recommendations.institutionalBias}\n`;
+    }
+  }
+  
   if (aiAnalysis.confidence < config.minConfidence) {
     recommendation += `\n⚠️ ATTENZIONE: Confidenza sotto l'ottimale (${config.minConfidence}%)\n`;
   }
@@ -317,6 +365,23 @@ export function getStrategyRecommendation(
   
   if (trendStrength < config.trendStrengthRequired) {
     recommendation += `\n⚠️ ATTENZIONE: Forza del trend debole\n`;
+  }
+  
+  // NEW: Institutional Warnings
+  if (aiAnalysis.enhancedConfidence && aiAnalysis.enhancedConfidence.factors) {
+    const factors = aiAnalysis.enhancedConfidence.factors;
+    
+    if (factors.institutionalAlignment < 40) {
+      recommendation += `\n🚨 ATTENZIONE: Flusso istituzionale in conflitto\n`;
+    }
+    
+    if (factors.orderBlockConfirmation < 30) {
+      recommendation += `\n⚠️ ATTENZIONE: Nessun Order Block di supporto\n`;
+    }
+    
+    if (factors.liquidityZoneConfirmation < 30) {
+      recommendation += `\n⚠️ ATTENZIONE: Lontano da zone di liquidità significative\n`;
+    }
   }
   
   return recommendation;

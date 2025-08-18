@@ -14,6 +14,10 @@ import {
   calculateEnhancedConfidence,
   EnhancedConfidenceResult
 } from "./enhanced-confidence-system";
+import { 
+  performInstitutionalAnalysis,
+  InstitutionalAnalysis
+} from "./institutional-analysis";
 
 const geminiApiKey = secret("GeminiApiKey");
 
@@ -21,6 +25,7 @@ export interface AIAnalysis {
   direction: "LONG" | "SHORT";
   confidence: number;
   enhancedConfidence: EnhancedConfidenceResult; // New enhanced confidence system
+  institutionalAnalysis: InstitutionalAnalysis; // New institutional analysis
   support: number;
   resistance: number;
   sentiment: {
@@ -153,6 +158,16 @@ export async function analyzeWithAI(marketData: TimeframeData, symbol: string): 
 
   console.log(`📍 Traditional direction: ${traditionalDirection}, Enhanced direction: ${enhancedDirection}`);
 
+  // ========== INSTITUTIONAL ANALYSIS ==========
+  // Perform comprehensive institutional analysis
+  const institutionalAnalysis = performInstitutionalAnalysis(
+    data5m, data15m, data30m, data30m, data30m, data30m, symbol
+  );
+  
+  console.log(`🏛️ Institutional Analysis - Order Blocks: ${institutionalAnalysis.orderBlocks.length}, FVGs: ${institutionalAnalysis.fairValueGaps.length}`);
+  console.log(`📊 Market Maker Phase: ${institutionalAnalysis.marketMakerModel.phase} (${institutionalAnalysis.marketMakerModel.confidence}% confidence)`);
+  console.log(`🎯 Supply/Demand Zones: ${institutionalAnalysis.supplyDemandZones.length}, Active Sessions: ${institutionalAnalysis.activeSessions.map(s => s.name).join(', ')}`);
+
   // ========== ENHANCED CONFIDENCE CALCULATION ==========
   // Calculate traditional confidence for compatibility
   const traditionalConfidence = calculateConfidence(
@@ -171,10 +186,13 @@ export async function analyzeWithAI(marketData: TimeframeData, symbol: string): 
     multiTimeframeAnalysis,
     marketContext,
     enhancedDirection,
-    symbol
+    symbol,
+    undefined, // historicalWinRate
+    institutionalAnalysis // Pass institutional analysis
   );
 
   console.log(`🎯 Enhanced confidence: ${enhancedConfidence.finalConfidence.toFixed(1)}% (Grade: ${enhancedConfidence.confidenceGrade})`);
+  console.log(`🏛️ Institutional score: ${enhancedConfidence.institutionalScore.toFixed(1)}%`);
   
   // Log warnings if any
   if (enhancedConfidence.warnings.length > 0) {
@@ -201,6 +219,7 @@ export async function analyzeWithAI(marketData: TimeframeData, symbol: string): 
     direction: enhancedDirection,
     confidence: enhancedConfidence.finalConfidence, // Use enhanced confidence as primary
     enhancedConfidence, // Include full enhanced confidence result
+    institutionalAnalysis, // Include comprehensive institutional analysis
     support: enhancedLevels.support,
     resistance: enhancedLevels.resistance,
     sentiment: {
