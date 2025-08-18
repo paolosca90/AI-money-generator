@@ -122,7 +122,7 @@ async function getTopReliableAssets(): Promise<AssetReliability[]> {
 
   // Add some popular assets if we don't have enough data
   if (assets.length < 6) {
-    const popularAssets = ["EURUSD", "GBPUSD", "BTCUSD", "XAUUSD", "US500", "CRUDE"];
+    const popularAssets = ["EURUSD", "GBPUSD", "BTCUSD", "XAUUSD", "SPX500", "CRUDE"];
     
     for (const symbol of popularAssets) {
       if (!assets.find(a => a.symbol === symbol)) {
@@ -169,9 +169,9 @@ async function getRelevantMarketNews(): Promise<MarketNews[]> {
     newsItems.push({
       id: "news_2",
       title: "Wall Street Apre in Rialzo: Tecnologiche Guidano i Guadagni",
-      summary: "I principali indici USA aprono in territorio positivo, con il settore tecnologico che guida i rialzi. NAS100 e US500 mostrano momentum bullish.",
+      summary: "I principali indici USA aprono in territorio positivo, con il settore tecnologico che guida i rialzi. NAS100 e SPX500 mostrano momentum bullish.",
       impact: "HIGH",
-      affectedAssets: ["US500", "NAS100", "US30", "BTCUSD", "ETHUSD"],
+      affectedAssets: ["SPX500", "NAS100", "US30", "BTCUSD", "ETHUSD"],
       source: "Bloomberg",
       publishedAt: new Date(Date.now() - 30 * 60 * 1000), // 30 minutes ago
       sentiment: "POSITIVE"
@@ -339,7 +339,7 @@ function getCurrentSessionInfo() {
 
 function getAssetCategory(symbol: string): string {
   const forexPairs = ["EURUSD", "GBPUSD", "USDJPY", "USDCHF", "AUDUSD", "USDCAD", "NZDUSD", "EURGBP", "EURJPY", "GBPJPY"];
-  const indices = ["US30", "US500", "NAS100", "UK100", "GER40", "FRA40", "JPN225"];
+  const indices = ["US30", "SPX500", "US500", "NAS100", "UK100", "GER40", "FRA40", "JPN225"];
   const commodities = ["XAUUSD", "XAGUSD", "CRUDE", "BRENT", "NATGAS"];
   const crypto = ["BTCUSD", "ETHUSD", "LTCUSD", "XRPUSD"];
 
@@ -352,7 +352,7 @@ function getAssetCategory(symbol: string): string {
   
   // Default categorization based on symbol patterns
   if (symbol.includes("USD") || symbol.includes("EUR") || symbol.includes("GBP")) return "Forex";
-  if (symbol.includes("US") || symbol.includes("UK") || symbol.includes("GER")) return "Indici";
+  if (symbol.includes("US") || symbol.includes("UK") || symbol.includes("GER") || symbol.includes("SPX")) return "Indici";
   if (symbol.includes("XAU") || symbol.includes("XAG") || symbol.includes("CRUDE")) return "Materie Prime";
   if (symbol.includes("BTC") || symbol.includes("ETH")) return "Crypto";
   
@@ -361,7 +361,7 @@ function getAssetCategory(symbol: string): string {
 
 function getAssetVolatility(symbol: string): "LOW" | "MEDIUM" | "HIGH" {
   const highVolatility = ["BTCUSD", "ETHUSD", "GBPJPY", "XAUUSD", "CRUDE", "NAS100"];
-  const lowVolatility = ["EURUSD", "USDCHF", "EURCHF", "US500"];
+  const lowVolatility = ["EURUSD", "USDCHF", "EURCHF", "SPX500", "US500"];
   
   if (highVolatility.includes(symbol)) return "HIGH";
   if (lowVolatility.includes(symbol)) return "LOW";

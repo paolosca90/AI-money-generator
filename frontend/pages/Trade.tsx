@@ -27,7 +27,7 @@ const assetCategories = {
     "GBPPLN", "GBPSEK", "GBPNOK", "GBPDKK", "GBPTRY", "GBPZAR"
   ],
   "Indici CFD": [
-    "US30", "US500", "NAS100", "UK100", "GER40", "FRA40", "ESP35", 
+    "US30", "SPX500", "NAS100", "UK100", "GER40", "FRA40", "ESP35", 
     "ITA40", "AUS200", "JPN225", "HK50", "CHINA50", "INDIA50"
   ],
   "Materie Prime": [
@@ -84,12 +84,34 @@ export default function Trade() {
     },
   });
 
+  const closePositionMutation = useMutation({
+    mutationFn: (ticket: number) => {
+      return backend.analysis.closePosition({ ticket });
+    },
+    onSuccess: () => {
+      toast({ title: "Successo", description: "Posizione chiusa con successo." });
+      queryClient.invalidateQueries({ queryKey: ["positions"] });
+    },
+    onError: (err: any) => {
+      console.error("Close position error:", err);
+      toast({ 
+        variant: "destructive", 
+        title: "Errore", 
+        description: err.message || "Errore nella chiusura della posizione" 
+      });
+    },
+  });
+
   const { data: positionsData, isLoading: isLoadingPositions, error: positionsError } = useQuery({
     queryKey: ["positions"],
     queryFn: () => backend.analysis.listPositions(),
     retry: 1,
     refetchInterval: 30000,
   });
+
+  const handleClosePosition = (ticket: number) => {
+    closePositionMutation.mutate(ticket);
+  };
 
   return (
     <div className="space-y-6">
@@ -215,7 +237,7 @@ export default function Trade() {
               <PositionsTable
                 positions={positionsData?.positions || []}
                 isLoading={isLoadingPositions}
-                onClose={() => { /* Implement close logic */ }}
+                onClose={handleClosePosition}
               />
             )}
           </CardContent>

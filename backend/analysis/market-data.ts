@@ -222,6 +222,10 @@ function getBrokerSpecificMappings(symbol: string): string[] {
     "BTCUSD": ["BTCUSDpm", "BTCUSD.m", "BTCUSD_m", "BTCUSDpro", "BTCUSDc", "BTCUSDi", "BITCOIN", "BTC", "BTCUSD.pro", "BTCUSD.ecn"],
     "ETHUSD": ["ETHUSDpm", "ETHUSD.m", "ETHUSD_m", "ETHUSDpro", "ETHUSDc", "ETHUSDi", "ETHEREUM", "ETH", "ETHUSD.pro", "ETHUSD.ecn"],
     "CRUDE": ["CRUDEpm", "CRUDE.m", "CRUDE_m", "CRUDEpro", "CRUDEc", "CRUDEi", "WTI", "WTIpm", "WTI.m", "USOIL", "USOILpm", "CRUDE.pro", "CRUDE.ecn"],
+    "US30": ["US30pm", "US30.m", "US30_m", "US30pro", "US30c", "US30i", "DJ30", "DJI30", "DJIA", "US30.pro", "US30.ecn"],
+    "SPX500": ["SPX500pm", "SPX500.m", "SPX500_m", "SPX500pro", "SPX500c", "SPX500i", "SP500", "SPY", "US500", "US500pm", "US500.m", "SPX500.pro", "SPX500.ecn"],
+    "US500": ["US500pm", "US500.m", "US500_m", "US500pro", "US500c", "US500i", "SP500", "SPY", "SPX500", "SPX500pm", "SPX500.m", "US500.pro", "US500.ecn"],
+    "NAS100": ["NAS100pm", "NAS100.m", "NAS100_m", "NAS100pro", "NAS100c", "NAS100i", "NASDAQ", "NDX", "QQQ", "NAS100.pro", "NAS100.ecn"],
   };
   
   return mappings[symbol] || [];
@@ -329,6 +333,7 @@ function getSymbolBasePrice(symbol: string): number {
     "BTCUSD": 95000, "ETHUSD": 3500, "EURUSD": 1.085, "GBPUSD": 1.275,
     "USDJPY": 150.5, "AUDUSD": 0.665, "USDCAD": 1.365, "USDCHF": 0.885,
     "NZDUSD": 0.615, "XAUUSD": 2050, "CRUDE": 75.5, "BRENT": 80.2,
+    "US30": 44500, "SPX500": 5800, "US500": 5800, "NAS100": 20500,
   };
   return basePrices[symbol] || 1.0;
 }
@@ -338,6 +343,7 @@ function getSymbolVolatility(symbol: string): number {
     "BTCUSD": 0.03, "ETHUSD": 0.04, "EURUSD": 0.005, "GBPUSD": 0.008,
     "USDJPY": 0.006, "AUDUSD": 0.007, "USDCAD": 0.006, "USDCHF": 0.005,
     "NZDUSD": 0.008, "XAUUSD": 0.015, "CRUDE": 0.02, "BRENT": 0.018,
+    "US30": 0.015, "SPX500": 0.012, "US500": 0.012, "NAS100": 0.018,
   };
   return volatilities[symbol] || 0.01;
 }
@@ -347,6 +353,7 @@ function getTrendBias(symbol: string): number {
     "BTCUSD": 0.3, "ETHUSD": 0.2, "EURUSD": -0.1, "GBPUSD": 0.1,
     "USDJPY": 0.2, "AUDUSD": -0.2, "USDCAD": 0.1, "USDCHF": -0.1,
     "NZDUSD": -0.2, "XAUUSD": 0.4, "CRUDE": 0.1, "BRENT": 0.1,
+    "US30": 0.2, "SPX500": 0.15, "US500": 0.15, "NAS100": 0.25,
   };
   return trendBiases[symbol] || 0;
 }
@@ -355,6 +362,10 @@ function getBaseVolume(symbol: string, timeframe: string): number {
   const baseVolumes: Record<string, Record<string, number>> = {
     "BTCUSD": { "5m": 500, "15m": 1500, "30m": 3000 },
     "EURUSD": { "5m": 200, "15m": 600, "30m": 1200 },
+    "US30": { "5m": 150, "15m": 450, "30m": 900 },
+    "SPX500": { "5m": 180, "15m": 540, "30m": 1080 },
+    "US500": { "5m": 180, "15m": 540, "30m": 1080 },
+    "NAS100": { "5m": 200, "15m": 600, "30m": 1200 },
   };
   const symbolVolumes = baseVolumes[symbol] || { "5m": 100, "15m": 300, "30m": 600 };
   return symbolVolumes[timeframe] || symbolVolumes["5m"];

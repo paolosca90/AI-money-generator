@@ -35,8 +35,8 @@ export function validateSymbol(symbol: string): boolean {
     "EURPLN", "EURSEK", "EURNOK", "EURDKK", "EURTRY", "EURZAR",
     "GBPPLN", "GBPSEK", "GBPNOK", "GBPDKK", "GBPTRY", "GBPZAR",
     
-    // Indices CFD
-    "US30", "US500", "NAS100", "UK100", "GER40", "FRA40", "ESP35", 
+    // Indices CFD (Updated nomenclature)
+    "US30", "SPX500", "US500", "NAS100", "UK100", "GER40", "FRA40", "ESP35", 
     "ITA40", "AUS200", "JPN225", "HK50", "CHINA50", "INDIA50",
     
     // Commodities
