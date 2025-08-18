@@ -17,12 +17,12 @@ export default function Trade() {
   const [strategy, setStrategy] = useState<TradingStrategy | "auto">("auto");
   const backend = useBackend();
   const { toast } = useToast();
-  const { isAuthenticated } = useAuth();
+  const { isAuthenticated, token, user } = useAuth();
   const queryClient = useQueryClient();
 
   const predictMutation = useMutation({
     mutationFn: () => {
-      console.log("Making predict request with auth:", isAuthenticated);
+      console.log("Making predict request - isAuthenticated:", isAuthenticated, "hasToken:", !!token);
       const strategyParam = strategy === "auto" ? undefined : strategy;
       return backend.analysis.predict({ symbol, strategy: strategyParam });
     },
@@ -42,7 +42,7 @@ export default function Trade() {
 
   const executeMutation = useMutation({
     mutationFn: (params: { tradeId: string; lotSize: number }) => {
-      console.log("Making execute request with auth:", isAuthenticated);
+      console.log("Making execute request - isAuthenticated:", isAuthenticated, "hasToken:", !!token);
       return backend.analysis.execute(params);
     },
     onSuccess: () => {
@@ -63,7 +63,7 @@ export default function Trade() {
   const { data: positionsData, isLoading: isLoadingPositions, error: positionsError } = useQuery({
     queryKey: ["positions"],
     queryFn: async () => {
-      console.log("Making positions request with auth:", isAuthenticated);
+      console.log("Making positions request - isAuthenticated:", isAuthenticated, "hasToken:", !!token, "hasUser:", !!user);
       try {
         const result = await backend.analysis.listPositions();
         console.log("Positions API response:", result);
@@ -73,20 +73,34 @@ export default function Trade() {
         throw error;
       }
     },
-    enabled: isAuthenticated,
-    retry: 1,
+    enabled: isAuthenticated && !!token && !!user,
+    retry: (failureCount, error) => {
+      // Don't retry authentication errors
+      if (error.message?.includes("authentication credentials")) {
+        return false;
+      }
+      return failureCount < 2;
+    },
     refetchInterval: 30000, // Refresh every 30 seconds
   });
 
   // Debug authentication state
-  console.log("Trade page - isAuthenticated:", isAuthenticated);
+  console.log("Trade page - Auth state:", { 
+    isAuthenticated, 
+    hasToken: !!token, 
+    hasUser: !!user,
+    tokenLength: token?.length 
+  });
   console.log("Positions data:", positionsData);
   console.log("Positions error:", positionsError);
 
-  if (!isAuthenticated) {
+  if (!isAuthenticated || !token || !user) {
     return (
       <div className="text-center py-8">
         <p>Devi essere autenticato per accedere al trading.</p>
+        <p className="text-sm text-muted-foreground mt-2">
+          Stato: isAuthenticated={String(isAuthenticated)}, hasToken={String(!!token)}, hasUser={String(!!user)}
+        </p>
       </div>
     );
   }
@@ -190,6 +204,11 @@ export default function Trade() {
               <div className="text-red-500 text-center">
                 <p>Errore nel caricamento delle posizioni</p>
                 <p className="text-sm mt-1">{positionsError.message}</p>
+                {positionsError.message?.includes("authentication") && (
+                  <p className="text-xs mt-2 text-muted-foreground">
+                    Problema di autenticazione. Prova a disconnetterti e riconnetterti.
+                  </p>
+                )}
                 <Button 
                   variant="outline" 
                   size="sm" 

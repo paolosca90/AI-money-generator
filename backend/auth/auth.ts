@@ -13,7 +13,10 @@ export interface AuthData {
 
 const auth = authHandler<AuthParams, AuthData>(
   async ({ authorization }) => {
+    console.log("Auth handler called with authorization:", !!authorization);
+    
     if (!authorization) {
+      console.log("Auth handler: No authorization header");
       throw APIError.unauthenticated("missing authorization header");
     }
 
@@ -21,13 +24,18 @@ const auth = authHandler<AuthParams, AuthData>(
     let token = authorization;
     if (token.startsWith("Bearer ")) {
       token = token.replace("Bearer ", "");
+      console.log("Auth handler: Extracted Bearer token, length:", token.length);
+    } else {
+      console.log("Auth handler: Token without Bearer prefix, length:", token.length);
     }
     
     if (!token) {
+      console.log("Auth handler: Empty token after extraction");
       throw APIError.unauthenticated("missing token");
     }
 
     try {
+      console.log("Auth handler: Validating token in database");
       // Validate token and get user
       const session = await userDB.queryRow`
         SELECT u.id, u.email
@@ -37,14 +45,17 @@ const auth = authHandler<AuthParams, AuthData>(
       `;
 
       if (!session) {
+        console.log("Auth handler: No valid session found for token");
         throw APIError.unauthenticated("invalid or expired token");
       }
 
+      console.log("Auth handler: Valid session found for user:", session.id);
       return {
         userID: session.id,
         email: session.email,
       };
     } catch (err: any) {
+      console.error("Auth handler: Database error:", err);
       throw APIError.unauthenticated("invalid token", { reason: err.message });
     }
   }
