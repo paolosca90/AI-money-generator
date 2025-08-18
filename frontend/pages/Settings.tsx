@@ -8,6 +8,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
 import { useToast } from "@/components/ui/use-toast";
+import { useAuth } from "@clerk/clerk-react";
 
 const preferencesSchema = z.object({
   riskPercentage: z.coerce.number().min(0.1).max(10),
@@ -26,15 +27,20 @@ export default function Settings() {
   const backend = useBackend();
   const queryClient = useQueryClient();
   const { toast } = useToast();
+  const { isSignedIn, isLoaded } = useAuth();
 
-  const { data: prefsData, isLoading: isLoadingPrefs } = useQuery({
+  const { data: prefsData, isLoading: isLoadingPrefs, error: prefsError } = useQuery({
     queryKey: ["preferences"],
     queryFn: () => backend.user.getPreferences(),
+    enabled: isLoaded && isSignedIn,
+    retry: 1,
   });
 
-  const { data: mt5Data, isLoading: isLoadingMt5 } = useQuery({
+  const { data: mt5Data, isLoading: isLoadingMt5, error: mt5Error } = useQuery({
     queryKey: ["mt5Config"],
     queryFn: () => backend.user.getMt5Config(),
+    enabled: isLoaded && isSignedIn,
+    retry: 1,
   });
 
   const prefsForm = useForm<z.infer<typeof preferencesSchema>>({
@@ -63,6 +69,7 @@ export default function Settings() {
       toast({ title: "Successo", description: "Preferenze di trading aggiornate." });
     },
     onError: (err) => {
+      console.error("Update preferences error:", err);
       toast({ variant: "destructive", title: "Errore", description: err.message });
     },
   });
@@ -74,9 +81,20 @@ export default function Settings() {
       toast({ title: "Successo", description: "Configurazione MT5 aggiornata." });
     },
     onError: (err) => {
+      console.error("Update MT5 config error:", err);
       toast({ variant: "destructive", title: "Errore", description: err.message });
     },
   });
+
+  // Show loading state while Clerk is loading
+  if (!isLoaded) {
+    return <div>Caricamento autenticazione...</div>;
+  }
+
+  // Show sign-in prompt if not authenticated
+  if (!isSignedIn) {
+    return <div>Effettua l'accesso per accedere alle impostazioni.</div>;
+  }
 
   return (
     <div className="space-y-6">
@@ -92,7 +110,11 @@ export default function Settings() {
             <CardDescription>Imposta il tuo profilo di rischio e il saldo del conto.</CardDescription>
           </CardHeader>
           <CardContent>
-            {isLoadingPrefs ? <p>Caricamento...</p> : (
+            {isLoadingPrefs ? (
+              <p>Caricamento...</p>
+            ) : prefsError ? (
+              <div className="text-red-500">Errore: {prefsError.message}</div>
+            ) : (
               <Form {...prefsForm}>
                 <form onSubmit={prefsForm.handleSubmit((v) => updatePrefsMutation.mutate(v))} className="space-y-4">
                   <FormField
@@ -136,7 +158,11 @@ export default function Settings() {
             <CardDescription>Collega il tuo account MetaTrader 5 per l'esecuzione dei trade.</CardDescription>
           </CardHeader>
           <CardContent>
-            {isLoadingMt5 ? <p>Caricamento...</p> : (
+            {isLoadingMt5 ? (
+              <p>Caricamento...</p>
+            ) : mt5Error ? (
+              <div className="text-red-500">Errore: {mt5Error.message}</div>
+            ) : (
               <Form {...mt5Form}>
                 <form onSubmit={mt5Form.handleSubmit((v) => updateMt5Mutation.mutate(v))} className="space-y-4">
                   <FormField control={mt5Form.control} name="host" render={({ field }) => (

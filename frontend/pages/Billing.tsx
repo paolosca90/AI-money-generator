@@ -3,6 +3,7 @@ import { useBackend } from "../hooks/useBackend";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { CheckCircle } from "lucide-react";
+import { useAuth } from "@clerk/clerk-react";
 
 const plans = {
   free: {
@@ -24,10 +25,24 @@ const plans = {
 
 export default function Billing() {
   const backend = useBackend();
-  const { data, isLoading } = useQuery({
+  const { isSignedIn, isLoaded } = useAuth();
+  
+  const { data, isLoading, error } = useQuery({
     queryKey: ["subscription"],
     queryFn: () => backend.user.getSubscription(),
+    enabled: isLoaded && isSignedIn,
+    retry: 1,
   });
+
+  // Show loading state while Clerk is loading
+  if (!isLoaded) {
+    return <div>Caricamento autenticazione...</div>;
+  }
+
+  // Show sign-in prompt if not authenticated
+  if (!isSignedIn) {
+    return <div>Effettua l'accesso per gestire l'abbonamento.</div>;
+  }
 
   const currentPlan = data?.subscription?.plan || "free";
 
@@ -63,6 +78,10 @@ export default function Billing() {
       </div>
 
       {isLoading && <p>Caricamento informazioni abbonamento...</p>}
+      
+      {error && (
+        <div className="text-red-500">Errore nel caricamento dell'abbonamento: {error.message}</div>
+      )}
       
       {data?.subscription && (
         <Card>

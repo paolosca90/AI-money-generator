@@ -9,6 +9,7 @@ import SignalCard from "../components/cards/SignalCard";
 import PositionsTable from "../components/tables/PositionsTable";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { TradingStrategy } from "~backend/analysis/trading-strategies";
+import { useAuth } from "@clerk/clerk-react";
 
 const supportedSymbols = ["BTCUSD", "ETHUSD", "EURUSD", "GBPUSD", "XAUUSD", "CRUDE"];
 
@@ -17,6 +18,7 @@ export default function Trade() {
   const [strategy, setStrategy] = useState<TradingStrategy | undefined>(undefined);
   const backend = useBackend();
   const { toast } = useToast();
+  const { isSignedIn, isLoaded } = useAuth();
 
   const predictMutation = useMutation({
     mutationFn: () => backend.analysis.predict({ symbol, strategy }),
@@ -24,6 +26,7 @@ export default function Trade() {
       toast({ title: "Successo", description: `Segnale generato per ${symbol}.` });
     },
     onError: (err) => {
+      console.error("Predict error:", err);
       toast({ variant: "destructive", title: "Errore", description: err.message });
     },
   });
@@ -35,14 +38,27 @@ export default function Trade() {
       // Invalidate positions query to refetch
     },
     onError: (err) => {
+      console.error("Execute error:", err);
       toast({ variant: "destructive", title: "Errore", description: err.message });
     },
   });
 
-  const { data: positionsData, isLoading: isLoadingPositions } = useQuery({
+  const { data: positionsData, isLoading: isLoadingPositions, error: positionsError } = useQuery({
     queryKey: ["positions"],
     queryFn: () => backend.analysis.listPositions(),
+    enabled: isLoaded && isSignedIn,
+    retry: 1,
   });
+
+  // Show loading state while Clerk is loading
+  if (!isLoaded) {
+    return <div>Caricamento autenticazione...</div>;
+  }
+
+  // Show sign-in prompt if not authenticated
+  if (!isSignedIn) {
+    return <div>Effettua l'accesso per accedere al trading.</div>;
+  }
 
   return (
     <div className="space-y-6">
@@ -82,6 +98,11 @@ export default function Trade() {
       <div className="grid gap-6 md:grid-cols-2">
         <div>
           {predictMutation.isPending && <p>Generazione segnale in corso...</p>}
+          {predictMutation.error && (
+            <div className="text-red-500">
+              Errore nella generazione del segnale: {predictMutation.error.message}
+            </div>
+          )}
           {predictMutation.data && (
             <SignalCard
               signal={predictMutation.data}
@@ -94,11 +115,15 @@ export default function Trade() {
             <CardTitle>Posizioni Aperte</CardTitle>
           </CardHeader>
           <CardContent>
-            <PositionsTable
-              positions={positionsData?.positions || []}
-              isLoading={isLoadingPositions}
-              onClose={() => { /* Implement close logic */ }}
-            />
+            {positionsError ? (
+              <div className="text-red-500">Errore: {positionsError.message}</div>
+            ) : (
+              <PositionsTable
+                positions={positionsData?.positions || []}
+                isLoading={isLoadingPositions}
+                onClose={() => { /* Implement close logic */ }}
+              />
+            )}
           </CardContent>
         </Card>
       </div>

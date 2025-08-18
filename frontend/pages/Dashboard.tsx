@@ -5,32 +5,50 @@ import { DollarSign, Percent, TrendingUp, TrendingDown, Zap, BarChart } from "lu
 import PositionsTable from "../components/tables/PositionsTable";
 import HistoryTable from "../components/tables/HistoryTable";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { useAuth } from "@clerk/clerk-react";
 
 export default function Dashboard() {
   const backend = useBackend();
+  const { isSignedIn, isLoaded } = useAuth();
 
-  const { data: performanceData, isLoading: isLoadingPerformance } = useQuery({
+  const { data: performanceData, isLoading: isLoadingPerformance, error: performanceError } = useQuery({
     queryKey: ["performance"],
     queryFn: () => backend.analysis.getPerformance(),
+    enabled: isLoaded && isSignedIn,
+    retry: 1,
   });
 
-  const { data: positionsData, isLoading: isLoadingPositions } = useQuery({
+  const { data: positionsData, isLoading: isLoadingPositions, error: positionsError } = useQuery({
     queryKey: ["positions"],
     queryFn: () => backend.analysis.listPositions(),
+    enabled: isLoaded && isSignedIn,
+    retry: 1,
   });
 
-  const { data: historyData, isLoading: isLoadingHistory } = useQuery({
+  const { data: historyData, isLoading: isLoadingHistory, error: historyError } = useQuery({
     queryKey: ["history"],
     queryFn: () => backend.analysis.listHistory(),
+    enabled: isLoaded && isSignedIn,
+    retry: 1,
   });
 
+  // Show loading state while Clerk is loading
+  if (!isLoaded) {
+    return <div>Caricamento autenticazione...</div>;
+  }
+
+  // Show sign-in prompt if not authenticated
+  if (!isSignedIn) {
+    return <div>Effettua l'accesso per visualizzare la dashboard.</div>;
+  }
+
   const stats = [
-    { title: "Win Rate", value: `${performanceData?.winRate.toFixed(1) || 0}%`, icon: Percent, description: "Percentuale di trade in profitto" },
-    { title: "Profit Factor", value: performanceData?.profitFactor.toFixed(2) || "0", icon: BarChart, description: "Profitto lordo / Perdita lorda" },
-    { title: "Avg. Profit", value: `$${performanceData?.avgProfit.toFixed(2) || 0}`, icon: TrendingUp, description: "Profitto medio per trade" },
-    { title: "Avg. Loss", value: `$${performanceData?.avgLoss.toFixed(2) || 0}`, icon: TrendingDown, description: "Perdita media per trade" },
-    { title: "Total Trades", value: performanceData?.totalTrades.toString() || "0", icon: Zap, description: "Numero totale di trade chiusi" },
-    { title: "Avg. Confidence", value: `${performanceData?.avgConfidence.toFixed(1) || 0}%`, icon: Zap, description: "Confidenza media dei segnali" },
+    { title: "Win Rate", value: `${performanceData?.winRate?.toFixed(1) || 0}%`, icon: Percent, description: "Percentuale di trade in profitto" },
+    { title: "Profit Factor", value: performanceData?.profitFactor?.toFixed(2) || "0", icon: BarChart, description: "Profitto lordo / Perdita lorda" },
+    { title: "Avg. Profit", value: `$${performanceData?.avgProfit?.toFixed(2) || 0}`, icon: TrendingUp, description: "Profitto medio per trade" },
+    { title: "Avg. Loss", value: `$${Math.abs(performanceData?.avgLoss || 0).toFixed(2)}`, icon: TrendingDown, description: "Perdita media per trade" },
+    { title: "Total Trades", value: performanceData?.totalTrades?.toString() || "0", icon: Zap, description: "Numero totale di trade chiusi" },
+    { title: "Avg. Confidence", value: `${performanceData?.avgConfidence?.toFixed(1) || 0}%`, icon: Zap, description: "Confidenza media dei segnali" },
   ];
 
   return (
@@ -42,7 +60,11 @@ export default function Dashboard() {
 
       <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
         {isLoadingPerformance ? (
-          <p>Caricamento statistiche...</p>
+          <div className="col-span-full">Caricamento statistiche...</div>
+        ) : performanceError ? (
+          <div className="col-span-full text-red-500">
+            Errore nel caricamento delle statistiche: {performanceError.message}
+          </div>
         ) : (
           stats.map(stat => <StatCard key={stat.title} {...stat} />)
         )}
@@ -54,11 +76,15 @@ export default function Dashboard() {
             <CardTitle>Posizioni Aperte</CardTitle>
           </CardHeader>
           <CardContent>
-            <PositionsTable
-              positions={positionsData?.positions || []}
-              isLoading={isLoadingPositions}
-              onClose={() => { /* Implement close logic */ }}
-            />
+            {positionsError ? (
+              <div className="text-red-500">Errore: {positionsError.message}</div>
+            ) : (
+              <PositionsTable
+                positions={positionsData?.positions || []}
+                isLoading={isLoadingPositions}
+                onClose={() => { /* Implement close logic */ }}
+              />
+            )}
           </CardContent>
         </Card>
         <Card>
@@ -66,10 +92,14 @@ export default function Dashboard() {
             <CardTitle>Storico Trade Recenti</CardTitle>
           </CardHeader>
           <CardContent>
-            <HistoryTable
-              signals={historyData?.signals.slice(0, 5) || []}
-              isLoading={isLoadingHistory}
-            />
+            {historyError ? (
+              <div className="text-red-500">Errore: {historyError.message}</div>
+            ) : (
+              <HistoryTable
+                signals={historyData?.signals?.slice(0, 5) || []}
+                isLoading={isLoadingHistory}
+              />
+            )}
           </CardContent>
         </Card>
       </div>

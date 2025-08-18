@@ -18,7 +18,7 @@ export function useBackend() {
         // Handle case where token is not available, though this is unlikely for a signed-in user.
         return null;
       }
-      return { Authorization: `Bearer ${token}` };
+      return `Bearer ${token}`;
     },
   });
 }
