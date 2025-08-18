@@ -54,14 +54,14 @@ export const predict = api<PredictRequest, TradingSignal>(
     try {
       // Use default values for demo purposes
       const riskPercentage = 2.0;
-      const accountBalance = 10000;
+      const accountBalance = 9754.81; // Updated to match your actual MT5 balance
       
-      // Create a default MT5 config for demo
+      // Use your actual VPS MT5 config
       const mt5Config = {
-        host: "localhost",
+        host: "154.61.187.189", // Your actual VPS IP
         port: 8080,
-        login: "demo",
-        server: "demo",
+        login: "6001637", // Your actual MT5 account
+        server: "PureMGlobal-MT5", // Your actual server
         password: "demo"
       };
 

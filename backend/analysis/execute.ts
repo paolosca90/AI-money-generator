@@ -69,12 +69,12 @@ export const execute = api<ExecuteRequest, ExecuteResponse>(
 
       console.log(`Executing ${strategy} trade ${tradeId}: ${signal.direction} ${signal.symbol} ${lotSize} lots`);
 
-      // Use default MT5 config for demo
+      // Use your actual VPS MT5 config
       const mt5Config = {
-        host: "localhost",
+        host: "154.61.187.189", // Your actual VPS IP
         port: 8080,
-        login: "demo",
-        server: "demo",
+        login: "6001637", // Your actual MT5 account
+        server: "PureMGlobal-MT5", // Your actual server
         password: "demo"
       };
 

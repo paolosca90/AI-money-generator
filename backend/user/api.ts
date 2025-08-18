@@ -45,7 +45,7 @@ export const getPreferences = api<void, { preferences: UserPreferences | null }>
   const preferences: UserPreferences = {
     userId: 1,
     riskPercentage: 2.0,
-    accountBalance: 10000,
+    accountBalance: 9754.81, // Updated to match your actual MT5 balance
     updatedAt: new Date(),
   };
   return { preferences };
@@ -68,13 +68,13 @@ export const getMt5Config = api<void, { config: Mt5Config | null }>({
   path: "/user/mt5-config",
   expose: true,
 }, async () => {
-  // Return demo MT5 config
+  // Return your actual VPS MT5 config
   const config: Mt5Config = {
     userId: 1,
-    host: "localhost",
+    host: "154.61.187.189", // Your actual VPS IP
     port: 8080,
-    login: "demo",
-    server: "demo",
+    login: "6001637", // Your actual MT5 account
+    server: "PureMGlobal-MT5", // Your actual server
   };
   return { config };
 });
