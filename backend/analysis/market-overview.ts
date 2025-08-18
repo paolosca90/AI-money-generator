@@ -76,16 +76,16 @@ async function getTopReliableAssets(): Promise<AssetReliability[]> {
   const recentSignals = await analysisDB.queryAll`
     SELECT 
       symbol,
-      AVG(confidence) as avg_confidence,
-      COUNT(*) as total_signals,
-      COUNT(CASE WHEN profit_loss > 0 THEN 1 END) as winning_signals,
-      AVG(CASE WHEN profit_loss IS NOT NULL THEN profit_loss ELSE 0 END) as avg_performance,
+      CAST(AVG(confidence) AS DOUBLE PRECISION) as avg_confidence,
+      CAST(COUNT(*) AS BIGINT) as total_signals,
+      CAST(COUNT(CASE WHEN profit_loss > 0 THEN 1 END) AS BIGINT) as winning_signals,
+      CAST(AVG(CASE WHEN profit_loss IS NOT NULL THEN profit_loss ELSE 0 END) AS DOUBLE PRECISION) as avg_performance,
       MAX(created_at) as last_analyzed
     FROM trading_signals 
     WHERE created_at >= NOW() - INTERVAL '7 days'
     GROUP BY symbol
     HAVING COUNT(*) >= 3
-    ORDER BY avg_confidence DESC, (COUNT(CASE WHEN profit_loss > 0 THEN 1 END)::FLOAT / COUNT(*)::FLOAT) DESC
+    ORDER BY avg_confidence DESC, (CAST(COUNT(CASE WHEN profit_loss > 0 THEN 1 END) AS DOUBLE PRECISION) / CAST(COUNT(*) AS DOUBLE PRECISION)) DESC
     LIMIT 10
   `;
 
