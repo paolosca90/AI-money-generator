@@ -1,7 +1,9 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useBackend } from "../hooks/useBackend";
 import StatCard from "../components/cards/StatCard";
-import { DollarSign, Percent, TrendingUp, TrendingDown, Zap, BarChart, Brain, Target, Activity, Lightbulb } from "lucide-react";
+import AssetCard from "../components/cards/AssetCard";
+import NewsCard from "../components/cards/NewsCard";
+import { DollarSign, Percent, TrendingUp, TrendingDown, Zap, BarChart, Brain, Target, Activity, Lightbulb, Globe, Clock, AlertCircle } from "lucide-react";
 import PositionsTable from "../components/tables/PositionsTable";
 import HistoryTable from "../components/tables/HistoryTable";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -10,16 +12,25 @@ import { Badge } from "@/components/ui/badge";
 import { Progress } from "@/components/ui/progress";
 import { useToast } from "@/components/ui/use-toast";
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, BarChart as RechartsBarChart, Bar, PieChart, Pie, Cell } from 'recharts';
+import { useNavigate } from "react-router-dom";
 
 export default function Dashboard() {
   const backend = useBackend();
   const { toast } = useToast();
   const queryClient = useQueryClient();
+  const navigate = useNavigate();
 
   const { data: performanceData, isLoading: isLoadingPerformance, error: performanceError } = useQuery({
     queryKey: ["performance"],
     queryFn: () => backend.analysis.getPerformance(),
     retry: 1,
+  });
+
+  const { data: marketOverview, isLoading: isLoadingMarket, error: marketError } = useQuery({
+    queryKey: ["marketOverview"],
+    queryFn: () => backend.analysis.getMarketOverview(),
+    retry: 1,
+    refetchInterval: 5 * 60 * 1000, // Refresh every 5 minutes
   });
 
   const { data: mlAnalytics, isLoading: isLoadingML, error: mlError } = useQuery({
@@ -77,6 +88,10 @@ export default function Dashboard() {
     },
   });
 
+  const handleAssetClick = (symbol: string) => {
+    navigate('/trade', { state: { selectedSymbol: symbol } });
+  };
+
   const stats = [
     { title: "Win Rate", value: `${performanceData?.winRate?.toFixed(1) || 0}%`, icon: Percent, description: "Percentuale di trade in profitto" },
     { title: "Profit Factor", value: performanceData?.profitFactor?.toFixed(2) || "0", icon: BarChart, description: "Profitto lordo / Perdita lorda" },
@@ -107,14 +122,34 @@ export default function Dashboard() {
     type: f.type
   })) || [];
 
-  const learningProgressData = mlAnalytics?.learningProgress.slice(-20).map(lp => ({
-    epoch: lp.epoch,
-    trainingLoss: lp.trainingLoss.toFixed(3),
-    validationLoss: lp.validationLoss.toFixed(3),
-    accuracy: (lp.accuracy * 100).toFixed(1)
-  })) || [];
+  const getSentimentColor = (sentiment: string) => {
+    switch (sentiment) {
+      case "BULLISH": return "text-green-600";
+      case "BEARISH": return "text-red-600";
+      case "NEUTRAL": return "text-gray-600";
+      default: return "text-gray-600";
+    }
+  };
 
-  const COLORS = ['#0088FE', '#00C49F', '#FFBB28', '#FF8042', '#8884D8', '#82CA9D', '#FFC658', '#FF7C7C'];
+  const getSentimentIcon = (sentiment: string) => {
+    switch (sentiment) {
+      case "BULLISH": return "📈";
+      case "BEARISH": return "📉";
+      case "NEUTRAL": return "➡️";
+      default: return "➡️";
+    }
+  };
+
+  const getSessionColor = (session: string) => {
+    switch (session) {
+      case "OVERLAP": return "text-green-600 bg-green-50";
+      case "EUROPEAN":
+      case "US": return "text-blue-600 bg-blue-50";
+      case "ASIAN": return "text-yellow-600 bg-yellow-50";
+      case "DEAD": return "text-gray-600 bg-gray-50";
+      default: return "text-gray-600 bg-gray-50";
+    }
+  };
 
   return (
     <div className="space-y-6">
@@ -142,6 +177,124 @@ export default function Dashboard() {
           </Button>
         </div>
       </div>
+
+      {/* Market Overview Section */}
+      {marketOverview && (
+        <div className="space-y-4">
+          <h2 className="text-lg font-semibold">🌍 Panoramica Mercati</h2>
+          
+          {/* Session Info and Market Sentiment */}
+          <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
+            <Card>
+              <CardHeader className="pb-2">
+                <CardTitle className="text-sm flex items-center gap-2">
+                  <Clock className="h-4 w-4" />
+                  Sessione Corrente
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className={`text-lg font-bold px-2 py-1 rounded ${getSessionColor(marketOverview.sessionInfo.currentSession)}`}>
+                  {marketOverview.sessionInfo.currentSession}
+                </div>
+                <p className="text-xs text-muted-foreground mt-1">
+                  Prossima: {marketOverview.sessionInfo.nextSession} in {marketOverview.sessionInfo.timeToNext}
+                </p>
+                <p className="text-xs text-muted-foreground">
+                  Volatilità attesa: {marketOverview.sessionInfo.volatilityExpected}
+                </p>
+              </CardContent>
+            </Card>
+
+            <Card>
+              <CardHeader className="pb-2">
+                <CardTitle className="text-sm flex items-center gap-2">
+                  <Globe className="h-4 w-4" />
+                  Sentiment Generale
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className={`text-lg font-bold ${getSentimentColor(marketOverview.marketSentiment.overall)}`}>
+                  {getSentimentIcon(marketOverview.marketSentiment.overall)} {marketOverview.marketSentiment.overall}
+                </div>
+                <div className="text-xs text-muted-foreground mt-1 space-y-1">
+                  <div>Forex: <span className={getSentimentColor(marketOverview.marketSentiment.forex)}>{marketOverview.marketSentiment.forex}</span></div>
+                  <div>Crypto: <span className={getSentimentColor(marketOverview.marketSentiment.crypto)}>{marketOverview.marketSentiment.crypto}</span></div>
+                </div>
+              </CardContent>
+            </Card>
+
+            <Card>
+              <CardHeader className="pb-2">
+                <CardTitle className="text-sm flex items-center gap-2">
+                  <BarChart className="h-4 w-4" />
+                  Indici
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className={`text-lg font-bold ${getSentimentColor(marketOverview.marketSentiment.indices)}`}>
+                  {getSentimentIcon(marketOverview.marketSentiment.indices)} {marketOverview.marketSentiment.indices}
+                </div>
+                <p className="text-xs text-muted-foreground mt-1">
+                  Sentiment indici azionari
+                </p>
+              </CardContent>
+            </Card>
+
+            <Card>
+              <CardHeader className="pb-2">
+                <CardTitle className="text-sm flex items-center gap-2">
+                  <DollarSign className="h-4 w-4" />
+                  Materie Prime
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className={`text-lg font-bold ${getSentimentColor(marketOverview.marketSentiment.commodities)}`}>
+                  {getSentimentIcon(marketOverview.marketSentiment.commodities)} {marketOverview.marketSentiment.commodities}
+                </div>
+                <p className="text-xs text-muted-foreground mt-1">
+                  Sentiment commodities
+                </p>
+              </CardContent>
+            </Card>
+          </div>
+
+          {/* Top Assets */}
+          <div>
+            <h3 className="text-md font-semibold mb-3">🏆 Asset Più Affidabili</h3>
+            {isLoadingMarket ? (
+              <div className="text-center py-4">Caricamento asset...</div>
+            ) : marketError ? (
+              <div className="text-red-500">Errore nel caricamento: {marketError.message}</div>
+            ) : (
+              <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
+                {marketOverview.topAssets.slice(0, 8).map((asset, index) => (
+                  <AssetCard 
+                    key={asset.symbol} 
+                    asset={asset} 
+                    onClick={handleAssetClick}
+                  />
+                ))}
+              </div>
+            )}
+          </div>
+
+          {/* Market News */}
+          <div>
+            <h3 className="text-md font-semibold mb-3">📰 Notizie di Mercato</h3>
+            {isLoadingMarket ? (
+              <div className="text-center py-4">Caricamento notizie...</div>
+            ) : marketError ? (
+              <div className="text-red-500">Errore nel caricamento: {marketError.message}</div>
+            ) : (
+              <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+                {marketOverview.marketNews.map((news, index) => (
+                  <NewsCard key={news.id} news={news} />
+                ))}
+              </div>
+            )}
+          </div>
+        </div>
+      )}
 
       {/* Trading Performance Stats */}
       <div>
@@ -211,54 +364,6 @@ export default function Dashboard() {
                   <Bar dataKey="importance" fill="#8884d8" />
                 </RechartsBarChart>
               </ResponsiveContainer>
-            </CardContent>
-          </Card>
-
-          {/* Learning Progress */}
-          <Card>
-            <CardHeader>
-              <CardTitle>📚 Progresso Apprendimento</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <ResponsiveContainer width="100%" height={300}>
-                <LineChart data={learningProgressData}>
-                  <CartesianGrid strokeDasharray="3 3" />
-                  <XAxis dataKey="epoch" />
-                  <YAxis />
-                  <Tooltip />
-                  <Line type="monotone" dataKey="trainingLoss" stroke="#ff7300" name="Training Loss" />
-                  <Line type="monotone" dataKey="validationLoss" stroke="#387908" name="Validation Loss" />
-                </LineChart>
-              </ResponsiveContainer>
-            </CardContent>
-          </Card>
-
-          {/* Market Patterns */}
-          <Card>
-            <CardHeader>
-              <CardTitle>🔍 Pattern di Mercato Rilevati</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="space-y-3">
-                {mlAnalytics.marketPatterns.slice(0, 5).map((pattern, index) => (
-                  <div key={index} className="flex items-center justify-between p-3 bg-muted rounded-lg">
-                    <div>
-                      <div className="font-semibold">{pattern.pattern}</div>
-                      <div className="text-sm text-muted-foreground">
-                        {pattern.type} • {(pattern.successRate * 100).toFixed(1)}% successo
-                      </div>
-                    </div>
-                    <div className="text-right">
-                      <Badge variant={pattern.confidence > 0.8 ? "default" : "secondary"}>
-                        {(pattern.confidence * 100).toFixed(0)}%
-                      </Badge>
-                      <div className="text-sm text-green-600">
-                        +${pattern.avgProfit.toFixed(0)}
-                      </div>
-                    </div>
-                  </div>
-                ))}
-              </div>
             </CardContent>
           </Card>
         </div>
