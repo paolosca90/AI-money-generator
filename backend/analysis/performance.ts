@@ -15,9 +15,15 @@ interface PerformanceStats {
 
 // Retrieves AI model performance statistics for the authenticated user.
 export const getPerformance = api<void, PerformanceStats>(
-  { expose: true, method: "GET", path: "/analysis/performance", auth: true },
+  { 
+    expose: true, 
+    method: "GET", 
+    path: "/analysis/performance", 
+    auth: true 
+  },
   async () => {
     const auth = getAuthData()!;
+    console.log("Performance endpoint called for user:", auth.userID, "email:", auth.email);
 
     const stats = await analysisDB.queryRow`
       SELECT 

@@ -15,6 +15,7 @@ export const listHistory = api<void, ListHistoryResponse>({
   expose: true,
 }, async () => {
   const auth = getAuthData()!;
+  console.log("History endpoint called for user:", auth.userID, "email:", auth.email);
 
   const signals = await analysisDB.queryAll`
     SELECT 

@@ -41,33 +41,41 @@ export interface TradingSignal {
 
 // Generates AI-powered trading predictions with automatic NY session closure.
 export const predict = api<PredictRequest, TradingSignal>(
-  { expose: true, method: "POST", path: "/analysis/predict", auth: true },
+  { 
+    expose: true, 
+    method: "POST", 
+    path: "/analysis/predict", 
+    auth: true 
+  },
   async (req) => {
     const auth = getAuthData()!;
+    console.log("Predict endpoint called for user:", auth.userID, "email:", auth.email);
+    
     const { symbol, strategy: userStrategy } = req;
     
     if (!symbol || symbol.trim() === "") {
       throw APIError.invalidArgument("Symbol is required");
     }
 
-    // Fetch user preferences and MT5 config
-    const [prefs, mt5Config] = await Promise.all([
-      user.getPreferences(),
-      user.getMt5Config()
-    ]);
-
-    if (!prefs.preferences) {
-      throw APIError.failedPrecondition("User preferences not set.");
-    }
-    if (!mt5Config.config) {
-      throw APIError.failedPrecondition("MT5 configuration not found.");
-    }
-
-    const { riskPercentage, accountBalance } = prefs.preferences;
-    
-    const tradeId = generateTradeId(symbol);
-
     try {
+      // Fetch user preferences and MT5 config
+      console.log("Fetching user preferences and MT5 config for user:", auth.userID);
+      const [prefs, mt5Config] = await Promise.all([
+        user.getPreferences(),
+        user.getMt5Config()
+      ]);
+
+      if (!prefs.preferences) {
+        throw APIError.failedPrecondition("User preferences not set.");
+      }
+      if (!mt5Config.config) {
+        throw APIError.failedPrecondition("MT5 configuration not found.");
+      }
+
+      const { riskPercentage, accountBalance } = prefs.preferences;
+      
+      const tradeId = generateTradeId(symbol);
+
       console.log(`Starting prediction for ${symbol} with trade ID ${tradeId}`);
       const marketData = await fetchMarketData(symbol, ["1m", "5m", "15m", "30m", "1h"], mt5Config.config);
       

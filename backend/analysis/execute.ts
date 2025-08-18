@@ -22,9 +22,16 @@ interface ExecuteResponse {
 
 // Executes a trading signal on MetaTrader 5 with strategy-specific parameters.
 export const execute = api<ExecuteRequest, ExecuteResponse>(
-  { expose: true, method: "POST", path: "/analysis/execute", auth: true },
+  { 
+    expose: true, 
+    method: "POST", 
+    path: "/analysis/execute", 
+    auth: true 
+  },
   async (req) => {
     const auth = getAuthData()!;
+    console.log("Execute endpoint called for user:", auth.userID, "email:", auth.email);
+    
     const { tradeId, lotSize: requestedLotSize, strategy: requestedStrategy } = req;
 
     if (!tradeId || tradeId.trim() === "") {

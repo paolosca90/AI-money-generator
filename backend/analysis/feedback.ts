@@ -14,9 +14,16 @@ interface FeedbackResponse {
 
 // Records trading results for AI model improvement.
 export const recordFeedback = api<FeedbackRequest, FeedbackResponse>(
-  { expose: true, method: "POST", path: "/analysis/feedback", auth: true },
+  { 
+    expose: true, 
+    method: "POST", 
+    path: "/analysis/feedback", 
+    auth: true 
+  },
   async (req) => {
     const auth = getAuthData()!;
+    console.log("Feedback endpoint called for user:", auth.userID, "email:", auth.email);
+    
     const { tradeId, actualDirection, profitLoss } = req;
 
     // Get the original prediction for performance tracking and authorization
