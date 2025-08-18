@@ -56,7 +56,7 @@ export const execute = api<ExecuteRequest, ExecuteResponse>(
       const lotSize = requestedLotSize || signal.recommended_lot_size || 0.1;
       
       // Use requested strategy or strategy from signal
-      const strategy = (requestedStrategy || signal.strategy || "INTRADAY") as TradingStrategy;
+      const strategy = (requestedStrategy || signal.strategy || TradingStrategy.INTRADAY);
 
       // Validate lot size
       if (isNaN(lotSize) || lotSize <= 0 || lotSize > 100) {
@@ -137,11 +137,11 @@ export const execute = api<ExecuteRequest, ExecuteResponse>(
 
 function getEstimatedHoldingTime(strategy: TradingStrategy, maxHours: number): string {
   switch (strategy) {
-    case "SCALPING":
+    case TradingStrategy.SCALPING:
       return "1-15 minutes";
-    case "INTRADAY":
+    case TradingStrategy.INTRADAY:
       return "1-8 hours";
-    case "SWING":
+    case TradingStrategy.SWING:
       return "1-7 days";
     default:
       return `Up to ${maxHours} hours`;
