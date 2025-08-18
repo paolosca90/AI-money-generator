@@ -23,86 +23,115 @@ export async function processMessage(chatId: number, userId: number, text: strin
   const command = text.toLowerCase().trim();
   const userLanguage = getUserLanguage(userId);
 
+  console.log(`[PROCESSOR] Processing message from user ${userId} in chat ${chatId}: "${text}"`);
+
   try {
     // Check if user is in a state that requires specific handling
     const userState = await getUserState(userId);
     if (userState && userState.currentState !== USER_STATES.READY_TO_TRADE) {
+      console.log(`[PROCESSOR] User ${userId} is in state ${userState.currentState}, handling state flow`);
       await handleUserStateFlow(chatId, userId, text, userState);
       return;
     }
 
     if (command.startsWith("/segnale") || command.startsWith("/predict")) {
+      console.log(`[PROCESSOR] User ${userId} requested prediction signal: ${command}`);
       // Check if user has signal access
       const hasAccess = await checkClientFeature(userId, "basic_signals") ||
                        await checkClientFeature(userId, "advanced_signals") ||
                        await checkClientFeature(userId, "premium_signals");
       
       if (!hasAccess) {
+        console.log(`[PROCESSOR] User ${userId} lacks signal access`);
         await sendMessage(chatId, getMessage('error.subscription_required', userLanguage));
         return;
       }
       
       await handlePredictCommand(chatId, command, userId);
     } else if (command.startsWith("/scalping")) {
+      console.log(`[PROCESSOR] User ${userId} requested scalping strategy: ${command}`);
       await handleStrategyCommand(chatId, command, TradingStrategy.SCALPING, userId);
     } else if (command.startsWith("/intraday")) {
+      console.log(`[PROCESSOR] User ${userId} requested intraday strategy: ${command}`);
       await handleStrategyCommand(chatId, command, TradingStrategy.INTRADAY, userId);
     } else if (command.startsWith("/execute") || command.startsWith("/ordina")) {
+      console.log(`[PROCESSOR] User ${userId} requested trade execution: ${command}`);
       await handleExecuteCommand(chatId, command);
     } else if (command.startsWith("/stato")) {
+      console.log(`[PROCESSOR] User ${userId} requested status: ${command}`);
       await handleStatusCommand(chatId, userId);
     } else if (command.startsWith("/chiudi")) {
+      console.log(`[PROCESSOR] User ${userId} requested position close: ${command}`);
       await handleCloseCommand(chatId, command);
     } else if (command.startsWith("/affidabilita")) {
+      console.log(`[PROCESSOR] User ${userId} requested reliability check: ${command}`);
       await handleReliabilityCommand(chatId, command, userId);
     } else if (command.startsWith("/lista_asset")) {
+      console.log(`[PROCESSOR] User ${userId} requested asset list: ${command}`);
       await handleSymbolsCommand(chatId);
     } else if (command.startsWith("/config_rischio")) {
+      console.log(`[PROCESSOR] User ${userId} requested risk config: ${command}`);
       await handleRiskConfigCommand(chatId, userId);
     } else if (command.startsWith("/imposta")) {
+      console.log(`[PROCESSOR] User ${userId} requested settings: ${command}`);
       await handleSettingsCommand(chatId, userId);
     } else if (command.startsWith("/backtest")) {
+      console.log(`[PROCESSOR] User ${userId} requested backtest: ${command}`);
       await handleBacktestCommand(chatId, command);
     } else if (command === "/start") {
+      console.log(`[PROCESSOR] User ${userId} sent start command`);
       await handleStartCommand(chatId, userId);
     } else if (command === "/help" || command === "/aiuto") {
+      console.log(`[PROCESSOR] User ${userId} requested help`);
       await handleHelpCommand(chatId);
     } else if (command === "/performance" || command === "/prestazioni") {
+      console.log(`[PROCESSOR] User ${userId} requested performance stats`);
       await handlePerformanceCommand(chatId);
     } else if (command.startsWith("/symbols") || command.startsWith("/simboli")) {
+      console.log(`[PROCESSOR] User ${userId} requested symbols list: ${command}`);
       await handleSymbolsCommand(chatId);
     } else if (command.startsWith("/strategies") || command.startsWith("/strategie")) {
+      console.log(`[PROCESSOR] User ${userId} requested strategies info: ${command}`);
       await handleStrategiesCommand(chatId);
     } else if (command.startsWith("/vps")) {
+      console.log(`[PROCESSOR] User ${userId} requested VPS command: ${command}`);
       // Check if user has VPS management access
       const hasAccess = await checkClientFeature(userId, "vps_management");
       
       if (!hasAccess) {
+        console.log(`[PROCESSOR] User ${userId} lacks VPS access`);
         await sendMessage(chatId, getMessage('error.vps_access_denied', userLanguage));
         return;
       }
       
       await handleVPSCommand(chatId, userId, command);
     } else if (command === "/vps_setup") {
+      console.log(`[PROCESSOR] User ${userId} requested VPS setup`);
       // Check if user has VPS management access
       const hasAccess = await checkClientFeature(userId, "vps_management");
       
       if (!hasAccess) {
+        console.log(`[PROCESSOR] User ${userId} lacks VPS access for setup`);
         await sendMessage(chatId, getMessage('error.vps_access_denied', userLanguage));
         return;
       }
       
       await handleVPSSetup(chatId, userId);
     } else if (command === "/subscription" || command === "/features" || command === "/upgrade" || command === "/support") {
+      console.log(`[PROCESSOR] User ${userId} requested client service: ${command}`);
       await handleClientCommands(chatId, userId, command);
     } else if (command === "/settings" || command === "/impostazioni") {
+      console.log(`[PROCESSOR] User ${userId} requested settings (alternative): ${command}`);
       await handleSettingsCommand(chatId, userId);
     } else {
+      console.log(`[PROCESSOR] User ${userId} sent unrecognized command: ${command}`);
       // Check if user is in VPS setup mode by checking if they have an active state
       const userState = await getUserState(userId);
       if (userState && userState.currentState !== USER_STATES.READY_TO_TRADE) {
+        console.log(`[PROCESSOR] User ${userId} has active state ${userState.currentState}, redirecting to state handler`);
         await handleUserStateFlow(chatId, userId, text, userState);
       } else {
+        console.log(`[PROCESSOR] Sending unknown command message to user ${userId}`);
         // Default help message for unrecognized commands
         await sendMessage(chatId, "❓ Comando non riconosciuto. Usa `/help` per vedere tutti i comandi disponibili.");
       }
