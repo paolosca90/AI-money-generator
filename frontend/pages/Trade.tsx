@@ -17,11 +17,17 @@ export default function Trade() {
   const [strategy, setStrategy] = useState<TradingStrategy | "auto">("auto");
   const backend = useBackend();
   const { toast } = useToast();
-  const { isAuthenticated } = useAuth();
+  const { isAuthenticated, validateSession } = useAuth();
   const queryClient = useQueryClient();
 
   const predictMutation = useMutation({
-    mutationFn: () => {
+    mutationFn: async () => {
+      // Validate session before making the predict call
+      const isSessionValid = await validateSession();
+      if (!isSessionValid) {
+        throw new Error("Your session has expired. Please log in again.");
+      }
+      
       const strategyParam = strategy === "auto" ? undefined : strategy;
       return backend.analysis.predict({ symbol, strategy: strategyParam });
     },
@@ -39,7 +45,13 @@ export default function Trade() {
   });
 
   const executeMutation = useMutation({
-    mutationFn: (params: { tradeId: string; lotSize: number }) => {
+    mutationFn: async (params: { tradeId: string; lotSize: number }) => {
+      // Validate session before making the execute call
+      const isSessionValid = await validateSession();
+      if (!isSessionValid) {
+        throw new Error("Your session has expired. Please log in again.");
+      }
+      
       return backend.analysis.execute(params);
     },
     onSuccess: () => {
