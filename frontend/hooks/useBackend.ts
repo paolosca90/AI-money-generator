@@ -11,7 +11,7 @@ export function useBackend() {
   // For authenticated endpoints, we pass the token in the Authorization header format.
   // The backend auth handler expects the token in the Authorization header.
   if (isAuthenticated && token) {
-    console.log("useBackend - Using authenticated client with token");
+    console.log("useBackend - Using authenticated client with token length:", token.length);
     return backend.with({
       auth: `Bearer ${token}`,
     });

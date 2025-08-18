@@ -64,6 +64,7 @@ export default function Trade() {
     queryKey: ["positions"],
     queryFn: async () => {
       console.log("Making positions request - isAuthenticated:", isAuthenticated, "hasToken:", !!token, "hasUser:", !!user);
+      console.log("Token details:", { tokenLength: token?.length, tokenStart: token?.substring(0, 10) });
       try {
         const result = await backend.analysis.listPositions();
         console.log("Positions API response:", result);
@@ -77,6 +78,7 @@ export default function Trade() {
     retry: (failureCount, error) => {
       // Don't retry authentication errors
       if (error.message?.includes("authentication credentials")) {
+        console.log("Not retrying authentication error");
         return false;
       }
       return failureCount < 2;
@@ -89,7 +91,8 @@ export default function Trade() {
     isAuthenticated, 
     hasToken: !!token, 
     hasUser: !!user,
-    tokenLength: token?.length 
+    tokenLength: token?.length,
+    userEmail: user?.email 
   });
   console.log("Positions data:", positionsData);
   console.log("Positions error:", positionsError);
@@ -205,9 +208,18 @@ export default function Trade() {
                 <p>Errore nel caricamento delle posizioni</p>
                 <p className="text-sm mt-1">{positionsError.message}</p>
                 {positionsError.message?.includes("authentication") && (
-                  <p className="text-xs mt-2 text-muted-foreground">
-                    Problema di autenticazione. Prova a disconnetterti e riconnetterti.
-                  </p>
+                  <div className="mt-2 p-2 bg-yellow-50 border border-yellow-200 rounded text-yellow-800 text-xs">
+                    <p>Problema di autenticazione rilevato.</p>
+                    <p>Token length: {token?.length}, User: {user?.email}</p>
+                    <Button 
+                      variant="outline" 
+                      size="sm" 
+                      className="mt-2"
+                      onClick={() => window.location.reload()}
+                    >
+                      Ricarica Pagina
+                    </Button>
+                  </div>
                 )}
                 <Button 
                   variant="outline" 

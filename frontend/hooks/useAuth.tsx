@@ -111,7 +111,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     hasUser: !!user, 
     hasToken: !!token, 
     isAuthenticated, 
-    isLoading 
+    isLoading,
+    tokenLength: token?.length 
   });
 
   return (

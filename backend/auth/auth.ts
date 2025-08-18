@@ -23,13 +23,13 @@ const auth = authHandler<AuthParams, AuthData>(
     // Extract token from Authorization header
     let token = authorization;
     if (token.startsWith("Bearer ")) {
-      token = token.replace("Bearer ", "");
+      token = token.substring(7); // Remove "Bearer " prefix
       console.log("Auth handler: Extracted Bearer token, length:", token.length);
     } else {
       console.log("Auth handler: Token without Bearer prefix, length:", token.length);
     }
     
-    if (!token) {
+    if (!token || token.trim() === "") {
       console.log("Auth handler: Empty token after extraction");
       throw APIError.unauthenticated("missing token");
     }
@@ -56,7 +56,10 @@ const auth = authHandler<AuthParams, AuthData>(
       };
     } catch (err: any) {
       console.error("Auth handler: Database error:", err);
-      throw APIError.unauthenticated("invalid token", { reason: err.message });
+      if (err.code && err.code.startsWith('unauthenticated')) {
+        throw err; // Re-throw authentication errors
+      }
+      throw APIError.unauthenticated("token validation failed", { reason: err.message });
     }
   }
 );
