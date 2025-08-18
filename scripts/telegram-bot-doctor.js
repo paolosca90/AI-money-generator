@@ -9,7 +9,7 @@
 import https from 'https';
 import http from 'http';
 
-const BOT_TOKEN = process.env.8179398505:AAFHnCT91K68GAns4Tl8mSo9WGvFNhOciy8;
+const BOT_TOKEN = process.env.TELEGRAM_BOT_TOKEN;
 const BASE_URL = process.argv[2] || 'https://staging-telegram-trading-bot-d6u2.encr.app';
 const WEBHOOK_URL = `${BASE_URL}/telegram/webhook`;
 
