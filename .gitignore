@@ -4,3 +4,10 @@ encore.gen.cue
 /.encore
 node_modules
 /encore.gen
+
+# Test files
+test_auth_validation.js
+test_auth_improvements.md
+
+# Dependencies
+package-lock.json
