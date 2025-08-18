@@ -35,6 +35,9 @@ export interface TradingSignal {
   chartUrl?: string;
   strategyRecommendation: string;
   analysis: any;
+  // NEW: Enhanced institutional analysis
+  institutionalAnalysis?: any; // Will contain InstitutionalAnalysis data
+  enhancedConfidence?: any; // Will contain EnhancedConfidenceResult data
 }
 
 // Generates AI-powered trading predictions with automatic NY session closure.
@@ -142,6 +145,9 @@ export const predict = api<PredictRequest, TradingSignal>(
           enhancedTechnical: aiAnalysis.enhancedTechnical,
           vwap: aiAnalysis.vwap,
         },
+        // NEW: Enhanced institutional analysis for improved signal quality
+        institutionalAnalysis: aiAnalysis.institutionalAnalysis,
+        enhancedConfidence: aiAnalysis.enhancedConfidence,
       };
 
       await analysisDB.exec`

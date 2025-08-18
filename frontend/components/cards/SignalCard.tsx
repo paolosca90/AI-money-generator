@@ -63,6 +63,92 @@ const SignalCard: React.FC<SignalCardProps> = ({ signal, onExecute }) => {
           <h4 className="font-semibold mb-1">Analisi Strategia:</h4>
           <p className="text-xs text-muted-foreground">{signal.strategyRecommendation}</p>
         </div>
+        
+        {/* NEW: Institutional Analysis Section */}
+        {signal.institutionalAnalysis && (
+          <div className="border-t pt-3">
+            <h4 className="font-semibold mb-2 text-purple-600">🏛️ Analisi Istituzionale:</h4>
+            <div className="grid grid-cols-2 gap-2 text-xs">
+              <div className="flex items-center gap-1">
+                <span className="font-semibold">📊 Smart Money:</span>
+                <span className={`px-1 py-0.5 rounded text-xs ${
+                  signal.institutionalAnalysis.marketMakerModel.smartMoneyDirection === 'LONG' 
+                    ? 'bg-green-100 text-green-700' 
+                    : signal.institutionalAnalysis.marketMakerModel.smartMoneyDirection === 'SHORT'
+                    ? 'bg-red-100 text-red-700'
+                    : 'bg-gray-100 text-gray-700'
+                }`}>
+                  {signal.institutionalAnalysis.marketMakerModel.smartMoneyDirection}
+                </span>
+              </div>
+              
+              <div className="flex items-center gap-1">
+                <span className="font-semibold">🎯 Fase MM:</span>
+                <span className="text-blue-600 font-mono text-xs">
+                  {signal.institutionalAnalysis.marketMakerModel.phase}
+                </span>
+              </div>
+              
+              {signal.institutionalAnalysis.orderBlocks.length > 0 && (
+                <div className="flex items-center gap-1">
+                  <span className="font-semibold">🏛️ Order Blocks:</span>
+                  <span className="font-mono text-xs">
+                    {signal.institutionalAnalysis.orderBlocks.filter(ob => ob.type === 'BULLISH').length}B/
+                    {signal.institutionalAnalysis.orderBlocks.filter(ob => ob.type === 'BEARISH').length}S
+                  </span>
+                </div>
+              )}
+              
+              {signal.institutionalAnalysis.fairValueGaps.length > 0 && (
+                <div className="flex items-center gap-1">
+                  <span className="font-semibold">⚡ FVG Aperti:</span>
+                  <span className="font-mono text-xs text-orange-600">
+                    {signal.institutionalAnalysis.fairValueGaps.filter(fvg => fvg.status === 'OPEN').length}
+                  </span>
+                </div>
+              )}
+              
+              {signal.institutionalAnalysis.activeSessions.length > 0 && (
+                <div className="col-span-2 flex items-center gap-1">
+                  <span className="font-semibold">🌍 Sessioni:</span>
+                  <div className="flex gap-1">
+                    {signal.institutionalAnalysis.activeSessions.map(session => (
+                      <span key={session.name} className={`px-1 py-0.5 rounded text-xs ${
+                        session.volatilityMultiplier >= 1.2 
+                          ? 'bg-red-100 text-red-700' 
+                          : 'bg-blue-100 text-blue-700'
+                      }`}>
+                        {session.name}
+                      </span>
+                    ))}
+                  </div>
+                </div>
+              )}
+              
+              {signal.enhancedConfidence?.institutionalScore && (
+                <div className="col-span-2 flex items-center gap-1">
+                  <span className="font-semibold">📈 Score Istituzionale:</span>
+                  <span className={`font-bold ${
+                    signal.enhancedConfidence.institutionalScore >= 80 ? 'text-green-600' :
+                    signal.enhancedConfidence.institutionalScore >= 60 ? 'text-yellow-600' :
+                    'text-red-600'
+                  }`}>
+                    {signal.enhancedConfidence.institutionalScore.toFixed(1)}%
+                  </span>
+                  <span className={`px-1 py-0.5 rounded text-xs ml-1 ${
+                    signal.enhancedConfidence.recommendations.institutionalBias.includes('BULLISH') 
+                      ? 'bg-green-100 text-green-700' 
+                      : signal.enhancedConfidence.recommendations.institutionalBias.includes('BEARISH')
+                      ? 'bg-red-100 text-red-700'
+                      : 'bg-gray-100 text-gray-700'
+                  }`}>
+                    {signal.enhancedConfidence.recommendations.institutionalBias}
+                  </span>
+                </div>
+              )}
+            </div>
+          </div>
+        )}
       </CardContent>
       <CardFooter>
         <Button className="w-full" onClick={() => onExecute(signal.tradeId, signal.recommendedLotSize)}>
