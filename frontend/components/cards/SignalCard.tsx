@@ -4,7 +4,7 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import type { TradingSignal } from "~backend/analysis/predict";
+import type { TradingSignal } from "~backend/analysis/signal-generator";
 import { TrendingUp, TrendingDown, Zap, Shield, Target, Clock, BarChart, DollarSign } from "lucide-react";
 
 interface SignalCardProps {

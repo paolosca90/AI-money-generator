@@ -1,6 +1,6 @@
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
-import type { TradingSignal } from "~backend/analysis/predict";
+import type { TradingSignal } from "~backend/analysis/signal-generator";
 
 interface HistoryTableProps {
   signals: TradingSignal[];

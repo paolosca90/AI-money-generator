@@ -1,6 +1,6 @@
 import { api } from "encore.dev/api";
 import { analysisDB } from "./db";
-import { TradingSignal } from "./predict";
+import { TradingSignal } from "./signal-generator";
 
 interface ListHistoryResponse {
   signals: TradingSignal[];
