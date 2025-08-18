@@ -14,7 +14,7 @@ const supportedSymbols = ["BTCUSD", "ETHUSD", "EURUSD", "GBPUSD", "XAUUSD", "CRU
 
 export default function Trade() {
   const [symbol, setSymbol] = useState("BTCUSD");
-  const [strategy, setStrategy] = useState<TradingStrategy | undefined>(undefined);
+  const [strategy, setStrategy] = useState<TradingStrategy | "auto">("auto");
   const backend = useBackend();
   const { toast } = useToast();
   const { isAuthenticated } = useAuth();
@@ -23,7 +23,8 @@ export default function Trade() {
   const predictMutation = useMutation({
     mutationFn: () => {
       console.log("Making predict request with auth:", isAuthenticated);
-      return backend.analysis.predict({ symbol, strategy });
+      const strategyParam = strategy === "auto" ? undefined : strategy;
+      return backend.analysis.predict({ symbol, strategy: strategyParam });
     },
     onSuccess: (data) => {
       console.log("Predict success:", data);
@@ -110,12 +111,12 @@ export default function Trade() {
               {supportedSymbols.map(s => <SelectItem key={s} value={s}>{s}</SelectItem>)}
             </SelectContent>
           </Select>
-          <Select value={strategy || ""} onValueChange={(v) => setStrategy(v as TradingStrategy || undefined)}>
+          <Select value={strategy} onValueChange={(v) => setStrategy(v as TradingStrategy | "auto")}>
             <SelectTrigger>
               <SelectValue placeholder="Strategia Ottimale" />
             </SelectTrigger>
             <SelectContent>
-              <SelectItem value="">Auto (Ottimale)</SelectItem>
+              <SelectItem value="auto">Auto (Ottimale)</SelectItem>
               <SelectItem value={TradingStrategy.SCALPING}>Scalping</SelectItem>
               <SelectItem value={TradingStrategy.INTRADAY}>Intraday</SelectItem>
             </SelectContent>

@@ -5,15 +5,14 @@ import backend from "~backend/client";
 export function useBackend() {
   const { token, isAuthenticated } = useAuth();
   
-  // Always return the backend client, but with auth if available
-  if (!isAuthenticated || !token) {
-    // For public endpoints or when not authenticated
-    return backend;
-  }
-
   // For authenticated endpoints, we pass the token in the Authorization header format.
   // The backend auth handler expects the token in the Authorization header.
-  return backend.with({
-    auth: `Bearer ${token}`,
-  });
+  if (isAuthenticated && token) {
+    return backend.with({
+      auth: `Bearer ${token}`,
+    });
+  }
+
+  // For public endpoints or when not authenticated
+  return backend;
 }
