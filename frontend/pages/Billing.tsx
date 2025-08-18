@@ -1,6 +1,5 @@
 import { useQuery } from "@tanstack/react-query";
 import { useBackend } from "../hooks/useBackend";
-import { useAuth } from "../hooks/useAuth";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { CheckCircle } from "lucide-react";
@@ -25,12 +24,10 @@ const plans = {
 
 export default function Billing() {
   const backend = useBackend();
-  const { isAuthenticated } = useAuth();
   
   const { data, isLoading, error } = useQuery({
     queryKey: ["subscription"],
     queryFn: () => backend.user.getSubscription(),
-    enabled: isAuthenticated,
     retry: 1,
   });
 

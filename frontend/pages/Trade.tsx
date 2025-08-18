@@ -1,7 +1,6 @@
 import { useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useBackend } from "../hooks/useBackend";
-import { useAuth } from "../hooks/useAuth";
 import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useToast } from "@/components/ui/use-toast";
@@ -17,7 +16,6 @@ export default function Trade() {
   const [strategy, setStrategy] = useState<TradingStrategy | "auto">("auto");
   const backend = useBackend();
   const { toast } = useToast();
-  const { isAuthenticated } = useAuth();
   const queryClient = useQueryClient();
 
   const predictMutation = useMutation({
@@ -59,18 +57,9 @@ export default function Trade() {
   const { data: positionsData, isLoading: isLoadingPositions, error: positionsError } = useQuery({
     queryKey: ["positions"],
     queryFn: () => backend.analysis.listPositions(),
-    enabled: isAuthenticated,
     retry: 1,
     refetchInterval: 30000,
   });
-
-  if (!isAuthenticated) {
-    return (
-      <div className="text-center py-8">
-        <p>Devi essere autenticato per accedere al trading.</p>
-      </div>
-    );
-  }
 
   return (
     <div className="space-y-6">

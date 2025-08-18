@@ -1,6 +1,5 @@
 import { useQuery } from "@tanstack/react-query";
 import { useBackend } from "../hooks/useBackend";
-import { useAuth } from "../hooks/useAuth";
 import StatCard from "../components/cards/StatCard";
 import { DollarSign, Percent, TrendingUp, TrendingDown, Zap, BarChart } from "lucide-react";
 import PositionsTable from "../components/tables/PositionsTable";
@@ -9,26 +8,22 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 
 export default function Dashboard() {
   const backend = useBackend();
-  const { isAuthenticated } = useAuth();
 
   const { data: performanceData, isLoading: isLoadingPerformance, error: performanceError } = useQuery({
     queryKey: ["performance"],
     queryFn: () => backend.analysis.getPerformance(),
-    enabled: isAuthenticated,
     retry: 1,
   });
 
   const { data: positionsData, isLoading: isLoadingPositions, error: positionsError } = useQuery({
     queryKey: ["positions"],
     queryFn: () => backend.analysis.listPositions(),
-    enabled: isAuthenticated,
     retry: 1,
   });
 
   const { data: historyData, isLoading: isLoadingHistory, error: historyError } = useQuery({
     queryKey: ["history"],
     queryFn: () => backend.analysis.listHistory(),
-    enabled: isAuthenticated,
     retry: 1,
   });
 

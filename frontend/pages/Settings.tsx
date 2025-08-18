@@ -1,6 +1,5 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useBackend } from "../hooks/useBackend";
-import { useAuth } from "../hooks/useAuth";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import * as z from "zod";
@@ -27,19 +26,16 @@ export default function Settings() {
   const backend = useBackend();
   const queryClient = useQueryClient();
   const { toast } = useToast();
-  const { isAuthenticated } = useAuth();
 
   const { data: prefsData, isLoading: isLoadingPrefs, error: prefsError } = useQuery({
     queryKey: ["preferences"],
     queryFn: () => backend.user.getPreferences(),
-    enabled: isAuthenticated,
     retry: 1,
   });
 
   const { data: mt5Data, isLoading: isLoadingMt5, error: mt5Error } = useQuery({
     queryKey: ["mt5Config"],
     queryFn: () => backend.user.getMt5Config(),
-    enabled: isAuthenticated,
     retry: 1,
   });
 

@@ -1,6 +1,5 @@
 import { api, APIError } from "encore.dev/api";
 import { analysisDB } from "./db";
-import { getAuthData } from "~encore/auth";
 
 interface FeedbackRequest {
   tradeId: string;
@@ -17,16 +16,12 @@ export const recordFeedback = api<FeedbackRequest, FeedbackResponse>(
   { 
     expose: true, 
     method: "POST", 
-    path: "/analysis/feedback", 
-    auth: true 
+    path: "/analysis/feedback"
   },
   async (req) => {
-    const auth = getAuthData()!;
-    console.log("Feedback endpoint called for user:", auth.userID, "email:", auth.email);
-    
     const { tradeId, actualDirection, profitLoss } = req;
 
-    // Get the original prediction for performance tracking and authorization
+    // Get the original prediction for performance tracking
     const signal = await analysisDB.queryRow`
       SELECT direction, confidence, user_id FROM trading_signals 
       WHERE trade_id = ${tradeId}
@@ -34,10 +29,6 @@ export const recordFeedback = api<FeedbackRequest, FeedbackResponse>(
 
     if (!signal) {
       throw APIError.notFound("Trade signal not found.");
-    }
-
-    if (signal.user_id !== auth.userID) {
-      throw APIError.permissionDenied("You are not authorized to record feedback for this trade.");
     }
 
     // Update the trading signal with actual results

@@ -1,22 +1,17 @@
 import { api } from "encore.dev/api";
 import { analysisDB } from "./db";
-import { getAuthData } from "~encore/auth";
 import { TradingSignal } from "./predict";
 
 interface ListHistoryResponse {
   signals: TradingSignal[];
 }
 
-// Retrieves the trading history for the authenticated user.
+// Retrieves the trading history.
 export const listHistory = api<void, ListHistoryResponse>({
-  auth: true,
   method: "GET",
   path: "/analysis/history",
   expose: true,
 }, async () => {
-  const auth = getAuthData()!;
-  console.log("History endpoint called for user:", auth.userID, "email:", auth.email);
-
   const signals = await analysisDB.queryAll`
     SELECT 
       trade_id,
@@ -36,7 +31,6 @@ export const listHistory = api<void, ListHistoryResponse>({
       analysis_data as analysis,
       created_at
     FROM trading_signals
-    WHERE user_id = ${auth.userID}
     ORDER BY created_at DESC
     LIMIT 50
   `;

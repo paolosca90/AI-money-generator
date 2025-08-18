@@ -13,8 +13,6 @@ import {
   getStrategyRecommendation,
   calculatePositionSize
 } from "./trading-strategies";
-import { getAuthData } from "~encore/auth";
-import { user } from "~encore/clients";
 
 interface PredictRequest {
   symbol: string;
@@ -44,13 +42,9 @@ export const predict = api<PredictRequest, TradingSignal>(
   { 
     expose: true, 
     method: "POST", 
-    path: "/analysis/predict", 
-    auth: true 
+    path: "/analysis/predict"
   },
   async (req) => {
-    const auth = getAuthData()!;
-    console.log("Predict endpoint called for user:", auth.userID, "email:", auth.email);
-    
     const { symbol, strategy: userStrategy } = req;
     
     if (!symbol || symbol.trim() === "") {
@@ -58,26 +52,23 @@ export const predict = api<PredictRequest, TradingSignal>(
     }
 
     try {
-      // Fetch user preferences and MT5 config
-      console.log("Fetching user preferences and MT5 config for user:", auth.userID);
-      const [prefs, mt5Config] = await Promise.all([
-        user.getPreferences(),
-        user.getMt5Config()
-      ]);
-
-      if (!prefs.preferences) {
-        throw APIError.failedPrecondition("User preferences not set.");
-      }
-      if (!mt5Config.config) {
-        throw APIError.failedPrecondition("MT5 configuration not found.");
-      }
-
-      const { riskPercentage, accountBalance } = prefs.preferences;
+      // Use default values for demo purposes
+      const riskPercentage = 2.0;
+      const accountBalance = 10000;
       
+      // Create a default MT5 config for demo
+      const mt5Config = {
+        host: "localhost",
+        port: 8080,
+        login: "demo",
+        server: "demo",
+        password: "demo"
+      };
+
       const tradeId = generateTradeId(symbol);
 
       console.log(`Starting prediction for ${symbol} with trade ID ${tradeId}`);
-      const marketData = await fetchMarketData(symbol, ["1m", "5m", "15m", "30m", "1h"], mt5Config.config);
+      const marketData = await fetchMarketData(symbol, ["1m", "5m", "15m", "30m", "1h"], mt5Config);
       
       const availableTimeframes = Object.keys(marketData);
       if (availableTimeframes.length === 0) {
@@ -113,7 +104,7 @@ export const predict = api<PredictRequest, TradingSignal>(
       );
       
       const recommendedLotSize = calculatePositionSize(
-        optimalStrategy, accountBalance || 10000, riskPercentage || 2, priceTargets.riskAmount
+        optimalStrategy, accountBalance, riskPercentage, priceTargets.riskAmount
       );
       
       const strategyRecommendation = getStrategyRecommendation(optimalStrategy, completeMarketData, aiAnalysis);
@@ -159,7 +150,7 @@ export const predict = api<PredictRequest, TradingSignal>(
           confidence, risk_reward_ratio, recommended_lot_size, max_holding_hours,
           expires_at, analysis_data, created_at, status
         ) VALUES (
-          ${tradeId}, ${auth.userID}, ${symbol}, ${aiAnalysis.direction}, ${optimalStrategy}, 
+          ${tradeId}, 1, ${symbol}, ${aiAnalysis.direction}, ${optimalStrategy}, 
           ${priceTargets.entryPrice}, ${priceTargets.takeProfit}, ${priceTargets.stopLoss}, 
           ${confidenceInt}, ${priceTargets.riskRewardRatio}, ${recommendedLotSize},
           ${maxHoldingTimeHours}, ${expiresAt}, ${JSON.stringify(signal.analysis)}, NOW(), 'pending'

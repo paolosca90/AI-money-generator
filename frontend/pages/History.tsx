@@ -1,17 +1,14 @@
 import { useQuery } from "@tanstack/react-query";
 import { useBackend } from "../hooks/useBackend";
-import { useAuth } from "../hooks/useAuth";
 import HistoryTable from "../components/tables/HistoryTable";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 
 export default function History() {
   const backend = useBackend();
-  const { isAuthenticated } = useAuth();
   
   const { data, isLoading, error } = useQuery({
     queryKey: ["history"],
     queryFn: () => backend.analysis.listHistory(),
-    enabled: isAuthenticated,
     retry: 1,
   });
 

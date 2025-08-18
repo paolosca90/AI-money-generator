@@ -2,8 +2,6 @@ import { api, APIError } from "encore.dev/api";
 import { analysisDB } from "./db";
 import { executeMT5Order } from "./mt5-bridge";
 import { TradingStrategy } from "./trading-strategies";
-import { getAuthData } from "~encore/auth";
-import { user } from "~encore/clients";
 
 interface ExecuteRequest {
   tradeId: string;
@@ -25,13 +23,9 @@ export const execute = api<ExecuteRequest, ExecuteResponse>(
   { 
     expose: true, 
     method: "POST", 
-    path: "/analysis/execute", 
-    auth: true 
+    path: "/analysis/execute"
   },
   async (req) => {
-    const auth = getAuthData()!;
-    console.log("Execute endpoint called for user:", auth.userID, "email:", auth.email);
-    
     const { tradeId, lotSize: requestedLotSize, strategy: requestedStrategy } = req;
 
     if (!tradeId || tradeId.trim() === "") {
@@ -48,11 +42,6 @@ export const execute = api<ExecuteRequest, ExecuteResponse>(
       if (!signal) {
         console.error(`Trading signal not found: ${tradeId}`);
         throw APIError.notFound(`Trading signal ${tradeId} not found. The signal may have expired or been removed.`);
-      }
-
-      // Authorization check: ensure the user executing the trade is the one who generated it
-      if (signal.user_id !== auth.userID) {
-        throw APIError.permissionDenied("You are not authorized to execute this trade.");
       }
 
       // Check if signal has already been executed
@@ -78,13 +67,16 @@ export const execute = api<ExecuteRequest, ExecuteResponse>(
         throw APIError.invalidArgument(`Invalid lot size: ${lotSize}. Must be between 0.01 and 100.`);
       }
 
-      console.log(`Executing ${strategy} trade ${tradeId} for user ${auth.userID}: ${signal.direction} ${signal.symbol} ${lotSize} lots`);
+      console.log(`Executing ${strategy} trade ${tradeId}: ${signal.direction} ${signal.symbol} ${lotSize} lots`);
 
-      // Get user's MT5 config
-      const mt5Config = await user.getMt5Config();
-      if (!mt5Config.config) {
-        throw APIError.failedPrecondition("MT5 configuration not found for user.");
-      }
+      // Use default MT5 config for demo
+      const mt5Config = {
+        host: "localhost",
+        port: 8080,
+        login: "demo",
+        server: "demo",
+        password: "demo"
+      };
 
       // Execute the order on MT5 with strategy-specific comment
       const result = await executeMT5Order({
@@ -95,7 +87,7 @@ export const execute = api<ExecuteRequest, ExecuteResponse>(
         takeProfit: signal.take_profit,
         stopLoss: signal.stop_loss,
         comment: `${strategy}_${tradeId}`,
-      }, mt5Config.config);
+      }, mt5Config);
 
       if (result.success) {
         try {
