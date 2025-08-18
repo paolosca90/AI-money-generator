@@ -64,7 +64,12 @@ export default function Trade() {
     queryKey: ["positions"],
     queryFn: async () => {
       console.log("Making positions request - isAuthenticated:", isAuthenticated, "hasToken:", !!token, "hasUser:", !!user);
-      console.log("Token details:", { tokenLength: token?.length, tokenStart: token?.substring(0, 10) });
+      console.log("Token details:", { 
+        tokenLength: token?.length, 
+        tokenStart: token?.substring(0, 10),
+        userEmail: user?.email,
+        userId: user?.id
+      });
       try {
         const result = await backend.analysis.listPositions();
         console.log("Positions API response:", result);
@@ -92,7 +97,8 @@ export default function Trade() {
     hasToken: !!token, 
     hasUser: !!user,
     tokenLength: token?.length,
-    userEmail: user?.email 
+    userEmail: user?.email,
+    userId: user?.id
   });
   console.log("Positions data:", positionsData);
   console.log("Positions error:", positionsError);
@@ -103,6 +109,9 @@ export default function Trade() {
         <p>Devi essere autenticato per accedere al trading.</p>
         <p className="text-sm text-muted-foreground mt-2">
           Stato: isAuthenticated={String(isAuthenticated)}, hasToken={String(!!token)}, hasUser={String(!!user)}
+        </p>
+        <p className="text-xs text-muted-foreground mt-1">
+          Token length: {token?.length || 0}, User ID: {user?.id || "N/A"}
         </p>
       </div>
     );
@@ -211,6 +220,7 @@ export default function Trade() {
                   <div className="mt-2 p-2 bg-yellow-50 border border-yellow-200 rounded text-yellow-800 text-xs">
                     <p>Problema di autenticazione rilevato.</p>
                     <p>Token length: {token?.length}, User: {user?.email}</p>
+                    <p>User ID: {user?.id}</p>
                     <Button 
                       variant="outline" 
                       size="sm" 

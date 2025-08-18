@@ -29,18 +29,18 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     // Check for existing token in localStorage
     const savedToken = localStorage.getItem("auth_token");
-    console.log("AuthProvider - Checking saved token:", !!savedToken);
+    console.log("AuthProvider - Checking saved token:", !!savedToken, savedToken ? `length: ${savedToken.length}` : "");
     
     if (savedToken) {
       setToken(savedToken);
       // Verify token and get user info using the correct auth format
-      console.log("AuthProvider - Verifying token with backend");
+      console.log("AuthProvider - Verifying token with backend, token preview:", savedToken.substring(0, 10) + "...");
       backend.with({ auth: `Bearer ${savedToken}` }).user.me()
         .then(response => {
           console.log("AuthProvider - Token verification response:", response);
           if (response.user) {
             setUser(response.user);
-            console.log("AuthProvider - User set successfully");
+            console.log("AuthProvider - User set successfully:", response.user.email);
           } else {
             console.log("AuthProvider - No user in response, clearing token");
             localStorage.removeItem("auth_token");
@@ -64,9 +64,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const login = async (email: string, password: string) => {
     try {
-      console.log("AuthProvider - Attempting login");
+      console.log("AuthProvider - Attempting login for:", email);
       const response = await backend.user.login({ email, password });
-      console.log("AuthProvider - Login successful, setting user and token");
+      console.log("AuthProvider - Login successful, token length:", response.token.length, "user:", response.user.email);
       setUser(response.user);
       setToken(response.token);
       localStorage.setItem("auth_token", response.token);
@@ -78,9 +78,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const register = async (email: string, password: string, firstName?: string, lastName?: string) => {
     try {
-      console.log("AuthProvider - Attempting registration");
+      console.log("AuthProvider - Attempting registration for:", email);
       const response = await backend.user.register({ email, password, firstName, lastName });
-      console.log("AuthProvider - Registration successful, setting user and token");
+      console.log("AuthProvider - Registration successful, token length:", response.token.length, "user:", response.user.email);
       setUser(response.user);
       setToken(response.token);
       localStorage.setItem("auth_token", response.token);
@@ -112,7 +112,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     hasToken: !!token, 
     isAuthenticated, 
     isLoading,
-    tokenLength: token?.length 
+    tokenLength: token?.length,
+    userEmail: user?.email
   });
 
   return (

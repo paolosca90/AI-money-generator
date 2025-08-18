@@ -13,12 +13,14 @@ export interface AuthData {
 
 const auth = authHandler<AuthParams, AuthData>(
   async ({ authorization }) => {
-    console.log("Auth handler called with authorization:", !!authorization);
+    console.log("Auth handler called with authorization header present:", !!authorization);
     
     if (!authorization) {
-      console.log("Auth handler: No authorization header");
+      console.log("Auth handler: No authorization header found");
       throw APIError.unauthenticated("missing authorization header");
     }
+
+    console.log("Auth handler: Authorization header value:", authorization);
 
     // Extract token from Authorization header
     let token = authorization;
@@ -35,21 +37,30 @@ const auth = authHandler<AuthParams, AuthData>(
     }
 
     try {
-      console.log("Auth handler: Validating token in database");
+      console.log("Auth handler: Validating token in database, token starts with:", token.substring(0, 10));
+      
       // Validate token and get user
       const session = await userDB.queryRow`
-        SELECT u.id, u.email
+        SELECT u.id, u.email, s.expires_at
         FROM user_sessions s
         JOIN users u ON s.user_id = u.id
-        WHERE s.token = ${token} AND s.expires_at > NOW()
+        WHERE s.token = ${token}
       `;
 
       if (!session) {
-        console.log("Auth handler: No valid session found for token");
-        throw APIError.unauthenticated("invalid or expired token");
+        console.log("Auth handler: No session found for token");
+        throw APIError.unauthenticated("invalid token - session not found");
       }
 
-      console.log("Auth handler: Valid session found for user:", session.id);
+      // Check if session has expired
+      const now = new Date();
+      const expiresAt = new Date(session.expires_at);
+      if (expiresAt <= now) {
+        console.log("Auth handler: Session expired at:", expiresAt);
+        throw APIError.unauthenticated("token expired");
+      }
+
+      console.log("Auth handler: Valid session found for user:", session.id, "email:", session.email);
       return {
         userID: session.id,
         email: session.email,

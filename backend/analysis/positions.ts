@@ -16,14 +16,18 @@ export const listPositions = api<void, ListPositionsResponse>({
   expose: true,
 }, async () => {
   const auth = getAuthData()!;
+  console.log("Positions endpoint called for user:", auth.userID, "email:", auth.email);
 
   try {
     // Get user's MT5 config
+    console.log("Fetching MT5 config for user:", auth.userID);
     const mt5ConfigResponse = await user.getMt5Config();
     if (!mt5ConfigResponse.config) {
       console.log(`No MT5 config found for user ${auth.userID}`);
       return { positions: [] };
     }
+
+    console.log("MT5 config found for user:", auth.userID, "host:", mt5ConfigResponse.config.host);
 
     // Get all open positions from the user's MT5 terminal
     const allPositions = await getMT5Positions(mt5ConfigResponse.config);
@@ -44,7 +48,7 @@ export const listPositions = api<void, ListPositionsResponse>({
       return tradeId && userTradeIds.has(tradeId);
     });
 
-    console.log(`Filtered to ${userPositions.length} user-specific positions`);
+    console.log(`Filtered to ${userPositions.length} user-specific positions for user ${auth.userID}`);
     return { positions: userPositions };
 
   } catch (error) {
