@@ -133,14 +133,18 @@ export async function getMT5Positions(mt5Config: Mt5Config): Promise<MT5Position
       return [];
     }
     
+    console.log(`🔗 Fetching positions from MT5: http://${host}:${port}/positions`);
+    
     const response = await fetchWithTimeout(`http://${host}:${port}/positions`, {
       method: "GET",
     }, 8000);
 
     if (response.ok) {
       const data = await response.json() as any;
-      if (data && data.positions) {
-        return data.positions.map((pos: any) => ({
+      console.log(`📊 MT5 positions response:`, data);
+      
+      if (data && data.positions && Array.isArray(data.positions)) {
+        const positions = data.positions.map((pos: any) => ({
           ticket: pos.ticket,
           symbol: pos.symbol,
           type: pos.type,
@@ -149,13 +153,22 @@ export async function getMT5Positions(mt5Config: Mt5Config): Promise<MT5Position
           currentPrice: pos.price_current,
           profit: pos.profit,
           swap: pos.swap,
-          comment: pos.comment,
+          comment: pos.comment || "",
         }));
+        
+        console.log(`✅ Successfully mapped ${positions.length} MT5 positions`);
+        return positions;
+      } else {
+        console.log("⚠️ No positions array in MT5 response");
+        return [];
       }
+    } else {
+      const errorText = await response.text();
+      console.error(`❌ MT5 positions endpoint error: ${response.status} ${response.statusText} - ${errorText}`);
+      return [];
     }
-    return [];
   } catch (error) {
-    console.error("Error getting MT5 positions:", error);
+    console.error("❌ Error getting MT5 positions:", error);
     return [];
   }
 }

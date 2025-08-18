@@ -61,16 +61,26 @@ export default function Trade() {
 
   const { data: positionsData, isLoading: isLoadingPositions, error: positionsError } = useQuery({
     queryKey: ["positions"],
-    queryFn: () => {
+    queryFn: async () => {
       console.log("Making positions request with auth:", isAuthenticated);
-      return backend.analysis.listPositions();
+      try {
+        const result = await backend.analysis.listPositions();
+        console.log("Positions API response:", result);
+        return result;
+      } catch (error) {
+        console.error("Positions API error:", error);
+        throw error;
+      }
     },
     enabled: isAuthenticated,
     retry: 1,
+    refetchInterval: 30000, // Refresh every 30 seconds
   });
 
   // Debug authentication state
   console.log("Trade page - isAuthenticated:", isAuthenticated);
+  console.log("Positions data:", positionsData);
+  console.log("Positions error:", positionsError);
 
   if (!isAuthenticated) {
     return (
@@ -170,10 +180,23 @@ export default function Trade() {
             <CardTitle>Posizioni Aperte</CardTitle>
           </CardHeader>
           <CardContent>
-            {positionsError ? (
+            {isLoadingPositions ? (
+              <div className="text-center py-4">
+                <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-primary mx-auto mb-2"></div>
+                <p>Caricamento posizioni...</p>
+              </div>
+            ) : positionsError ? (
               <div className="text-red-500 text-center">
                 <p>Errore nel caricamento delle posizioni</p>
                 <p className="text-sm mt-1">{positionsError.message}</p>
+                <Button 
+                  variant="outline" 
+                  size="sm" 
+                  className="mt-2"
+                  onClick={() => queryClient.invalidateQueries({ queryKey: ["positions"] })}
+                >
+                  Riprova
+                </Button>
               </div>
             ) : (
               <PositionsTable
