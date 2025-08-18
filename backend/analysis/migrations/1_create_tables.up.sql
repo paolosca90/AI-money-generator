@@ -1,6 +1,7 @@
 CREATE TABLE trading_signals (
   id BIGSERIAL PRIMARY KEY,
   trade_id VARCHAR(50) UNIQUE NOT NULL,
+  user_id BIGINT NOT NULL,
   symbol VARCHAR(20) NOT NULL,
   direction VARCHAR(10) NOT NULL,
   entry_price DOUBLE PRECISION NOT NULL,
@@ -37,6 +38,7 @@ CREATE TABLE ai_model_performance (
 );
 
 CREATE INDEX idx_trading_signals_trade_id ON trading_signals(trade_id);
+CREATE INDEX idx_trading_signals_user_id ON trading_signals(user_id);
 CREATE INDEX idx_trading_signals_symbol ON trading_signals(symbol);
 CREATE INDEX idx_trading_signals_created_at ON trading_signals(created_at);
 CREATE INDEX idx_market_data_cache_symbol_timeframe ON market_data_cache(symbol, timeframe);

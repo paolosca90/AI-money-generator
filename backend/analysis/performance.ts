@@ -1,5 +1,6 @@
 import { api } from "encore.dev/api";
 import { analysisDB } from "./db";
+import { getAuthData } from "~encore/auth";
 
 interface PerformanceStats {
   totalTrades: number;
@@ -12,10 +13,12 @@ interface PerformanceStats {
   avgConfidence: number;
 }
 
-// Retrieves AI model performance statistics.
+// Retrieves AI model performance statistics for the authenticated user.
 export const getPerformance = api<void, PerformanceStats>(
-  { expose: true, method: "GET", path: "/analysis/performance" },
+  { expose: true, method: "GET", path: "/analysis/performance", auth: true },
   async () => {
+    const auth = getAuthData()!;
+
     const stats = await analysisDB.queryRow`
       SELECT 
         CAST(COUNT(*) AS DOUBLE PRECISION) as total_trades,
@@ -26,30 +29,23 @@ export const getPerformance = api<void, PerformanceStats>(
         COALESCE(CAST(MIN(profit_loss) AS DOUBLE PRECISION), 0.0) as worst_trade,
         COALESCE(CAST(AVG(confidence) AS DOUBLE PRECISION), 0.0) as avg_confidence
       FROM trading_signals 
-      WHERE profit_loss IS NOT NULL
+      WHERE profit_loss IS NOT NULL AND user_id = ${auth.userID}
     `;
 
     const totalProfit = await analysisDB.queryRow`
       SELECT COALESCE(CAST(SUM(CASE WHEN profit_loss > 0 THEN profit_loss ELSE 0 END) AS DOUBLE PRECISION), 0.0) as total_profit
-      FROM trading_signals WHERE profit_loss IS NOT NULL
+      FROM trading_signals WHERE profit_loss IS NOT NULL AND user_id = ${auth.userID}
     `;
 
     const totalLoss = await analysisDB.queryRow`
       SELECT COALESCE(CAST(ABS(SUM(CASE WHEN profit_loss < 0 THEN profit_loss ELSE 0 END)) AS DOUBLE PRECISION), 0.0) as total_loss
-      FROM trading_signals WHERE profit_loss IS NOT NULL
+      FROM trading_signals WHERE profit_loss IS NOT NULL AND user_id = ${auth.userID}
     `;
 
-    // Handle case where there are no trades yet
     if (!stats || Number(stats.total_trades) === 0) {
       return {
-        totalTrades: 0,
-        winRate: 0,
-        avgProfit: 0,
-        avgLoss: 0,
-        profitFactor: 0,
-        bestTrade: 0,
-        worstTrade: 0,
-        avgConfidence: 0,
+        totalTrades: 0, winRate: 0, avgProfit: 0, avgLoss: 0,
+        profitFactor: 0, bestTrade: 0, worstTrade: 0, avgConfidence: 0,
       };
     }
 

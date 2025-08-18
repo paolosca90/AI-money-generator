@@ -2,6 +2,8 @@ import { api, APIError } from "encore.dev/api";
 import { analysisDB } from "./db";
 import { executeMT5Order } from "./mt5-bridge";
 import { TradingStrategy } from "./trading-strategies";
+import { getAuthData } from "~encore/auth";
+import { user } from "~encore/clients";
 
 interface ExecuteRequest {
   tradeId: string;
@@ -20,8 +22,9 @@ interface ExecuteResponse {
 
 // Executes a trading signal on MetaTrader 5 with strategy-specific parameters.
 export const execute = api<ExecuteRequest, ExecuteResponse>(
-  { expose: true, method: "POST", path: "/analysis/execute" },
+  { expose: true, method: "POST", path: "/analysis/execute", auth: true },
   async (req) => {
+    const auth = getAuthData()!;
     const { tradeId, lotSize: requestedLotSize, strategy: requestedStrategy } = req;
 
     if (!tradeId || tradeId.trim() === "") {
@@ -29,7 +32,7 @@ export const execute = api<ExecuteRequest, ExecuteResponse>(
     }
 
     try {
-      // Fetch the trading signal from database with better error handling
+      // Fetch the trading signal from database
       const signal = await analysisDB.queryRow`
         SELECT * FROM trading_signals 
         WHERE trade_id = ${tradeId}
@@ -38,6 +41,11 @@ export const execute = api<ExecuteRequest, ExecuteResponse>(
       if (!signal) {
         console.error(`Trading signal not found: ${tradeId}`);
         throw APIError.notFound(`Trading signal ${tradeId} not found. The signal may have expired or been removed.`);
+      }
+
+      // Authorization check: ensure the user executing the trade is the one who generated it
+      if (signal.user_id !== auth.userID) {
+        throw APIError.permissionDenied("You are not authorized to execute this trade.");
       }
 
       // Check if signal has already been executed
@@ -63,7 +71,13 @@ export const execute = api<ExecuteRequest, ExecuteResponse>(
         throw APIError.invalidArgument(`Invalid lot size: ${lotSize}. Must be between 0.01 and 100.`);
       }
 
-      console.log(`Executing ${strategy} trade ${tradeId}: ${signal.direction} ${signal.symbol} ${lotSize} lots`);
+      console.log(`Executing ${strategy} trade ${tradeId} for user ${auth.userID}: ${signal.direction} ${signal.symbol} ${lotSize} lots`);
+
+      // Get user's MT5 config
+      const mt5Config = await user.getMt5Config();
+      if (!mt5Config.config) {
+        throw APIError.failedPrecondition("MT5 configuration not found for user.");
+      }
 
       // Execute the order on MT5 with strategy-specific comment
       const result = await executeMT5Order({
@@ -73,13 +87,10 @@ export const execute = api<ExecuteRequest, ExecuteResponse>(
         entryPrice: signal.entry_price,
         takeProfit: signal.take_profit,
         stopLoss: signal.stop_loss,
-        comment: `${strategy}_${tradeId}`, // Include strategy in comment for MT5
-      });
+        comment: `${strategy}_${tradeId}`,
+      }, mt5Config.config);
 
       if (result.success) {
-        // Convert max_holding_hours to number for database update
-        const maxHoldingHours = Number(signal.max_holding_hours || 8);
-        
         try {
           // Update the signal as executed with strategy information
           await analysisDB.exec`
@@ -88,7 +99,8 @@ export const execute = api<ExecuteRequest, ExecuteResponse>(
                 mt5_order_id = ${result.orderId || null},
                 execution_price = ${result.executionPrice || signal.entry_price},
                 lot_size = ${lotSize},
-                strategy = ${strategy}
+                strategy = ${strategy},
+                status = 'executed'
             WHERE trade_id = ${tradeId} AND executed_at IS NULL
           `;
 
@@ -99,7 +111,7 @@ export const execute = api<ExecuteRequest, ExecuteResponse>(
         }
 
         // Calculate estimated holding time based on strategy
-        const estimatedHoldingTime = getEstimatedHoldingTime(strategy, maxHoldingHours);
+        const estimatedHoldingTime = getEstimatedHoldingTime(strategy, signal.max_holding_hours);
 
         return {
           success: true,
@@ -118,19 +130,12 @@ export const execute = api<ExecuteRequest, ExecuteResponse>(
     } catch (error) {
       console.error(`Error executing trade ${tradeId}:`, error);
       
-      // If it's already an APIError, re-throw it
       if (error && typeof error === 'object' && 'code' in error) {
         throw error;
       }
       
-      // For database errors or other unexpected errors
-      const errorMessage = error && typeof error === 'object' && 'message' in error ? (error as Error).message : '';
-      if (errorMessage?.includes("relation") || errorMessage?.includes("column")) {
-        throw APIError.internal("Database error occurred while executing trade");
-      }
-      
-      // Generic error
-      throw APIError.internal(`Failed to execute trade: ${errorMessage || "Unknown error"}`);
+      const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+      throw APIError.internal(`Failed to execute trade: ${errorMessage}`);
     }
   }
 );
