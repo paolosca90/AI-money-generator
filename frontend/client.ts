@@ -67,11 +67,6 @@ export class Client {
 }
 
 /**
- * Import the auth handler to be able to derive the auth type
- */
-import type { auth as auth_auth } from "~backend/auth/auth";
-
-/**
  * ClientOptions allows you to override any default behaviour within the generated Encore client.
  */
 export interface ClientOptions {
@@ -84,13 +79,6 @@ export interface ClientOptions {
 
     /** Default RequestInit to be used for the client */
     requestInit?: Omit<RequestInit, "headers"> & { headers?: Record<string, string> }
-
-    /**
-     * Allows you to set the authentication data to be used for each
-     * request either by passing in a static object or by passing in
-     * a function which returns a new object for each request.
-     */
-    auth?: RequestType<typeof auth_auth> | AuthDataGenerator
 }
 
 /**
@@ -128,7 +116,7 @@ export namespace analysis {
         }
 
         /**
-         * Retrieves AI model performance statistics for the authenticated user.
+         * Retrieves AI model performance statistics.
          */
         public async getPerformance(): Promise<ResponseType<typeof api_analysis_performance_getPerformance>> {
             // Now make the actual call to the API
@@ -137,7 +125,7 @@ export namespace analysis {
         }
 
         /**
-         * Retrieves the trading history for the authenticated user.
+         * Retrieves the trading history.
          */
         public async listHistory(): Promise<ResponseType<typeof api_analysis_history_listHistory>> {
             // Now make the actual call to the API
@@ -146,7 +134,7 @@ export namespace analysis {
         }
 
         /**
-         * Retrieves the open positions for the authenticated user from their MT5 account.
+         * Retrieves the open positions from MT5 account.
          */
         public async listPositions(): Promise<ResponseType<typeof api_analysis_positions_listPositions>> {
             // Now make the actual call to the API
@@ -174,10 +162,6 @@ export namespace analysis {
     }
 }
 
-
-export namespace auth {
-}
-
 /**
  * Import the endpoint handlers to derive the types for the client.
  */
@@ -185,10 +169,6 @@ import {
     getMt5Config as api_user_api_getMt5Config,
     getPreferences as api_user_api_getPreferences,
     getSubscription as api_user_api_getSubscription,
-    login as api_user_api_login,
-    logout as api_user_api_logout,
-    me as api_user_api_me,
-    register as api_user_api_register,
     updateMt5Config as api_user_api_updateMt5Config,
     updatePreferences as api_user_api_updatePreferences
 } from "~backend/user/api";
@@ -203,16 +183,12 @@ export namespace user {
             this.getMt5Config = this.getMt5Config.bind(this)
             this.getPreferences = this.getPreferences.bind(this)
             this.getSubscription = this.getSubscription.bind(this)
-            this.login = this.login.bind(this)
-            this.logout = this.logout.bind(this)
-            this.me = this.me.bind(this)
-            this.register = this.register.bind(this)
             this.updateMt5Config = this.updateMt5Config.bind(this)
             this.updatePreferences = this.updatePreferences.bind(this)
         }
 
         /**
-         * getMt5Config returns the MT5 configuration for the authenticated user.
+         * getMt5Config returns the MT5 configuration for the demo user.
          */
         public async getMt5Config(): Promise<ResponseType<typeof api_user_api_getMt5Config>> {
             // Now make the actual call to the API
@@ -221,7 +197,7 @@ export namespace user {
         }
 
         /**
-         * getPreferences returns the trading preferences for the authenticated user.
+         * getPreferences returns the trading preferences for the demo user.
          */
         public async getPreferences(): Promise<ResponseType<typeof api_user_api_getPreferences>> {
             // Now make the actual call to the API
@@ -230,7 +206,7 @@ export namespace user {
         }
 
         /**
-         * getSubscription returns the subscription status for the authenticated user.
+         * getSubscription returns the subscription status for the demo user.
          */
         public async getSubscription(): Promise<ResponseType<typeof api_user_api_getSubscription>> {
             // Now make the actual call to the API
@@ -239,43 +215,7 @@ export namespace user {
         }
 
         /**
-         * login authenticates a user and returns a token.
-         */
-        public async login(params: RequestType<typeof api_user_api_login>): Promise<ResponseType<typeof api_user_api_login>> {
-            // Now make the actual call to the API
-            const resp = await this.baseClient.callTypedAPI(`/user/login`, {method: "POST", body: JSON.stringify(params)})
-            return JSON.parse(await resp.text(), dateReviver) as ResponseType<typeof api_user_api_login>
-        }
-
-        /**
-         * logout invalidates the current session.
-         */
-        public async logout(): Promise<ResponseType<typeof api_user_api_logout>> {
-            // Now make the actual call to the API
-            const resp = await this.baseClient.callTypedAPI(`/user/logout`, {method: "POST", body: undefined})
-            return JSON.parse(await resp.text(), dateReviver) as ResponseType<typeof api_user_api_logout>
-        }
-
-        /**
-         * me returns the profile of the currently authenticated user.
-         */
-        public async me(): Promise<ResponseType<typeof api_user_api_me>> {
-            // Now make the actual call to the API
-            const resp = await this.baseClient.callTypedAPI(`/user/me`, {method: "GET", body: undefined})
-            return JSON.parse(await resp.text(), dateReviver) as ResponseType<typeof api_user_api_me>
-        }
-
-        /**
-         * register creates a new user account.
-         */
-        public async register(params: RequestType<typeof api_user_api_register>): Promise<ResponseType<typeof api_user_api_register>> {
-            // Now make the actual call to the API
-            const resp = await this.baseClient.callTypedAPI(`/user/register`, {method: "POST", body: JSON.stringify(params)})
-            return JSON.parse(await resp.text(), dateReviver) as ResponseType<typeof api_user_api_register>
-        }
-
-        /**
-         * updateMt5Config updates the MT5 configuration for the authenticated user.
+         * updateMt5Config updates the MT5 configuration for the demo user.
          */
         public async updateMt5Config(params: RequestType<typeof api_user_api_updateMt5Config>): Promise<ResponseType<typeof api_user_api_updateMt5Config>> {
             // Now make the actual call to the API
@@ -284,7 +224,7 @@ export namespace user {
         }
 
         /**
-         * updatePreferences updates the trading preferences for the authenticated user.
+         * updatePreferences updates the trading preferences for the demo user.
          */
         public async updatePreferences(params: RequestType<typeof api_user_api_updatePreferences>): Promise<ResponseType<typeof api_user_api_updatePreferences>> {
             // Now make the actual call to the API
@@ -548,11 +488,6 @@ type CallParameters = Omit<RequestInit, "headers"> & {
     query?: Record<string, string | string[]>
 }
 
-// AuthDataGenerator is a function that returns a new instance of the authentication data required by this API
-export type AuthDataGenerator = () =>
-  | RequestType<typeof auth_auth>
-  | Promise<RequestType<typeof auth_auth> | undefined>
-  | undefined;
 
 // A fetcher is the prototype for the inbuilt Fetch function
 export type Fetcher = typeof fetch;
@@ -564,7 +499,6 @@ class BaseClient {
     readonly fetcher: Fetcher
     readonly headers: Record<string, string>
     readonly requestInit: Omit<RequestInit, "headers"> & { headers?: Record<string, string> }
-    readonly authGenerator?: AuthDataGenerator
 
     constructor(baseURL: string, options: ClientOptions) {
         this.baseURL = baseURL
@@ -584,41 +518,9 @@ class BaseClient {
         } else {
             this.fetcher = boundFetch
         }
-
-        // Setup an authentication data generator using the auth data token option
-        if (options.auth !== undefined) {
-            const auth = options.auth
-            if (typeof auth === "function") {
-                this.authGenerator = auth
-            } else {
-                this.authGenerator = () => auth
-            }
-        }
     }
 
     async getAuthData(): Promise<CallParameters | undefined> {
-        let authData: RequestType<typeof auth_auth> | undefined;
-
-        // If authorization data generator is present, call it and add the returned data to the request
-        if (this.authGenerator) {
-            const mayBePromise = this.authGenerator();
-            if (mayBePromise instanceof Promise) {
-                authData = await mayBePromise;
-            } else {
-                authData = mayBePromise;
-            }
-        }
-
-        if (authData) {
-            const data: CallParameters = {};
-
-            data.headers = makeRecord<string, string>({
-                authorization: authData.authorization,
-            });
-
-            return data;
-        }
-
         return undefined;
     }
 
