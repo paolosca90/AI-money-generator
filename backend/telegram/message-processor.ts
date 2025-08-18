@@ -676,11 +676,11 @@ ${gradeEmoji} **Punteggio:** ${prediction.confidence}%
 📈 **Direzione:** ${prediction.direction}
 
 **Fattori Determinanti:**
-• Confluenza Multi-Timeframe: ${prediction.analysis?.enhancedTechnical?.multiTimeframeAnalysis?.confluence || 'N/A'}%
+• Confluenza Multi-Timeframe: ${prediction.analysis?.technical?.breakoutProbability || 'N/A'}%
 • Analisi Smart Money: ${prediction.analysis?.smartMoney?.institutionalFlow || 'N/A'}
-• VWAP Trend: ${prediction.analysis?.vwap?.analysis?.trend || 'N/A'}
+• VWAP Trend: ${prediction.analysis?.technical?.trend || 'N/A'}
 • Sentiment di Mercato: ${prediction.analysis?.sentiment?.score || 'N/A'}
-• Volatilità: ${prediction.analysis?.volatility?.daily || 'N/A'}
+• Volatilità: ${prediction.analysis?.technical?.atr || 'N/A'}
 
 ${prediction.confidence >= 70 ? 
   "✅ **Raccomandazione:** Segnale affidabile per il trading" : 
