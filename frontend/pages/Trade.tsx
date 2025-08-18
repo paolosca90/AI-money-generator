@@ -41,7 +41,7 @@ export default function Trade() {
 
   const { data: positionsData, isLoading: isLoadingPositions } = useQuery({
     queryKey: ["positions"],
-    queryFn: () => backend.analysis.list(),
+    queryFn: () => backend.analysis.listPositions(),
   });
 
   return (
