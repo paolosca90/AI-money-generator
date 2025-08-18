@@ -11,110 +11,19 @@ import { Badge } from "@/components/ui/badge";
 import { useToast } from "@/components/ui/use-toast";
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, BarChart as RechartsBarChart, Bar } from 'recharts';
 import { useNavigate } from "react-router-dom";
-import { useState, useEffect } from "react";
-
-// Mock function to generate auto signals for major forex, gold, and US indices
-const generateAutoSignals = () => {
-  const symbols = ["EURUSD", "GBPUSD", "USDJPY", "USDCHF", "AUDUSD", "USDCAD", "NZDUSD", "XAUUSD", "US500", "US100"];
-  const strategies = ["Scalping", "Intraday"];
-  const timeframes = ["5m", "15m", "30m"];
-  const trends = ["Rialzista", "Ribassista", "Laterale"];
-  
-  return symbols.map(symbol => {
-    const direction = Math.random() > 0.5 ? "LONG" : "SHORT";
-    
-    // Simulate a more realistic confidence score based on multiple factors
-    const technicalScore = 70 + Math.random() * 25; // 70-95
-    const sentimentScore = 65 + Math.random() * 25; // 65-90
-    const smartMoneyScore = 75 + Math.random() * 20; // 75-95
-
-    // Weighted average to simulate backend logic
-    const rawConfidence = (technicalScore * 0.4) + (sentimentScore * 0.2) + (smartMoneyScore * 0.4);
-    const confidence = Math.floor(rawConfidence);
-
-    const basePrice = getBasePrice(symbol);
-    const volatility = getVolatility(symbol);
-    
-    const entryPrice = basePrice * (1 + (Math.random() - 0.5) * volatility);
-    const atr = entryPrice * volatility * 0.5;
-    
-    const stopLoss = direction === "LONG" 
-      ? entryPrice - (atr * (1 + Math.random()))
-      : entryPrice + (atr * (1 + Math.random()));
-      
-    const takeProfit = direction === "LONG"
-      ? entryPrice + (atr * (2 + Math.random() * 2))
-      : entryPrice - (atr * (2 + Math.random() * 2));
-    
-    const riskRewardRatio = Math.abs(takeProfit - entryPrice) / Math.abs(entryPrice - stopLoss);
-    
-    return {
-      symbol,
-      direction,
-      confidence,
-      entryPrice: Number(entryPrice.toFixed(5)),
-      takeProfit: Number(takeProfit.toFixed(5)),
-      stopLoss: Number(stopLoss.toFixed(5)),
-      riskRewardRatio: Number(riskRewardRatio.toFixed(2)),
-      strategy: strategies[Math.floor(Math.random() * strategies.length)],
-      timeframe: timeframes[Math.floor(Math.random() * timeframes.length)],
-      analysis: {
-        rsi: Number((Math.random() * 60 + 20).toFixed(1)), // 20-80
-        macd: Number((Math.random() * 0.002 - 0.001).toFixed(6)),
-        trend: trends[Math.floor(Math.random() * trends.length)],
-        volatility: volatility > 0.02 ? "Alta" : volatility > 0.01 ? "Media" : "Bassa"
-      }
-    };
-  }).sort((a, b) => b.confidence - a.confidence).slice(0, 3); // Top 3 by confidence
-};
-
-const getBasePrice = (symbol: string): number => {
-  const prices: Record<string, number> = {
-    "EURUSD": 1.085,
-    "GBPUSD": 1.275,
-    "USDJPY": 150.5,
-    "USDCHF": 0.885,
-    "AUDUSD": 0.665,
-    "USDCAD": 1.365,
-    "NZDUSD": 0.615,
-    "XAUUSD": 2050,
-    "US500": 5800,
-    "US100": 20500,
-  };
-  return prices[symbol] || 1.0;
-};
-
-const getVolatility = (symbol: string): number => {
-  const volatilities: Record<string, number> = {
-    "EURUSD": 0.005,
-    "GBPUSD": 0.008,
-    "USDJPY": 0.006,
-    "USDCHF": 0.005,
-    "AUDUSD": 0.007,
-    "USDCAD": 0.006,
-    "NZDUSD": 0.008,
-    "XAUUSD": 0.015,
-    "US500": 0.012,
-    "US100": 0.018,
-  };
-  return volatilities[symbol] || 0.01;
-};
 
 export default function Dashboard() {
   const backend = useBackend();
   const { toast } = useToast();
   const queryClient = useQueryClient();
   const navigate = useNavigate();
-  const [autoSignals, setAutoSignals] = useState(generateAutoSignals());
 
-  // Auto-refresh signals every 30 seconds
-  useEffect(() => {
-    const interval = setInterval(() => {
-      setAutoSignals(generateAutoSignals());
-    }, 30000);
-
-    return () => clearInterval(interval);
-  }, []);
+  const { data: topSignalsData, isLoading: isLoadingTopSignals, error: topSignalsError, refetch: refetchTopSignals } = useQuery({
+    queryKey: ["topSignals"],
+    queryFn: () => backend.analysis.getTopSignals(),
+    refetchInterval: 60000, // Refresh every 60 seconds
+    retry: 1,
+  });
 
   const { data: performanceData, isLoading: isLoadingPerformance, error: performanceError } = useQuery({
     queryKey: ["performance"],
@@ -184,7 +93,7 @@ export default function Dashboard() {
   };
 
   const handleRefreshSignals = () => {
-    setAutoSignals(generateAutoSignals());
+    refetchTopSignals();
     toast({
       title: "🔄 Segnali Aggiornati",
       description: "I segnali automatici sono stati aggiornati con i dati più recenti"
@@ -380,16 +289,43 @@ export default function Dashboard() {
             variant="outline"
             size="sm"
             className="flex items-center gap-2"
+            disabled={isLoadingTopSignals}
           >
-            <RefreshCw className="h-4 w-4" />
+            <RefreshCw className={`h-4 w-4 ${isLoadingTopSignals ? 'animate-spin' : ''}`} />
             Aggiorna
           </Button>
         </div>
         
         <div className="grid gap-4 md:grid-cols-3">
-          {autoSignals.map((signal, index) => (
-            <AutoSignalCard key={`${signal.symbol}-${index}`} signal={signal} />
-          ))}
+          {isLoadingTopSignals ? (
+            Array.from({ length: 3 }).map((_, index) => (
+              <Card key={index} className="p-4">
+                <div className="animate-pulse flex space-x-4">
+                  <div className="flex-1 space-y-4 py-1">
+                    <div className="h-4 bg-slate-200 rounded w-3/4"></div>
+                    <div className="space-y-2">
+                      <div className="h-4 bg-slate-200 rounded"></div>
+                      <div className="h-4 bg-slate-200 rounded w-5/6"></div>
+                    </div>
+                  </div>
+                </div>
+              </Card>
+            ))
+          ) : topSignalsError ? (
+            <div className="col-span-full">
+              <Card className="border-red-200 bg-red-50">
+                <CardContent className="p-6 text-center">
+                  <AlertCircle className="h-8 w-8 text-red-500 mx-auto mb-2" />
+                  <p className="text-red-700">Errore nel caricamento dei segnali automatici.</p>
+                  <p className="text-sm text-red-600 mt-1">{topSignalsError.message}</p>
+                </CardContent>
+              </Card>
+            </div>
+          ) : (
+            topSignalsData?.signals.map((signal, index) => (
+              <AutoSignalCard key={`${signal.symbol}-${index}`} signal={signal as any} />
+            ))
+          )}
         </div>
         
         <div className="mt-4 p-4 bg-gradient-to-r from-blue-50 to-purple-50 border border-blue-200 rounded-lg">
@@ -398,7 +334,7 @@ export default function Dashboard() {
             <h4 className="font-semibold text-blue-800">Segnali Automatici AI</h4>
           </div>
           <p className="text-sm text-blue-700">
-            Questi segnali vengono generati automaticamente ogni 30 secondi analizzando i major forex, 
+            Questi segnali vengono generati automaticamente ogni 60 secondi analizzando i major forex, 
             l'oro (XAU/USD) e gli indici USA (US500, US100). Sono ordinati per confidenza decrescente.
           </p>
         </div>
