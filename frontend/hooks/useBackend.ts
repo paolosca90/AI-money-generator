@@ -12,8 +12,12 @@ export function useBackend() {
   // The backend auth handler expects the token in the Authorization header.
   if (isAuthenticated && token) {
     console.log("useBackend - Using authenticated client with token length:", token.length, "token preview:", token.substring(0, 10) + "...");
+    
+    // Use the correct format for Encore.ts client authentication
     return backend.with({
-      auth: `Bearer ${token}`,
+      auth: {
+        authorization: `Bearer ${token}`,
+      },
     });
   }
 

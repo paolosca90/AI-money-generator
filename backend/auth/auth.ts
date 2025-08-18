@@ -14,21 +14,20 @@ export interface AuthData {
 const auth = authHandler<AuthParams, AuthData>(
   async ({ authorization }) => {
     console.log("Auth handler called with authorization header present:", !!authorization);
+    console.log("Auth handler: Full authorization header:", authorization);
     
     if (!authorization) {
       console.log("Auth handler: No authorization header found");
       throw APIError.unauthenticated("missing authorization header");
     }
 
-    console.log("Auth handler: Authorization header value:", authorization);
-
     // Extract token from Authorization header
     let token = authorization;
     if (token.startsWith("Bearer ")) {
       token = token.substring(7); // Remove "Bearer " prefix
-      console.log("Auth handler: Extracted Bearer token, length:", token.length);
+      console.log("Auth handler: Extracted Bearer token, length:", token.length, "preview:", token.substring(0, 10) + "...");
     } else {
-      console.log("Auth handler: Token without Bearer prefix, length:", token.length);
+      console.log("Auth handler: Token without Bearer prefix, length:", token.length, "preview:", token.substring(0, 10) + "...");
     }
     
     if (!token || token.trim() === "") {
@@ -37,7 +36,7 @@ const auth = authHandler<AuthParams, AuthData>(
     }
 
     try {
-      console.log("Auth handler: Validating token in database, token starts with:", token.substring(0, 10));
+      console.log("Auth handler: Validating token in database");
       
       // Validate token and get user
       const session = await userDB.queryRow`

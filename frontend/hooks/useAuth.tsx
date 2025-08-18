@@ -35,7 +35,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       setToken(savedToken);
       // Verify token and get user info using the correct auth format
       console.log("AuthProvider - Verifying token with backend, token preview:", savedToken.substring(0, 10) + "...");
-      backend.with({ auth: `Bearer ${savedToken}` }).user.me()
+      
+      backend.with({ 
+        auth: {
+          authorization: `Bearer ${savedToken}`,
+        }
+      }).user.me()
         .then(response => {
           console.log("AuthProvider - Token verification response:", response);
           if (response.user) {
@@ -94,7 +99,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     try {
       if (token) {
         console.log("AuthProvider - Attempting logout");
-        await backend.with({ auth: `Bearer ${token}` }).user.logout();
+        await backend.with({ 
+          auth: {
+            authorization: `Bearer ${token}`,
+          }
+        }).user.logout();
       }
     } catch (error) {
       console.error("AuthProvider - Logout error:", error);
