@@ -1,5 +1,5 @@
 import { NavLink } from "react-router-dom";
-import { Home, CandlestickChart, History, Settings, CreditCard, Brain, BookOpen } from "lucide-react";
+import { Home, CandlestickChart, History, Settings, CreditCard, Brain, BookOpen, Newspaper } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 
 const Nav = () => {
@@ -7,6 +7,7 @@ const Nav = () => {
     { to: "/", icon: Home, label: "Dashboard" },
     { to: "/ml", icon: Brain, label: "ML Analytics", badge: "AI" },
     { to: "/trade", icon: CandlestickChart, label: "Trading" },
+    { to: "/news", icon: Newspaper, label: "News" },
     { to: "/history", icon: History, label: "Storico" },
     { to: "/guides", icon: BookOpen, label: "Guide", badge: "NEW" },
     { to: "/settings", icon: Settings, label: "Impostazioni" },

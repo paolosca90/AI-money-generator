@@ -6,6 +6,7 @@ import Layout from "./components/Layout";
 import Dashboard from "./pages/Dashboard";
 import MLDashboard from "./pages/MLDashboard";
 import Trade from "./pages/Trade";
+import News from "./pages/News";
 import History from "./pages/History";
 import Guides from "./pages/Guides";
 import Settings from "./pages/Settings";
@@ -22,6 +23,7 @@ function App() {
             <Route path="/" element={<Dashboard />} />
             <Route path="/ml" element={<MLDashboard />} />
             <Route path="/trade" element={<Trade />} />
+            <Route path="/news" element={<News />} />
             <Route path="/history" element={<History />} />
             <Route path="/guides" element={<Guides />} />
             <Route path="/settings" element={<Settings />} />
