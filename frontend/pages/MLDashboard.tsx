@@ -1,15 +1,22 @@
+import { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useBackend } from "../hooks/useBackend";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Progress } from "@/components/ui/progress";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useToast } from "@/components/ui/use-toast";
 import MLMetricCard from "../components/cards/MLMetricCard";
 import MLChart from "../components/charts/MLChart";
 import { Brain, Target, Activity, TrendingUp, Zap, BarChart, Lightbulb, Settings, Play, RefreshCw } from "lucide-react";
 
+const availableSymbols = [
+  "BTCUSD", "ETHUSD", "EURUSD", "GBPUSD", "USDJPY", "XAUUSD", "CRUDE", "US500", "NAS100"
+];
+
 export default function MLDashboard() {
+  const [selectedSymbol, setSelectedSymbol] = useState("BTCUSD");
   const backend = useBackend();
   const { toast } = useToast();
   const queryClient = useQueryClient();
@@ -193,17 +200,39 @@ export default function MLDashboard() {
             <Play className="h-4 w-4 mr-2" />
             {trainModelMutation.isPending ? "Training..." : "Addestra Modello"}
           </Button>
-          <Button 
-            onClick={() => detectPatternsMutation.mutate("BTCUSD")}
-            disabled={detectPatternsMutation.isPending}
-            variant="outline"
-            size="sm"
-          >
-            <Settings className="h-4 w-4 mr-2" />
-            {detectPatternsMutation.isPending ? "Rilevando..." : "Rileva Pattern"}
-          </Button>
         </div>
       </div>
+
+      {/* Pattern Detection Section */}
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <Settings className="h-5 w-5" />
+            Rilevamento Pattern
+          </CardTitle>
+        </CardHeader>
+        <CardContent className="flex flex-col sm:flex-row gap-4">
+          <Select value={selectedSymbol} onValueChange={setSelectedSymbol}>
+            <SelectTrigger className="min-w-[200px]">
+              <SelectValue placeholder="Seleziona Asset" />
+            </SelectTrigger>
+            <SelectContent>
+              {availableSymbols.map(symbol => (
+                <SelectItem key={symbol} value={symbol}>
+                  {symbol}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+          <Button 
+            onClick={() => detectPatternsMutation.mutate(selectedSymbol)}
+            disabled={detectPatternsMutation.isPending}
+            className="min-w-[140px]"
+          >
+            {detectPatternsMutation.isPending ? "Rilevando..." : "🔍 Rileva Pattern"}
+          </Button>
+        </CardContent>
+      </Card>
 
       {/* ML Metrics Grid */}
       <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
@@ -287,14 +316,7 @@ export default function MLDashboard() {
               {mlAnalytics.marketPatterns.length === 0 ? (
                 <div className="text-center py-8 text-muted-foreground">
                   <p>Nessun pattern rilevato di recente</p>
-                  <Button 
-                    onClick={() => detectPatternsMutation.mutate("BTCUSD")}
-                    variant="outline"
-                    size="sm"
-                    className="mt-2"
-                  >
-                    Rileva Pattern per BTCUSD
-                  </Button>
+                  <p className="text-sm mt-2">Seleziona un asset e clicca "Rileva Pattern" per iniziare</p>
                 </div>
               ) : (
                 mlAnalytics.marketPatterns.map((pattern, index) => (

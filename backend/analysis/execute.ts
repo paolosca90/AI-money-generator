@@ -78,7 +78,7 @@ export const execute = api<ExecuteRequest, ExecuteResponse>(
         password: "demo"
       };
 
-      // Execute the order on MT5 with strategy-specific comment
+      // Execute the order on MT5 with strategy-specific comment that includes trade ID
       const result = await executeMT5Order({
         symbol: signal.symbol,
         direction: signal.direction,
@@ -86,12 +86,12 @@ export const execute = api<ExecuteRequest, ExecuteResponse>(
         entryPrice: signal.entry_price,
         takeProfit: signal.take_profit,
         stopLoss: signal.stop_loss,
-        comment: `${strategy}_${tradeId}`,
+        comment: `${strategy}_${tradeId}`, // Include trade ID in comment for position tracking
       }, mt5Config);
 
       if (result.success) {
         try {
-          // Update the signal as executed with strategy information
+          // Update the signal as executed with strategy information and MT5 order ID
           await analysisDB.exec`
             UPDATE trading_signals 
             SET executed_at = NOW(), 
@@ -103,7 +103,7 @@ export const execute = api<ExecuteRequest, ExecuteResponse>(
             WHERE trade_id = ${tradeId} AND executed_at IS NULL
           `;
 
-          console.log(`Successfully updated signal ${tradeId} as executed`);
+          console.log(`✅ Successfully updated signal ${tradeId} as executed with MT5 order ID: ${result.orderId}`);
         } catch (dbError) {
           console.error(`Database update failed for ${tradeId}:`, dbError);
           // Don't throw here as the trade was executed successfully

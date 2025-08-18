@@ -7,6 +7,7 @@ import Dashboard from "./pages/Dashboard";
 import MLDashboard from "./pages/MLDashboard";
 import Trade from "./pages/Trade";
 import History from "./pages/History";
+import Guides from "./pages/Guides";
 import Settings from "./pages/Settings";
 import Billing from "./pages/Billing";
 
@@ -22,6 +23,7 @@ function App() {
             <Route path="/ml" element={<MLDashboard />} />
             <Route path="/trade" element={<Trade />} />
             <Route path="/history" element={<History />} />
+            <Route path="/guides" element={<Guides />} />
             <Route path="/settings" element={<Settings />} />
             <Route path="/billing" element={<Billing />} />
           </Routes>
