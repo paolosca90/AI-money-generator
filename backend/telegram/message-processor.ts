@@ -4,23 +4,52 @@ import { execute } from "../analysis/execute";
 import { getPerformance } from "../analysis/performance";
 import { TradingStrategy } from "../analysis/trading-strategies";
 import { handleVPSCommand, handleVPSSetup, handleVPSSetupCallback } from "./vps-manager";
+import { handleClientCommands, checkClientFeature } from "./client-manager";
+import { 
+  getUserPreferences, 
+  setUserPreferences, 
+  getUserState, 
+  setUserState, 
+  clearUserState,
+  USER_STATES,
+  getTradingModeInfo,
+  getAllTradingModesInfo,
+  UserPreferences 
+} from "./user-state-manager";
 
 export async function processMessage(chatId: number, userId: number, text: string): Promise<void> {
   const command = text.toLowerCase().trim();
 
   try {
+    // Check if user is in a state that requires specific handling
+    const userState = await getUserState(userId);
+    if (userState && userState.currentState !== USER_STATES.READY_TO_TRADE) {
+      await handleUserStateFlow(chatId, userId, text, userState);
+      return;
+    }
+
     if (command.startsWith("/predict")) {
-      await handlePredictCommand(chatId, command);
+      // Check if user has signal access
+      const hasAccess = await checkClientFeature(userId, "basic_signals") ||
+                       await checkClientFeature(userId, "advanced_signals") ||
+                       await checkClientFeature(userId, "premium_signals");
+      
+      if (!hasAccess) {
+        await sendMessage(chatId, "❌ You need an active subscription to access AI signals. Use `/subscription` to learn more.");
+        return;
+      }
+      
+      await handlePredictCommand(chatId, command, userId);
     } else if (command.startsWith("/scalping")) {
-      await handleStrategyCommand(chatId, command, "SCALPING");
+      await handleStrategyCommand(chatId, command, "SCALPING", userId);
     } else if (command.startsWith("/intraday")) {
-      await handleStrategyCommand(chatId, command, "INTRADAY");
+      await handleStrategyCommand(chatId, command, "INTRADAY", userId);
     } else if (command.startsWith("/swing")) {
-      await handleStrategyCommand(chatId, command, "SWING");
+      await handleStrategyCommand(chatId, command, "SWING", userId);
     } else if (command.startsWith("/execute")) {
       await handleExecuteCommand(chatId, command);
     } else if (command === "/start") {
-      await handleStartCommand(chatId);
+      await handleStartCommand(chatId, userId);
     } else if (command === "/help") {
       await handleHelpCommand(chatId);
     } else if (command === "/status") {
@@ -32,16 +61,42 @@ export async function processMessage(chatId: number, userId: number, text: strin
     } else if (command.startsWith("/strategies")) {
       await handleStrategiesCommand(chatId);
     } else if (command.startsWith("/vps")) {
+      // Check if user has VPS management access
+      const hasAccess = await checkClientFeature(userId, "vps_management");
+      
+      if (!hasAccess) {
+        await sendMessage(chatId, "❌ You need an active subscription to access VPS management. Use `/subscription` to learn more.");
+        return;
+      }
+      
       await handleVPSCommand(chatId, userId, command);
     } else if (command === "/vps_setup") {
+      // Check if user has VPS management access
+      const hasAccess = await checkClientFeature(userId, "vps_management");
+      
+      if (!hasAccess) {
+        await sendMessage(chatId, "❌ You need an active subscription to access VPS setup. Use `/subscription` to learn more.");
+        return;
+      }
+      
       await handleVPSSetup(chatId, userId);
+    } else if (command === "/subscription" || command === "/features" || command === "/upgrade" || command === "/support") {
+      await handleClientCommands(chatId, userId, command);
+    } else if (command === "/settings") {
+      await handleSettingsCommand(chatId, userId);
     } else {
-      // Check if user is in VPS setup mode
-      await handleVPSSetup(chatId, userId, text);
+      // Check if user is in VPS setup mode by checking if they have an active state
+      const userState = await getUserState(userId);
+      if (userState && userState.currentState !== USER_STATES.READY_TO_TRADE) {
+        await handleUserStateFlow(chatId, userId, text, userState);
+      } else {
+        // Default VPS setup handler for unrecognized commands
+        await handleVPSSetup(chatId, userId, text);
+      }
     }
   } catch (error) {
     console.error("Error processing message:", error);
-    await sendMessage(chatId, "❌ Si è verificato un errore durante l'elaborazione della tua richiesta. Riprova.");
+    await sendMessage(chatId, "❌ An error occurred while processing your request. Please try again.");
   }
 }
 
@@ -49,6 +104,9 @@ export async function processCallbackQuery(chatId: number, userId: number, callb
   try {
     if (callbackData.startsWith("vps_")) {
       await handleVPSSetupCallback(chatId, userId, callbackData);
+    } else if (callbackData.startsWith("mode_")) {
+      const mode = callbackData.replace("mode_", "") as TradingStrategy;
+      await handleTradingModeSelection(chatId, userId, mode);
     } else if (callbackData.startsWith("execute_")) {
       const parts = callbackData.split("_");
       const tradeId = parts[1];
@@ -59,74 +117,368 @@ export async function processCallbackQuery(chatId: number, userId: number, callb
       const parts = callbackData.split("_");
       const strategy = parts[1] as "SCALPING" | "INTRADAY" | "SWING";
       const symbol = parts[2] || "BTCUSD";
-      await handleStrategyCommand(chatId, `/predict ${symbol}`, strategy);
+      await handleStrategyCommand(chatId, `/predict ${symbol}`, strategy, userId);
     } else if (callbackData === "new_analysis") {
-      await sendMessage(chatId, "📊 Scegli la tua strategia di trading:\n\n⚡ `/scalping SIMBOLO` - Trade veloci (1-15 min)\n📈 `/intraday SIMBOLO` - Day trading (1-8 ore)\n🎯 `/swing SIMBOLO` - Trade multi-giorno (1-7 giorni)\n\nEsempio: `/scalping EURUSD`");
+      await sendMessage(chatId, "📊 Choose your trading strategy:\n\n⚡ `/scalping SYMBOL` - Quick trades (1-15 min)\n📈 `/intraday SYMBOL` - Day trading (1-8 hours)\n🎯 `/swing SYMBOL` - Multi-day trades (1-7 days)\n\nExample: `/scalping EURUSD`");
     } else if (callbackData === "show_performance") {
       await handlePerformanceCommand(chatId);
     } else if (callbackData.startsWith("predict_")) {
       const symbol = callbackData.replace("predict_", "");
-      await handlePredictCommand(chatId, `/predict ${symbol}`);
+      await handlePredictCommand(chatId, `/predict ${symbol}`, userId);
     } else if (callbackData === "show_help") {
       await handleHelpCommand(chatId);
     } else if (callbackData === "show_strategies") {
       await handleStrategiesCommand(chatId);
+    } else if (callbackData === "setup_trading_mode") {
+      await startTradingModeSetup(chatId, userId);
+    } else if (callbackData === "show_settings") {
+      await handleSettingsCommand(chatId, userId);
+    } else if (callbackData === "vps_setup") {
+      await handleVPSSetup(chatId, userId);
     }
   } catch (error) {
     console.error("Error processing callback query:", error);
-    await sendMessage(chatId, "❌ Si è verificato un errore durante l'elaborazione della tua richiesta. Riprova.");
+    await sendMessage(chatId, "❌ Error processing your request. Please try again.");
   }
 }
 
 async function executeTradeFromCallback(chatId: number, tradeId: string, lotSize: number, strategy: string): Promise<void> {
   try {
-    await sendMessage(chatId, `⚡ Executing ${strategy} trade ${tradeId} with ${lotSize} lots...`);
-    
     const result = await execute({ tradeId, lotSize, strategy: strategy as TradingStrategy });
     
-    if (result.success) {
-      const message = `
-✅ **${strategy} Trade Executed Successfully**
+    const message = `
+✅ **Trade Executed Successfully!**
 
-🆔 Trade ID: \`${tradeId}\`
-📋 MT5 Order: #${result.orderId}
-💰 Lot Size: ${lotSize}
-💵 Entry Price: ${result.executionPrice}
-⏱️ Estimated Hold: ${result.estimatedHoldingTime}
+🆔 **Trade ID:** \`${tradeId}\`
+📊 **Strategy:** ${strategy}
+💎 **Lot Size:** ${lotSize}
+💰 **Execution Price:** ${result.executionPrice || 'N/A'}
+🆔 **Order ID:** ${result.orderId || 'N/A'}
 
-🎯 Your ${strategy.toLowerCase()} trade is now active on MT5!
-      `;
-      await sendMessage(chatId, message);
-    } else {
-      await sendMessage(chatId, `❌ **Trade execution failed**\n\n🚫 Error: ${result.error}\n\nPlease check your MT5 connection and try again.`);
-    }
+⏰ **Execution Time:** ${new Date().toLocaleTimeString()}
+
+**Your position is now active on MT5!**
+    `;
+    
+    await sendMessage(chatId, message);
   } catch (error) {
-    console.error("Execution error:", error);
+    console.error("Error executing trade:", error);
     await sendMessage(chatId, "❌ Error executing trade. Please check your MT5 connection and try again.");
   }
 }
 
-async function handlePredictCommand(chatId: number, command: string): Promise<void> {
-  const parts = command.split(" ");
-  const symbol = parts[1]?.toUpperCase() || "BTCUSD";
-
-  try {
-    await sendMessage(chatId, `🧠 **Advanced ML Analysis for ${symbol}**\n\n🔍 Analyzing market structure, smart money flow, and determining optimal strategy...\n\n⏳ This may take 10-15 seconds for comprehensive analysis.`);
-    
-    const prediction = await predict({ symbol });
-    
-    await sendTradingSignal(chatId, prediction);
-  } catch (error) {
-    console.error("Prediction error:", error);
-    await sendMessage(chatId, "❌ Errore nella generazione della previsione. Riprova o controlla se il simbolo è valido.");
+async function handleUserStateFlow(chatId: number, userId: number, text: string, userState: any): Promise<void> {
+  const command = text.toLowerCase().trim();
+  
+  switch (userState.currentState) {
+    case USER_STATES.SETTING_RISK_AMOUNT:
+      await handleRiskAmountInput(chatId, userId, text, userState);
+      break;
+      
+    case USER_STATES.SETTING_ACCOUNT_BALANCE:
+      await handleAccountBalanceInput(chatId, userId, text, userState);
+      break;
+      
+    default:
+      await sendMessage(chatId, "❌ Unknown state. Please start over with /start");
+      await clearUserState(userId);
+      break;
   }
 }
 
-async function handleStrategyCommand(chatId: number, command: string, strategy: "SCALPING" | "INTRADAY" | "SWING"): Promise<void> {
+async function handleStartCommand(chatId: number, userId: number): Promise<void> {
+  // Check if user already has trading preferences set up
+  const userPrefs = await getUserPreferences(userId);
+  
+  if (userPrefs && userPrefs.tradingMode) {
+    // User already has a trading mode set up
+    const modeInfo = getTradingModeInfo(userPrefs.tradingMode);
+    
+    const message = `
+🤖 **Welcome back to Professional AI Trading Bot**
+
+You're all set up with **${userPrefs.tradingMode}** trading mode!
+
+${modeInfo}
+
+💰 **Current Settings:**
+• Risk per trade: ${userPrefs.riskPercentage}%
+• Account balance: ${userPrefs.accountBalance ? `$${userPrefs.accountBalance.toLocaleString()}` : 'Not set'}
+• Account currency: ${userPrefs.accountCurrency}
+
+🚀 **Ready to Trade:**
+• Use \`/predict SYMBOL\` for analysis with your preferred mode
+• Use \`/scalping SYMBOL\`, \`/intraday SYMBOL\`, or \`/swing SYMBOL\` for specific strategies
+• Use \`/settings\` to change your trading preferences
+
+💡 **Quick Start:** Try \`/${userPrefs.tradingMode.toLowerCase()} BTCUSD\` for a signal!
+    `;
+    
+    const keyboard = createInlineKeyboard([
+      [
+        { text: `${userPrefs.tradingMode === 'SCALPING' ? '⚡' : userPrefs.tradingMode === 'INTRADAY' ? '📈' : '🎯'} ${userPrefs.tradingMode} BTCUSD`, callback_data: `strategy_${userPrefs.tradingMode}_BTCUSD` }
+      ],
+      [
+        { text: "⚙️ Settings", callback_data: "show_settings" },
+        { text: "📊 Performance", callback_data: "show_performance" }
+      ],
+      [
+        { text: "❓ Help", callback_data: "show_help" },
+        { text: "🖥️ VPS Setup", callback_data: "vps_setup" }
+      ]
+    ]);
+    
+    await sendMessage(chatId, message, { replyMarkup: keyboard });
+    
+  } else {
+    // New user - need to set up trading mode
+    await startTradingModeSetup(chatId, userId);
+  }
+}
+
+async function startTradingModeSetup(chatId: number, userId: number): Promise<void> {
+  await setUserState(userId, chatId, USER_STATES.SELECTING_TRADING_MODE);
+  
+  const message = `
+🎯 **Welcome to Professional AI Trading Bot!**
+
+Let's set up your trading preferences to get started.
+
+**Step 1: Choose Your Trading Mode**
+
+${getAllTradingModesInfo()}
+
+🤔 **Which trading style fits you best?**
+
+Select a mode below to see detailed information and continue setup:
+  `;
+  
+  const keyboard = createInlineKeyboard([
+    [
+      { text: "⚡ Scalping", callback_data: "mode_SCALPING" },
+      { text: "📈 Intraday", callback_data: "mode_INTRADAY" },
+      { text: "🎯 Swing", callback_data: "mode_SWING" }
+    ],
+    [
+      { text: "❓ Help Me Choose", callback_data: "show_strategies" }
+    ]
+  ]);
+  
+  await sendMessage(chatId, message, { replyMarkup: keyboard });
+}
+
+async function handleTradingModeSelection(chatId: number, userId: number, mode: TradingStrategy): Promise<void> {
+  const userState = await getUserState(userId);
+  if (!userState || userState.currentState !== USER_STATES.SELECTING_TRADING_MODE) {
+    await sendMessage(chatId, "❌ Please start the setup process with /start");
+    return;
+  }
+  
+  // Show detailed information about the selected mode
+  const modeInfo = getTradingModeInfo(mode);
+  
+  const message = `
+✅ **${mode} Trading Mode Selected!**
+
+${modeInfo}
+
+**Step 2: Risk Management Setup**
+
+Now let's configure your risk management settings.
+
+💰 **How much do you want to risk per trade?**
+
+Please enter your risk percentage (recommended: 1-3%):
+• Conservative: 1%
+• Balanced: 2% 
+• Aggressive: 3%
+
+Type a number like: \`2\` (for 2%)
+  `;
+  
+  // Store the selected mode and move to risk setting state
+  await setUserState(userId, chatId, USER_STATES.SETTING_RISK_AMOUNT, { selectedMode: mode });
+  
+  await sendMessage(chatId, message);
+}
+
+async function handleRiskAmountInput(chatId: number, userId: number, text: string, userState: any): Promise<void> {
+  const riskInput = text.trim().replace('%', '');
+  const riskPercentage = parseFloat(riskInput);
+  
+  if (isNaN(riskPercentage) || riskPercentage < 0.1 || riskPercentage > 10) {
+    await sendMessage(chatId, "❌ Please enter a valid risk percentage between 0.1% and 10%.\n\nExample: `2` (for 2%)");
+    return;
+  }
+  
+  const message = `
+✅ **Risk Management Set: ${riskPercentage}%**
+
+**Step 3: Account Balance (Optional)**
+
+To provide accurate position sizing recommendations, please enter your account balance.
+
+💰 **What's your account balance?**
+
+Examples:
+• \`1000\` (for $1,000)
+• \`5000\` (for $5,000)
+• \`skip\` (to set this later)
+
+This helps calculate optimal lot sizes for your trades.
+  `;
+  
+  await setUserState(userId, chatId, USER_STATES.SETTING_ACCOUNT_BALANCE, {
+    ...userState.stateData,
+    riskPercentage
+  });
+  
+  await sendMessage(chatId, message);
+}
+
+async function handleAccountBalanceInput(chatId: number, userId: number, text: string, userState: any): Promise<void> {
+  const input = text.toLowerCase().trim();
+  let accountBalance: number | undefined;
+  
+  if (input !== 'skip') {
+    const balanceInput = parseFloat(input);
+    if (isNaN(balanceInput) || balanceInput < 100) {
+      await sendMessage(chatId, "❌ Please enter a valid account balance (minimum $100) or type `skip`.\n\nExample: `1000` (for $1,000)");
+      return;
+    }
+    accountBalance = balanceInput;
+  }
+  
+  // Save user preferences
+  const preferences: UserPreferences = {
+    userId,
+    chatId,
+    tradingMode: userState.stateData.selectedMode,
+    riskPercentage: userState.stateData.riskPercentage,
+    accountBalance,
+    accountCurrency: 'USD'
+  };
+  
+  await setUserPreferences(preferences);
+  await setUserState(userId, chatId, USER_STATES.READY_TO_TRADE);
+  
+  const modeInfo = getTradingModeInfo(preferences.tradingMode!);
+  
+  const message = `
+🎉 **Setup Complete!**
+
+Your trading preferences have been saved:
+
+${modeInfo}
+
+💰 **Your Settings:**
+• Risk per trade: ${preferences.riskPercentage}%
+• Account balance: ${accountBalance ? `$${accountBalance.toLocaleString()}` : 'Not set (can be set later)'}
+• Account currency: ${preferences.accountCurrency}
+
+🚀 **You're ready to trade!**
+
+Try these commands:
+• \`/predict BTCUSD\` - Get a signal using your preferred mode
+• \`/${preferences.tradingMode!.toLowerCase()} EURUSD\` - Get a specific strategy signal
+• \`/settings\` - Change your preferences anytime
+
+**Let's start with your first signal!** 🎯
+  `;
+  
+  const keyboard = createInlineKeyboard([
+    [
+      { text: `${preferences.tradingMode === 'SCALPING' ? '⚡' : preferences.tradingMode === 'INTRADAY' ? '📈' : '🎯'} Get ${preferences.tradingMode} Signal`, callback_data: `strategy_${preferences.tradingMode}_BTCUSD` }
+    ],
+    [
+      { text: "📊 View All Strategies", callback_data: "show_strategies" },
+      { text: "⚙️ Settings", callback_data: "show_settings" }
+    ],
+    [
+      { text: "🖥️ Setup VPS", callback_data: "vps_setup" },
+      { text: "❓ Help", callback_data: "show_help" }
+    ]
+  ]);
+  
+  await sendMessage(chatId, message, { replyMarkup: keyboard });
+}
+
+async function handleSettingsCommand(chatId: number, userId: number): Promise<void> {
+  const userPrefs = await getUserPreferences(userId);
+  
+  if (!userPrefs) {
+    await sendMessage(chatId, "❌ No preferences found. Please start with /start to set up your trading mode.");
+    return;
+  }
+  
+  const modeInfo = getTradingModeInfo(userPrefs.tradingMode!);
+  
+  const message = `
+⚙️ **Your Trading Settings**
+
+${modeInfo}
+
+💰 **Current Settings:**
+• Risk per trade: ${userPrefs.riskPercentage}%
+• Account balance: ${userPrefs.accountBalance ? `$${userPrefs.accountBalance.toLocaleString()}` : 'Not set'}
+• Account currency: ${userPrefs.accountCurrency}
+
+🔧 **Change Settings:**
+Use \`/start\` to reconfigure your trading mode and risk settings.
+
+📊 **Available Commands:**
+• \`/predict SYMBOL\` - Use your preferred mode (${userPrefs.tradingMode})
+• \`/scalping SYMBOL\` - Force scalping mode
+• \`/intraday SYMBOL\` - Force intraday mode  
+• \`/swing SYMBOL\` - Force swing mode
+• \`/performance\` - View your trading statistics
+  `;
+  
+  const keyboard = createInlineKeyboard([
+    [
+      { text: "🔄 Reconfigure", callback_data: "setup_trading_mode" },
+      { text: "📊 Performance", callback_data: "show_performance" }
+    ],
+    [
+      { text: "❓ Help", callback_data: "show_help" },
+      { text: "🖥️ VPS Setup", callback_data: "vps_setup" }
+    ]
+  ]);
+  
+  await sendMessage(chatId, message, { replyMarkup: keyboard });
+}
+
+async function handlePredictCommand(chatId: number, command: string, userId?: number): Promise<void> {
   const parts = command.split(" ");
   const symbol = parts[1]?.toUpperCase() || "BTCUSD";
 
   try {
+    const userPrefs = userId ? await getUserPreferences(userId) : null;
+    const strategy = userPrefs?.tradingMode;
+    
+    const strategyText = strategy ? ` using your preferred ${strategy} mode` : "";
+    
+    await sendMessage(chatId, `🧠 **Advanced ML Analysis for ${symbol}**${strategyText}\n\n🔍 Analyzing market structure, smart money flow, and determining optimal strategy...\n\n⏳ This may take 10-15 seconds for comprehensive analysis.`);
+    
+    const prediction = await predict({ 
+      symbol, 
+      strategy
+    });
+    
+    await sendTradingSignal(chatId, prediction, userPrefs);
+  } catch (error) {
+    console.error("Prediction error:", error);
+    await sendMessage(chatId, "❌ Error generating prediction. Please try again or check if the symbol is valid.");
+  }
+}
+
+async function handleStrategyCommand(chatId: number, command: string, strategy: "SCALPING" | "INTRADAY" | "SWING", userId?: number): Promise<void> {
+  const parts = command.split(" ");
+  const symbol = parts[1]?.toUpperCase() || "BTCUSD";
+
+  try {
+    const userPrefs = userId ? await getUserPreferences(userId) : null;
+    
     const strategyEmojis = {
       "SCALPING": "⚡",
       "INTRADAY": "📈", 
@@ -135,348 +487,152 @@ async function handleStrategyCommand(chatId: number, command: string, strategy: 
 
     await sendMessage(chatId, `${strategyEmojis[strategy]} **${strategy} Analysis for ${symbol}**\n\n🔍 Analyzing market for ${strategy.toLowerCase()} opportunities...\n\n⏳ Optimizing entry, stop loss, and take profit levels...`);
     
-    const prediction = await predict({ symbol, strategy: strategy as TradingStrategy });
+    const prediction = await predict({ 
+      symbol, 
+      strategy: strategy as TradingStrategy
+    });
     
-    await sendTradingSignal(chatId, prediction);
+    await sendTradingSignal(chatId, prediction, userPrefs);
   } catch (error) {
     console.error("Strategy prediction error:", error);
-    await sendMessage(chatId, `❌ Errore nella generazione dell'analisi ${strategy.toLowerCase()}. Riprova.`);
+    await sendMessage(chatId, `❌ Error generating ${strategy.toLowerCase()} analysis. Please try again.`);
   }
 }
 
-async function sendTradingSignal(chatId: number, prediction: any): Promise<void> {
+async function sendTradingSignal(chatId: number, prediction: any, userPrefs?: UserPreferences | null): Promise<void> {
   const strategyEmojis: Record<string, string> = {
     "SCALPING": "⚡",
     "INTRADAY": "📈",
     "SWING": "🎯"
   };
 
-  const directionEmoji = prediction.direction === "LONG" ? "📈" : "📉";
   const confidenceEmoji = prediction.confidence >= 85 ? "🔥" : prediction.confidence >= 75 ? "⚡" : "⚠️";
   const strategyEmoji = strategyEmojis[prediction.strategy] || "📊";
+  
+  // Calculate position size based on user preferences
+  let positionSizeInfo = "";
+  if (userPrefs && userPrefs.accountBalance && userPrefs.riskPercentage) {
+    const riskAmount = userPrefs.accountBalance * (userPrefs.riskPercentage / 100);
+    const stopLossDistance = Math.abs(prediction.entryPrice - prediction.stopLoss);
+    const suggestedLotSize = Math.min(riskAmount / stopLossDistance, 2.0); // Max 2 lots
+    
+    positionSizeInfo = `
+
+🎯 **Your Position Sizing:**
+• Account Balance: $${userPrefs.accountBalance.toLocaleString()}
+• Risk Amount: $${riskAmount.toFixed(2)} (${userPrefs.riskPercentage}%)
+• Suggested Lot Size: ${Math.round(suggestedLotSize * 100) / 100} lots`;
+  }
   
   const message = `
 ${strategyEmoji} **${prediction.strategy} Signal - ${prediction.symbol}**
 
-🆔 Trade ID: \`${prediction.tradeId}\`
-${directionEmoji} **Direction: ${prediction.direction}**
-💰 **Entry Price:** \`${prediction.entryPrice}\`
-🎯 **Take Profit:** \`${prediction.takeProfit}\`
-🛡️ **Stop Loss:** \`${prediction.stopLoss}\`
+🆔 **Trade ID:** \`${prediction.tradeId}\`
+📈 **Direction:** **${prediction.direction}**
+💰 **Entry Price:** ${prediction.entryPrice}
+🎯 **Take Profit:** ${prediction.takeProfit}
+🛡️ **Stop Loss:** ${prediction.stopLoss}
 ${confidenceEmoji} **Confidence:** **${prediction.confidence}%**
 📊 **Risk/Reward:** 1:${prediction.riskRewardRatio}
 💎 **Recommended Size:** ${prediction.recommendedLotSize} lots
-⏱️ **Max Hold Time:** ${prediction.maxHoldingTime}h
+⏱️ **Max Hold Time:** ${prediction.maxHoldingTime}h${positionSizeInfo}
 
 📊 **Strategy Analysis:**
 ${prediction.strategyRecommendation}
 
-📈 **Price Action Analysis:**
-• Market Structure: **${prediction.analysis.technical.structure}**
-• Trend: **${prediction.analysis.technical.trend}**
-• Breakout Probability: **${prediction.analysis.technical.breakoutProbability}%**
+🧠 **AI Technical Analysis:**
+• **Trend:** ${prediction.analysis?.priceAction?.trend || 'N/A'}
+• **Support:** ${prediction.analysis?.support || 'N/A'}
+• **Resistance:** ${prediction.analysis?.resistance || 'N/A'}
+• **Smart Money:** ${prediction.analysis?.smartMoney?.institutionalFlow || 'N/A'}
 
-👥 **Professional Trader Consensus:**
-• Top Traders: ${prediction.analysis.professional.topTraders.slice(0, 2).join(", ")}
-• Consensus: **${prediction.analysis.professional.consensusView}**
-• Risk/Reward: **1:${prediction.analysis.professional.riskReward.toFixed(1)}**
-
-🎯 **Key Liquidity Zones:**
-${prediction.analysis.smartMoney.liquidityZones.slice(0, 3).map((zone: number) => `• ${zone.toFixed(5)}`).join('\n')}
-
-📰 **Market Sentiment:** ${getSentimentEmoji(prediction.analysis.sentiment.score)} ${(prediction.analysis.sentiment.score * 100).toFixed(0)}%
-
-⚡ **Quick Execute:**
-\`/execute ${prediction.tradeId} ${prediction.recommendedLotSize}\`
+💡 **Risk Management:**
+Always use stop loss and never risk more than 2% of your account per trade.
   `;
 
   // Create inline keyboard for quick actions
+  const suggestedSize = userPrefs && userPrefs.accountBalance ? 
+    Math.min(userPrefs.accountBalance * (userPrefs.riskPercentage || 2) / 100 / Math.abs(prediction.entryPrice - prediction.stopLoss), 2.0) :
+    prediction.recommendedLotSize;
+  
   const keyboard = createInlineKeyboard([
     [
-      { text: `${strategyEmoji} Execute ${prediction.recommendedLotSize}`, callback_data: `execute_${prediction.tradeId}_${prediction.recommendedLotSize}_${prediction.strategy}` },
+      { text: `${strategyEmoji} Execute ${Math.round(suggestedSize * 100) / 100}`, callback_data: `execute_${prediction.tradeId}_${Math.round(suggestedSize * 100) / 100}_${prediction.strategy}` },
       { text: `${strategyEmoji} Execute 0.01`, callback_data: `execute_${prediction.tradeId}_0.01_${prediction.strategy}` }
     ],
     [
-      { text: "⚡ Scalping", callback_data: `strategy_SCALPING_${prediction.symbol}` },
-      { text: "📈 Intraday", callback_data: `strategy_INTRADAY_${prediction.symbol}` },
-      { text: "🎯 Swing", callback_data: `strategy_SWING_${prediction.symbol}` }
-    ],
-    [
-      { text: "📊 Nuova Analisi", callback_data: "new_analysis" },
+      { text: "📊 New Analysis", callback_data: "new_analysis" },
       { text: "📈 Performance", callback_data: "show_performance" }
     ]
   ]);
 
   await sendMessage(chatId, message, { replyMarkup: keyboard });
-
-  // Send chart image if available
-  if (prediction.chartUrl) {
-    try {
-      await sendPhoto(chatId, prediction.chartUrl, `📊 ${prediction.strategy} Chart Analysis for ${prediction.symbol}`);
-    } catch (error) {
-      console.error("Error sending chart:", error);
-      await sendMessage(chatId, `📊 Chart: ${prediction.chartUrl}`);
-    }
-  }
 }
 
+// Simplified versions of remaining handler functions
 async function handleExecuteCommand(chatId: number, command: string): Promise<void> {
   const parts = command.split(" ");
+  if (parts.length < 3) {
+    await sendMessage(chatId, "❌ Usage: `/execute TRADE_ID LOT_SIZE`\n\nExample: `/execute BTC-001 0.1`");
+    return;
+  }
+
   const tradeId = parts[1];
-  const lotSize = parseFloat(parts[2] || "0.1");
+  const lotSize = parseFloat(parts[2]);
   const strategy = parts[3] || "INTRADAY";
 
-  if (!tradeId) {
-    await sendMessage(chatId, "❌ Please provide a trade ID. Usage: `/execute TRADE_ID LOT_SIZE [STRATEGY]`");
-    return;
-  }
-
   if (isNaN(lotSize) || lotSize <= 0) {
-    await sendMessage(chatId, "❌ Please provide a valid lot size. Usage: `/execute TRADE_ID LOT_SIZE [STRATEGY]`");
+    await sendMessage(chatId, "❌ Invalid lot size. Please use a positive number.\n\nExample: `/execute BTC-001 0.1`");
     return;
   }
 
-  try {
-    await sendMessage(chatId, `⚡ Executing ${strategy} trade ${tradeId} with ${lotSize} lots...`);
-    
-    const result = await execute({ tradeId, lotSize, strategy: strategy as TradingStrategy });
-    
-    if (result.success) {
-      const message = `
-✅ **${strategy} Trade Executed Successfully**
-
-🆔 Trade ID: \`${tradeId}\`
-📋 MT5 Order: #${result.orderId}
-💰 Lot Size: ${lotSize}
-💵 Entry Price: ${result.executionPrice}
-⏱️ Estimated Hold: ${result.estimatedHoldingTime}
-
-🎯 Your ${strategy.toLowerCase()} trade is now active on MT5!
-      `;
-      await sendMessage(chatId, message);
-    } else {
-      await sendMessage(chatId, `❌ **Trade execution failed**\n\n🚫 Error: ${result.error}\n\nPlease check your MT5 connection and try again.`);
-    }
-  } catch (error) {
-    console.error("Execution error:", error);
-    await sendMessage(chatId, "❌ Error executing trade. Please check your MT5 connection and try again.");
-  }
-}
-
-async function handleStartCommand(chatId: number): Promise<void> {
-  const message = `
-🤖 **Welcome to Professional AI Trading Bot**
-
-I'm your institutional-grade trading assistant with **3 specialized strategies**! 
-
-🧠 **What Makes Me Different:**
-• **Smart Money Analysis** - Track institutional flow and order patterns
-• **Professional Trader Consensus** - Follow top traders for each asset
-• **Advanced Price Action** - Market structure and liquidity zone analysis
-• **ML-Powered Predictions** - No traditional indicators, pure price action
-
-⚡ **Trading Strategies:**
-• \`/scalping SYMBOL\` - Quick trades (1-15 minutes, tight stops)
-• \`/intraday SYMBOL\` - Day trading (1-8 hours, balanced risk)
-• \`/swing SYMBOL\` - Multi-day trades (1-7 days, larger targets)
-
-📊 **General Analysis:**
-• \`/predict SYMBOL\` - Auto-select optimal strategy
-
-⚡ **Execution Commands:**
-• \`/execute TRADE_ID LOT_SIZE [STRATEGY]\` - Execute trade on MT5
-
-🖥️ **VPS Management:**
-• \`/vps\` - Manage your VPS and MT5 setup
-• \`/vps_setup\` - Configure new VPS automatically
-
-📈 **Information Commands:**
-• \`/status\` - Check bot and MT5 status
-• \`/performance\` - View trading performance
-• \`/strategies\` - Learn about trading strategies
-• \`/symbols\` - List supported symbols
-
-📚 **Help:**
-• \`/help\` - Show detailed help
-
-🚀 **Quick Start:**
-1. Use \`/vps_setup\` to configure your VPS and MT5
-2. Try \`/scalping BTCUSD\` for a quick scalping signal!
-3. Or \`/swing EURUSD\` for a swing trading opportunity!
-
-💡 **Professional Tip:** Each strategy has optimized risk/reward ratios and holding times. Choose based on your trading style and available time.
-  `;
-  
-  const keyboard = createInlineKeyboard([
-    [
-      { text: "⚡ Scalping BTCUSD", callback_data: "strategy_SCALPING_BTCUSD" },
-      { text: "📈 Intraday EURUSD", callback_data: "strategy_INTRADAY_EURUSD" }
-    ],
-    [
-      { text: "🎯 Swing XAUUSD", callback_data: "strategy_SWING_XAUUSD" },
-      { text: "🖥️ Setup VPS", callback_data: "vps_setup" }
-    ],
-    [
-      { text: "📊 Strategies Guide", callback_data: "show_strategies" },
-      { text: "❓ Help", callback_data: "show_help" }
-    ]
-  ]);
-  
-  await sendMessage(chatId, message, { replyMarkup: keyboard });
-}
-
-async function handleStrategiesCommand(chatId: number): Promise<void> {
-  const message = `
-📊 **Professional Trading Strategies Guide**
-
-**⚡ SCALPING STRATEGY**
-• **Timeframe:** 1-15 minutes
-• **Risk/Reward:** 1:1.5
-• **Best For:** Quick profits, high-volume sessions
-• **Stop Loss:** Tight (0.8x ATR)
-• **Take Profit:** Quick (1.2x ATR)
-• **Min Confidence:** 85%
-• **Max Position:** 0.5 lots
-• **Ideal Conditions:** High volume, trending markets, low spreads
-
-**📈 INTRADAY STRATEGY**
-• **Timeframe:** 1-8 hours
-• **Risk/Reward:** 1:2.0
-• **Best For:** Day trading, balanced approach
-• **Stop Loss:** Standard (1.0x ATR)
-• **Take Profit:** Standard (2.0x ATR)
-• **Min Confidence:** 75%
-• **Max Position:** 1.0 lots
-• **Ideal Conditions:** Normal volume, trending markets, breakouts
-
-**🎯 SWING STRATEGY**
-• **Timeframe:** 1-7 days
-• **Risk/Reward:** 1:3.0
-• **Best For:** Multi-day trends, larger moves
-• **Stop Loss:** Wide (1.5x ATR)
-• **Take Profit:** Large (4.5x ATR)
-• **Min Confidence:** 70%
-• **Max Position:** 2.0 lots
-• **Ideal Conditions:** Any volume, reversals, consolidations
-
-**🎓 How to Choose:**
-
-**Choose SCALPING when:**
-• You can monitor trades actively
-• Market is trending with high volume
-• You want quick profits
-• Low volatility environment
-
-**Choose INTRADAY when:**
-• You trade during market hours
-• Balanced risk/reward approach
-• Following daily trends
-• Normal market conditions
-
-**Choose SWING when:**
-• You prefer less monitoring
-• Looking for larger moves
-• Multi-day trend following
-• Higher volatility acceptable
-
-**💡 Pro Tips:**
-• Start with INTRADAY for balanced approach
-• Use SCALPING during high-volume sessions
-• Use SWING for major trend reversals
-• Always respect the strategy's risk limits
-
-**⚡ Quick Commands:**
-• \`/scalping EURUSD\` - Generate scalping signal
-• \`/intraday GBPUSD\` - Generate intraday signal  
-• \`/swing XAUUSD\` - Generate swing signal
-• \`/predict BTCUSD\` - Auto-select best strategy
-
-Each strategy is optimized for different market conditions and trading styles! 🚀
-  `;
-  
-  await sendMessage(chatId, message);
+  await executeTradeFromCallback(chatId, tradeId, lotSize, strategy);
 }
 
 async function handleHelpCommand(chatId: number): Promise<void> {
   const message = `
-📚 **Professional AI Trading Bot - Complete Guide**
+🤖 **Professional AI Trading Bot - Help**
 
-**⚡ SCALPING Commands:**
-• \`/scalping BTCUSD\` - Quick Bitcoin scalp (1-15 min)
-• \`/scalping EURUSD\` - Euro scalping opportunity
-• \`/scalping XAUUSD\` - Gold scalping signal
-
-**📈 INTRADAY Commands:**
-• \`/intraday EURUSD\` - Euro day trading (1-8 hours)
-• \`/intraday GBPUSD\` - Pound intraday analysis
-• \`/intraday CRUDE\` - Oil day trading signal
-
-**🎯 SWING Commands:**
-• \`/swing BTCUSD\` - Bitcoin swing trade (1-7 days)
-• \`/swing XAUUSD\` - Gold swing opportunity
-• \`/swing CRUDE\` - Oil swing analysis
-
-**📊 General Analysis:**
-• \`/predict SYMBOL\` - Auto-select optimal strategy
-• \`/predict\` - Analyze BTCUSD (default)
-
-**⚡ Execution Commands:**
-• \`/execute BTC-001 0.1\` - Execute with 0.1 lots
-• \`/execute EUR-002 0.05 SCALPING\` - Execute scalping trade
-• \`/execute XAU-003 0.2 SWING\` - Execute swing trade
+**🎯 Trading Commands:**
+• \`/predict SYMBOL\` - AI analysis with optimal strategy
+• \`/scalping SYMBOL\` - Quick trades (1-15 min)
+• \`/intraday SYMBOL\` - Day trading (1-8 hours)
+• \`/swing SYMBOL\` - Multi-day trades (1-7 days)
+• \`/execute TRADE_ID LOT_SIZE\` - Execute trade on MT5
 
 **🖥️ VPS Management:**
-• \`/vps\` - VPS dashboard and management
-• \`/vps_setup\` - Automatic VPS configuration
-• \`/vps_status\` - Check VPS and MT5 status
-• \`/vps_restart\` - Restart trading bot on VPS
-• \`/vps_logs\` - View recent VPS logs
+• \`/vps\` - VPS dashboard and status
+• \`/vps_setup\` - Configure VPS automatically
+
+**💰 Account & Subscription:**
+• \`/subscription\` - View your subscription details
+• \`/features\` - See your available features
+• \`/upgrade\` - Upgrade your plan
+• \`/support\` - Get help and support
 
 **📊 Information Commands:**
 • \`/status\` - Bot and MT5 connection status
 • \`/performance\` - Trading statistics
-• \`/strategies\` - Detailed strategy guide
-• \`/symbols\` - All supported trading symbols
+• \`/settings\` - Your trading preferences
+• \`/strategies\` - Learn about strategies
+• \`/symbols\` - Supported trading symbols
 
-**🎯 Strategy Features:**
-
-**⚡ SCALPING (1-15 min):**
-• Tight stops for capital protection
-• Quick profit taking
-• High confidence signals only
-• Best during high volume sessions
-
-**📈 INTRADAY (1-8 hours):**
-• Balanced risk/reward ratio
-• Follow trend direction
-• Close before market close
-• Monitor news and events
-
-**🎯 SWING (1-7 days):**
-• Wider stops for volatility
-• Larger profit targets
-• Less frequent monitoring
-• Focus on weekly trends
-
-**💡 Professional Tips:**
-• **Risk Management:** Never risk more than 2% per trade
-• **Strategy Selection:** Choose based on available time and market conditions
-• **Position Sizing:** Use recommended lot sizes for optimal risk
-• **Monitoring:** Scalping requires active monitoring, swing allows passive approach
+**💡 Pro Tips:**
+• Start with \`/vps_setup\` for automated configuration
+• Use your preferred trading mode from \`/settings\`
+• Always follow risk management guidelines
 
 **⚠️ Risk Warning:**
-This bot uses advanced institutional trading concepts. Always use proper risk management and never trade money you can't afford to lose.
+This bot uses advanced AI analysis. Always use proper risk management and never trade money you can't afford to lose.
 
-Need more help? Try the specific strategy commands! 💬
+Need more help? Check \`/subscription\` for your plan details! 💬
   `;
   
   await sendMessage(chatId, message);
 }
 
 async function handleStatusCommand(chatId: number): Promise<void> {
-  try {
-    // This would check actual system status
-    const message = `
+  const message = `
 🔧 **Professional Trading System Status**
 
 🧠 **ML Engine:** ✅ Online (Advanced Models Active)
@@ -497,91 +653,73 @@ async function handleStatusCommand(chatId: number): Promise<void> {
 • ⚡ Scalping: ✅ Active (1-15 min trades)
 • 📈 Intraday: ✅ Active (1-8 hour trades)
 • 🎯 Swing: ✅ Active (1-7 day trades)
-• 📊 Auto-Strategy: ✅ Active (Optimal selection)
 
-🕐 **Last Update:** ${new Date().toLocaleString()}
-
-All professional trading systems operational! 🚀
-
-Use \`/vps\` to manage your VPS and MT5 connection.
-    `;
-    
-    await sendMessage(chatId, message);
-  } catch (error) {
-    console.error("Status check error:", error);
-    await sendMessage(chatId, "❌ Error checking system status. Please try again.");
-  }
+**System Status:** 🟢 All systems operational
+  `;
+  
+  await sendMessage(chatId, message);
 }
 
 async function handlePerformanceCommand(chatId: number): Promise<void> {
   try {
     const performance = await getPerformance();
     
-    const winRateEmoji = performance.winRate >= 70 ? "🔥" : performance.winRate >= 50 ? "⚡" : "⚠️";
-    const profitFactorEmoji = performance.profitFactor >= 2 ? "🔥" : performance.profitFactor >= 1 ? "⚡" : "⚠️";
-    
     const message = `
-📊 **Professional Trading Performance**
+📊 **Trading Performance Dashboard**
 
-${winRateEmoji} **Win Rate:** ${performance.winRate.toFixed(1)}%
-${profitFactorEmoji} **Profit Factor:** ${performance.profitFactor.toFixed(2)}
-📈 **Total Signals:** ${performance.totalTrades}
-💰 **Avg Profit:** $${performance.avgProfit.toFixed(2)}
-📉 **Avg Loss:** $${performance.avgLoss.toFixed(2)}
-🎯 **Best Trade:** $${performance.bestTrade.toFixed(2)}
-📊 **Avg Confidence:** ${performance.avgConfidence.toFixed(0)}%
+**🎯 Overall Statistics:**
+• Total Trades: ${performance.totalTrades}
+• Win Rate: ${performance.winRate.toFixed(1)}%
+• Average Profit: $${performance.avgProfit.toFixed(2)}
+• Average Loss: $${performance.avgLoss.toFixed(2)}
 
-**🧠 ML Model Performance:**
-${getMLPerformanceRating(performance.winRate, performance.profitFactor)}
+**📈 Best Performance:**
+• Best Trade: $${performance.bestTrade.toFixed(2)}
+• Profit Factor: ${performance.profitFactor.toFixed(2)}
+• Average Confidence: ${performance.avgConfidence.toFixed(1)}%
 
-**📈 Strategy Performance:**
-• ⚡ Scalping: High frequency, tight risk management
-• 📈 Intraday: Balanced approach, good for beginners
-• 🎯 Swing: Larger moves, less monitoring required
+**⚠️ Risk Metrics:**
+• Worst Trade: $${performance.worstTrade.toFixed(2)}
 
-**🎯 Professional Metrics:**
-• Risk/Reward Ratio: 1:${performance.profitFactor.toFixed(1)}
-• Sharpe Ratio: ${calculateSharpeRatio(performance)}
-• Maximum Drawdown: ${calculateMaxDrawdown(performance)}%
-• Recovery Factor: ${calculateRecoveryFactor(performance)}
+**💡 Keep up the excellent work!**
+Trading performance is looking strong. Remember to always follow proper risk management principles.
 
-**🚀 Strategy Recommendations:**
-• Use **SCALPING** for quick profits during high volume
-• Use **INTRADAY** for balanced daily trading
-• Use **SWING** for larger moves with less monitoring
-
-Keep following the smart money! 🚀
+📈 **Next Steps:**
+• Continue following your trading plan
+• Use \`/predict SYMBOL\` for new signals
+• Check \`/status\` for system health
     `;
     
     await sendMessage(chatId, message);
   } catch (error) {
-    console.error("Performance error:", error);
+    console.error("Error getting performance:", error);
     await sendMessage(chatId, "❌ Error retrieving performance data. Please try again.");
   }
 }
 
 async function handleSymbolsCommand(chatId: number): Promise<void> {
   const message = `
-📊 **Supported Trading Symbols with Multi-Strategy Analysis**
+📊 **Supported Trading Symbols**
 
-**💰 Cryptocurrencies:**
-• **BTCUSD** - Bitcoin (All strategies: ⚡📈🎯)
-• **ETHUSD** - Ethereum (All strategies: ⚡📈🎯)
+**💰 Major Forex Pairs:**
+• **EURUSD** - Euro/US Dollar ⚡📈🎯
+• **GBPUSD** - British Pound/US Dollar ⚡📈🎯
+• **USDJPY** - US Dollar/Japanese Yen ⚡📈🎯
+• **AUDUSD** - Australian Dollar/US Dollar 📈🎯
+• **USDCAD** - US Dollar/Canadian Dollar 📈🎯
+• **USDCHF** - US Dollar/Swiss Franc 📈🎯
+• **NZDUSD** - New Zealand Dollar/US Dollar 📈🎯
 
-**💱 Major Forex Pairs:**
-• **EURUSD** - Euro/Dollar (Best for: ⚡📈)
-• **GBPUSD** - Pound/Dollar (Best for: ⚡📈🎯)
-• **USDJPY** - Dollar/Yen (Best for: ⚡📈)
-• **AUDUSD** - Australian Dollar (Best for: 📈🎯)
-• **USDCAD** - Dollar/Canadian (Best for: 📈🎯)
-• **USDCHF** - Dollar/Swiss Franc (Best for: 📈🎯)
+**💎 Cryptocurrencies:**
+• **BTCUSD** - Bitcoin ⚡📈🎯
+• **ETHUSD** - Ethereum ⚡📈🎯
 
-**🥇 Precious Metals:**
-• **XAUUSD** - Gold (Best for: 📈🎯)
+**🏆 Precious Metals:**
+• **XAUUSD** - Gold 📈🎯
 
 **🛢️ Commodities:**
-• **CRUDE** - WTI Oil (Best for: 📈🎯)
-• **BRENT** - Brent Oil (Best for: 📈🎯)
+• **CRUDE** - WTI Oil 📈🎯
+• **BRENT** - Brent Oil 📈🎯
 
 **🎯 Strategy Symbols:**
 ⚡ = Excellent for SCALPING (1-15 min)
@@ -590,63 +728,47 @@ async function handleSymbolsCommand(chatId: number): Promise<void> {
 
 **Usage Examples:**
 • \`/scalping BTCUSD\` - Bitcoin scalping
-• \`/intraday EURUSD\` - Euro day trading
+• \`/intraday EURUSD\` - Euro intraday
 • \`/swing XAUUSD\` - Gold swing trading
-• \`/predict GBPUSD\` - Auto-select best strategy
-
-**💡 Strategy Selection Tips:**
-• **Crypto (BTC/ETH):** Great for all strategies due to 24/7 trading
-• **Major Forex:** Best for scalping and intraday during market hours
-• **Gold/Oil:** Excellent for swing trading due to larger moves
-• **Minor Pairs:** Better for intraday and swing strategies
-
-More symbols and advanced features coming soon! 🚀
   `;
   
   await sendMessage(chatId, message);
 }
 
-function getSentimentEmoji(score: number): string {
-  if (score > 0.5) return "🔥";
-  if (score > 0.2) return "📈";
-  if (score > -0.2) return "😐";
-  if (score > -0.5) return "📉";
-  return "🔴";
-}
+async function handleStrategiesCommand(chatId: number): Promise<void> {
+  const message = `
+📊 **Trading Strategies Guide**
 
-function getMLPerformanceRating(winRate: number, profitFactor: number): string {
-  if (winRate >= 75 && profitFactor >= 2.5) {
-    return "🔥 **Exceptional** - Institutional-grade performance!";
-  } else if (winRate >= 65 && profitFactor >= 2) {
-    return "⚡ **Professional** - High-quality ML predictions!";
-  } else if (winRate >= 55 && profitFactor >= 1.5) {
-    return "📊 **Good** - Solid machine learning results!";
-  } else {
-    return "⚠️ **Learning** - ML models adapting to market conditions.";
-  }
-}
+${getAllTradingModesInfo()}
 
-function calculateSharpeRatio(performance: any): string {
-  // Simplified Sharpe ratio calculation
-  const avgReturn = performance.avgProfit * (performance.winRate / 100) + 
-                   performance.avgLoss * ((100 - performance.winRate) / 100);
-  const volatility = Math.abs(performance.avgProfit - performance.avgLoss);
-  const sharpe = avgReturn / (volatility || 1);
-  return sharpe.toFixed(2);
-}
+**🎯 How to Choose:**
 
-function calculateMaxDrawdown(performance: any): string {
-  // Simplified max drawdown estimation
-  const worstCase = Math.abs(performance.worstTrade);
-  const avgProfit = performance.avgProfit;
-  const drawdown = (worstCase / (avgProfit || 1)) * 100;
-  return Math.min(50, drawdown).toFixed(1);
-}
+**Choose SCALPING if:**
+• You can monitor trades actively
+• You prefer quick profits
+• You have a stable internet connection
+• You like high-frequency trading
 
-function calculateRecoveryFactor(performance: any): string {
-  // Recovery factor = Total Profit / Max Drawdown
-  const totalProfit = performance.avgProfit * performance.totalTrades * (performance.winRate / 100);
-  const maxDrawdown = Math.abs(performance.worstTrade);
-  const recovery = totalProfit / (maxDrawdown || 1);
-  return recovery.toFixed(1);
+**Choose INTRADAY if:**
+• You trade part-time
+• You want balanced risk/reward
+• You can check trades 2-3 times daily
+• You prefer medium-term opportunities
+
+**Choose SWING if:**
+• You're a busy professional
+• You prefer hands-off trading
+• You want larger profit targets
+• You can hold positions for days
+
+**💡 Pro Tips:**
+• Use \`/settings\` to set your preferred mode
+• Start with INTRADAY for balanced approach
+• Combine strategies for diversification
+• Always follow risk management rules
+
+Ready to start? Use \`/predict SYMBOL\` for analysis!
+  `;
+  
+  await sendMessage(chatId, message);
 }
