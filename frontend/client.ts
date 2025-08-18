@@ -87,10 +87,10 @@ export interface ClientOptions {
 
     /**
      * Allows you to set the authentication data to be used for each
-     * request either by passing in a static object or by passing in
+     * request either by passing in a static object, a string token, or by passing in
      * a function which returns a new object for each request.
      */
-    auth?: RequestType<typeof auth_auth> | AuthDataGenerator
+    auth?: RequestType<typeof auth_auth> | AuthDataGenerator | string
 }
 
 /**
@@ -552,6 +552,7 @@ type CallParameters = Omit<RequestInit, "headers"> & {
 export type AuthDataGenerator = () =>
   | RequestType<typeof auth_auth>
   | Promise<RequestType<typeof auth_auth> | undefined>
+  | string
   | undefined;
 
 // A fetcher is the prototype for the inbuilt Fetch function
@@ -597,7 +598,7 @@ class BaseClient {
     }
 
     async getAuthData(): Promise<CallParameters | undefined> {
-        let authData: RequestType<typeof auth_auth> | undefined;
+        let authData: RequestType<typeof auth_auth> | string | undefined;
 
         // If authorization data generator is present, call it and add the returned data to the request
         if (this.authGenerator) {
@@ -612,9 +613,17 @@ class BaseClient {
         if (authData) {
             const data: CallParameters = {};
 
-            data.headers = makeRecord<string, string>({
-                authorization: authData.authorization,
-            });
+            // Handle string auth (e.g., "Bearer token")
+            if (typeof authData === 'string') {
+                data.headers = makeRecord<string, string>({
+                    authorization: authData,
+                });
+            } else {
+                // Handle object auth with authorization property
+                data.headers = makeRecord<string, string>({
+                    authorization: authData.authorization,
+                });
+            }
 
             return data;
         }
