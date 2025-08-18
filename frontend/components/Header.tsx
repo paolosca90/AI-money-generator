@@ -25,7 +25,7 @@ const Header: React.FC<HeaderProps> = () => {
       <div className="w-full flex-1">
         {/* Can add breadcrumbs or search here */}
       </div>
-      <UserButton afterSignOutUrl="/login" />
+      <UserButton fallbackRedirectUrl="/login" />
     </header>
   );
 };
