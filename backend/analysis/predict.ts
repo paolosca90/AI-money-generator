@@ -33,6 +33,7 @@ export interface TradingSignal {
   riskRewardRatio: number;
   recommendedLotSize: number;
   maxHoldingTime: number;
+  expiresAt: Date;
   chartUrl?: string;
   strategyRecommendation: string;
   analysis: {
@@ -78,7 +79,7 @@ export interface TradingSignal {
   };
 }
 
-// Generates AI-powered trading predictions with multiple strategy options.
+// Generates AI-powered trading predictions with automatic NY session closure.
 export const predict = api<PredictRequest, TradingSignal>(
   { expose: true, method: "POST", path: "/analysis/predict" },
   async (req) => {
@@ -193,6 +194,9 @@ export const predict = api<PredictRequest, TradingSignal>(
       // Convert maxHoldingTime to number (double precision)
       const maxHoldingTimeHours = Number(strategyConfig.maxHoldingTime);
 
+      // Calculate expiration time for automatic closure before NY session ends
+      const expiresAt = calculateExpirationTime(optimalStrategy, maxHoldingTimeHours);
+
       const signal: TradingSignal = {
         tradeId,
         symbol,
@@ -205,6 +209,7 @@ export const predict = api<PredictRequest, TradingSignal>(
         riskRewardRatio: priceTargets.riskRewardRatio,
         recommendedLotSize,
         maxHoldingTime: maxHoldingTimeHours,
+        expiresAt,
         chartUrl,
         strategyRecommendation,
         analysis: {
@@ -248,22 +253,22 @@ export const predict = api<PredictRequest, TradingSignal>(
       };
 
       try {
-        // Store the signal in database with strategy information
+        // Store the signal in database with strategy information and expiration
         console.log(`Storing ${optimalStrategy} signal ${tradeId} in database`);
         await analysisDB.exec`
           INSERT INTO trading_signals (
             trade_id, symbol, direction, strategy, entry_price, take_profit, stop_loss, 
             confidence, risk_reward_ratio, recommended_lot_size, max_holding_hours,
-            analysis_data, created_at
+            expires_at, analysis_data, created_at
           ) VALUES (
             ${tradeId}, ${symbol}, ${aiAnalysis.direction}, ${optimalStrategy}, 
             ${priceTargets.entryPrice}, ${priceTargets.takeProfit}, ${priceTargets.stopLoss}, 
             ${confidenceInt}, ${priceTargets.riskRewardRatio}, ${recommendedLotSize},
-            ${maxHoldingTimeHours}, ${JSON.stringify(signal.analysis)}, NOW()
+            ${maxHoldingTimeHours}, ${expiresAt}, ${JSON.stringify(signal.analysis)}, NOW()
           )
         `;
 
-        console.log(`✅ Successfully generated ${optimalStrategy} signal ${tradeId} for ${symbol}`);
+        console.log(`✅ Successfully generated ${optimalStrategy} signal ${tradeId} for ${symbol} (expires at ${expiresAt.toISOString()})`);
       } catch (dbError) {
         console.error(`Database error storing signal ${tradeId}:`, dbError);
         // Don't throw here - return the signal even if database storage fails
@@ -288,6 +293,27 @@ export const predict = api<PredictRequest, TradingSignal>(
   }
 );
 
+function calculateExpirationTime(strategy: TradingStrategy, maxHoldingHours: number): Date {
+  const now = new Date();
+  const expiresAt = new Date(now.getTime() + maxHoldingHours * 60 * 60 * 1000);
+  
+  // For INTRADAY strategy, ensure closure before NY session ends (22:00 CET)
+  if (strategy === TradingStrategy.INTRADAY) {
+    const nyCloseTime = new Date(now);
+    nyCloseTime.setHours(21, 30, 0, 0); // 21:30 CET to ensure closure before 22:00
+    
+    // If NY close is tomorrow, set it for tomorrow
+    if (nyCloseTime <= now) {
+      nyCloseTime.setDate(nyCloseTime.getDate() + 1);
+    }
+    
+    // Use the earlier of max holding time or NY close time
+    return expiresAt < nyCloseTime ? expiresAt : nyCloseTime;
+  }
+  
+  return expiresAt;
+}
+
 function determineRiskLevel(
   strategy: TradingStrategy,
   aiAnalysis: any,
@@ -300,14 +326,11 @@ function determineRiskLevel(
   let riskScore = 0;
   
   switch (strategy) {
-    case "SCALPING":
+    case TradingStrategy.SCALPING:
       riskScore = 2; // Medium base risk due to tight stops
       break;
-    case "INTRADAY":
+    case TradingStrategy.INTRADAY:
       riskScore = 1; // Low-medium base risk
-      break;
-    case "SWING":
-      riskScore = 3; // Higher base risk due to longer holding
       break;
   }
   

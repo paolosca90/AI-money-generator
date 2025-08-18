@@ -14,20 +14,17 @@ export const checkExpiredTrades = cron("check-expired-trades", {
     try {
       const now = new Date();
       
-      // Calcola la scadenza automatica per i trade intraday
-      // Chiudi tutti i trade intraday che sono aperti da più di 6 ore
-      const sixHoursAgo = new Date(now.getTime() - 6 * 60 * 60 * 1000);
-      
-      // Trova trade da chiudere (scaduti o intraday aperti da troppo tempo)
+      // Find trades to close based on expiration time or INTRADAY strategy limits
       const tradesToClose = await analysisDB.queryAll`
-        SELECT ts.trade_id, ts.mt5_order_id, ui.user_id, ui.chat_id
+        SELECT ts.trade_id, ts.mt5_order_id, ts.strategy, ts.executed_at, ts.expires_at,
+               ui.user_id, ui.chat_id
         FROM trading_signals ts
         LEFT JOIN user_interactions ui ON ui.user_id::text = ts.trade_id
         WHERE ts.status = 'executed' 
         AND (
           (ts.expires_at IS NOT NULL AND ts.expires_at <= ${now})
           OR 
-          (ts.strategy = 'INTRADAY' AND ts.executed_at <= ${sixHoursAgo})
+          (ts.strategy = 'INTRADAY' AND ts.executed_at <= ${new Date(now.getTime() - 6 * 60 * 60 * 1000)})
         )
       `;
 
@@ -44,7 +41,11 @@ export const checkExpiredTrades = cron("check-expired-trades", {
           continue;
         }
 
-        console.log(`Scheduler: Closing trade ${trade.trade_id} (Order ID: ${trade.mt5_order_id})...`);
+        const reason = trade.expires_at && trade.expires_at <= now 
+          ? "expiration time reached" 
+          : "INTRADAY 6-hour limit reached";
+
+        console.log(`Scheduler: Closing trade ${trade.trade_id} (Order ID: ${trade.mt5_order_id}) - ${reason}...`);
         const result = await closeMT5Position(trade.mt5_order_id);
 
         if (result.success) {
@@ -55,9 +56,11 @@ export const checkExpiredTrades = cron("check-expired-trades", {
           `;
           console.log(`Scheduler: Successfully closed trade ${trade.trade_id}.`);
           
-          // Notify user
+          // Notify user with reason
           if (trade.chat_id) {
-            const message = getMessage('trade.auto_closed', 'it', { tradeId: trade.trade_id });
+            const message = trade.strategy === 'INTRADAY' 
+              ? `🔄 **Trade Auto-Chiuso (INTRADAY)**\n\nIl trade ${trade.trade_id} è stato chiuso automaticamente dopo 6 ore per rispettare la strategia INTRADAY e evitare il rischio overnight.`
+              : getMessage('trade.auto_closed', 'it', { tradeId: trade.trade_id });
             await sendMessage(trade.chat_id, message);
           }
         } else {

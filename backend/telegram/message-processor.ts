@@ -512,7 +512,8 @@ ${strategyEmoji} **Segnale ${prediction.strategy} - ${prediction.symbol}**
 ${confidenceEmoji} **Confidenza:** **${prediction.confidence}%**
 📊 **Rischio/Rendimento:** 1:${prediction.riskRewardRatio}
 💎 **Dimensione Consigliata:** ${prediction.recommendedLotSize} lotti
-⏱️ **Tempo Max Mantenimento:** ${prediction.maxHoldingTime}h${positionSizeInfo}
+⏱️ **Tempo Max Mantenimento:** ${prediction.maxHoldingTime}h
+⏰ **Scadenza:** ${new Date(prediction.expiresAt).toLocaleString()}${positionSizeInfo}
 
 📊 **Analisi Strategia:**
 ${prediction.strategyRecommendation}
