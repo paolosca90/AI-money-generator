@@ -1,46 +1,36 @@
 import { useQuery } from "@tanstack/react-query";
 import { useBackend } from "../hooks/useBackend";
+import { useAuth } from "../hooks/useAuth";
 import StatCard from "../components/cards/StatCard";
 import { DollarSign, Percent, TrendingUp, TrendingDown, Zap, BarChart } from "lucide-react";
 import PositionsTable from "../components/tables/PositionsTable";
 import HistoryTable from "../components/tables/HistoryTable";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { useAuth } from "@clerk/clerk-react";
 
 export default function Dashboard() {
   const backend = useBackend();
-  const { isSignedIn, isLoaded } = useAuth();
+  const { isAuthenticated } = useAuth();
 
   const { data: performanceData, isLoading: isLoadingPerformance, error: performanceError } = useQuery({
     queryKey: ["performance"],
     queryFn: () => backend.analysis.getPerformance(),
-    enabled: isLoaded && isSignedIn,
+    enabled: isAuthenticated,
     retry: 1,
   });
 
   const { data: positionsData, isLoading: isLoadingPositions, error: positionsError } = useQuery({
     queryKey: ["positions"],
     queryFn: () => backend.analysis.listPositions(),
-    enabled: isLoaded && isSignedIn,
+    enabled: isAuthenticated,
     retry: 1,
   });
 
   const { data: historyData, isLoading: isLoadingHistory, error: historyError } = useQuery({
     queryKey: ["history"],
     queryFn: () => backend.analysis.listHistory(),
-    enabled: isLoaded && isSignedIn,
+    enabled: isAuthenticated,
     retry: 1,
   });
-
-  // Show loading state while Clerk is loading
-  if (!isLoaded) {
-    return <div>Caricamento autenticazione...</div>;
-  }
-
-  // Show sign-in prompt if not authenticated
-  if (!isSignedIn) {
-    return <div>Effettua l'accesso per visualizzare la dashboard.</div>;
-  }
 
   const stats = [
     { title: "Win Rate", value: `${performanceData?.winRate?.toFixed(1) || 0}%`, icon: Percent, description: "Percentuale di trade in profitto" },

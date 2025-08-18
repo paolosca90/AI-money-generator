@@ -1,15 +1,14 @@
 import { api, APIError } from "encore.dev/api";
 import { getAuthData } from "~encore/auth";
 import { userDB } from "./db";
+import { createHash } from "crypto";
 
 // User represents a user in our system.
 export interface User {
   id: number;
-  clerkId: string;
-  email: string | null;
+  email: string;
   firstName: string | null;
   lastName: string | null;
-  imageUrl: string;
   createdAt: Date;
 }
 
@@ -39,32 +38,52 @@ export interface Subscription {
   expiresAt: Date | null;
 }
 
-// findOrCreate finds a user by their Clerk ID or creates a new one.
-// This is an internal endpoint called by the auth handler.
-export const findOrCreate = api<{
-  clerkId: string;
-  email: string | null;
-  imageUrl: string;
-  firstName: string | null;
-  lastName: string | null;
-}, { user: User }>({
-  method: "POST",
-  path: "/user.findOrCreate",
-  expose: false, // Internal use only
-}, async (params) => {
-  let user = await userDB.queryRow<User>`
-    SELECT id, clerk_id, email, first_name, last_name, image_url, created_at
-    FROM users WHERE clerk_id = ${params.clerkId}
-  `;
+interface RegisterRequest {
+  email: string;
+  password: string;
+  firstName?: string;
+  lastName?: string;
+}
 
-  if (user) {
-    return { user };
+interface LoginRequest {
+  email: string;
+  password: string;
+}
+
+interface AuthResponse {
+  user: User;
+  token: string;
+}
+
+// register creates a new user account.
+export const register = api<RegisterRequest, AuthResponse>({
+  method: "POST",
+  path: "/user/register",
+  expose: true,
+}, async (params) => {
+  const { email, password, firstName, lastName } = params;
+
+  if (!email || !password) {
+    throw APIError.invalidArgument("Email and password are required");
   }
 
-  user = await userDB.queryRow<User>`
-    INSERT INTO users (clerk_id, email, image_url, first_name, last_name)
-    VALUES (${params.clerkId}, ${params.email}, ${params.imageUrl}, ${params.firstName}, ${params.lastName})
-    RETURNING id, clerk_id, email, first_name, last_name, image_url, created_at
+  // Check if user already exists
+  const existingUser = await userDB.queryRow`
+    SELECT id FROM users WHERE email = ${email}
+  `;
+
+  if (existingUser) {
+    throw APIError.alreadyExists("User with this email already exists");
+  }
+
+  // Hash password
+  const passwordHash = createHash('sha256').update(password).digest('hex');
+
+  // Create user
+  const user = await userDB.queryRow<User>`
+    INSERT INTO users (email, password_hash, first_name, last_name)
+    VALUES (${email}, ${passwordHash}, ${firstName}, ${lastName})
+    RETURNING id, email, first_name, last_name, created_at
   `;
 
   if (!user) {
@@ -81,7 +100,79 @@ export const findOrCreate = api<{
     VALUES (${user.id}, 'free', 'active')
   `;
 
-  return { user };
+  // Generate simple token (in production, use JWT)
+  const token = createHash('sha256').update(`${user.id}-${Date.now()}`).digest('hex');
+  
+  // Store session
+  await userDB.exec`
+    INSERT INTO user_sessions (user_id, token, expires_at)
+    VALUES (${user.id}, ${token}, NOW() + INTERVAL '30 days')
+  `;
+
+  return { user, token };
+});
+
+// login authenticates a user and returns a token.
+export const login = api<LoginRequest, AuthResponse>({
+  method: "POST",
+  path: "/user/login",
+  expose: true,
+}, async (params) => {
+  const { email, password } = params;
+
+  if (!email || !password) {
+    throw APIError.invalidArgument("Email and password are required");
+  }
+
+  // Hash password
+  const passwordHash = createHash('sha256').update(password).digest('hex');
+
+  // Find user
+  const user = await userDB.queryRow<User & { password_hash: string }>`
+    SELECT id, email, first_name, last_name, created_at, password_hash
+    FROM users WHERE email = ${email}
+  `;
+
+  if (!user || user.password_hash !== passwordHash) {
+    throw APIError.unauthenticated("Invalid email or password");
+  }
+
+  // Generate simple token
+  const token = createHash('sha256').update(`${user.id}-${Date.now()}`).digest('hex');
+  
+  // Store session
+  await userDB.exec`
+    INSERT INTO user_sessions (user_id, token, expires_at)
+    VALUES (${user.id}, ${token}, NOW() + INTERVAL '30 days')
+  `;
+
+  return { 
+    user: {
+      id: user.id,
+      email: user.email,
+      firstName: user.first_name,
+      lastName: user.last_name,
+      createdAt: user.created_at
+    }, 
+    token 
+  };
+});
+
+// logout invalidates the current session.
+export const logout = api<void, { success: boolean }>({
+  auth: true,
+  method: "POST",
+  path: "/user/logout",
+  expose: true,
+}, async () => {
+  const auth = getAuthData()!;
+  
+  // Delete current session
+  await userDB.exec`
+    DELETE FROM user_sessions WHERE user_id = ${auth.userID}
+  `;
+
+  return { success: true };
 });
 
 // me returns the profile of the currently authenticated user.
@@ -93,7 +184,7 @@ export const me = api<void, { user: User | null }>({
 }, async () => {
   const auth = getAuthData()!;
   const user = await userDB.queryRow<User>`
-    SELECT id, clerk_id, email, first_name, last_name, image_url, created_at
+    SELECT id, email, first_name, last_name, created_at
     FROM users WHERE id = ${auth.userID}
   `;
   return { user };

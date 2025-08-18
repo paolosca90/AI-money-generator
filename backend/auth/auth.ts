@@ -1,29 +1,15 @@
-import { createClerkClient } from "@clerk/backend";
 import { Header, APIError, Gateway } from "encore.dev/api";
 import { authHandler } from "encore.dev/auth";
-import { secret } from "encore.dev/config";
-import { user } from "~encore/clients";
-
-const clerkSecretKey = secret("ClerkSecretKey");
-const clerkClient = createClerkClient({ secretKey: clerkSecretKey() });
+import { userDB } from "../user/db";
 
 interface AuthParams {
   authorization?: Header<"Authorization">;
 }
 
 export interface AuthData {
-  userID: number; // Our internal user ID
-  clerkUserID: string;
-  email: string | null;
-  imageUrl: string;
+  userID: number;
+  email: string;
 }
-
-// Configure the authorized parties.
-// TODO: Configure this for your own domain when deploying to production.
-const AUTHORIZED_PARTIES = [
-  "https://*.lp.dev",
-  "http://localhost:5173"
-];
 
 const auth = authHandler<AuthParams, AuthData>(
   async ({ authorization }) => {
@@ -33,27 +19,21 @@ const auth = authHandler<AuthParams, AuthData>(
     }
 
     try {
-      const verifiedToken = await clerkClient.verifyToken(token, {
-        authorizedParties: AUTHORIZED_PARTIES,
-        secretKey: clerkSecretKey(),
-      });
+      // Validate token and get user
+      const session = await userDB.queryRow`
+        SELECT u.id, u.email
+        FROM user_sessions s
+        JOIN users u ON s.user_id = u.id
+        WHERE s.token = ${token} AND s.expires_at > NOW()
+      `;
 
-      const clerkUser = await clerkClient.users.getUser(verifiedToken.sub);
-      
-      // Find or create the user in our database
-      const { user: appUser } = await user.findOrCreate({
-        clerkId: clerkUser.id,
-        email: clerkUser.emailAddresses[0]?.emailAddress ?? null,
-        imageUrl: clerkUser.imageUrl,
-        firstName: clerkUser.firstName,
-        lastName: clerkUser.lastName,
-      });
+      if (!session) {
+        throw APIError.unauthenticated("invalid or expired token");
+      }
 
       return {
-        userID: appUser.id,
-        clerkUserID: clerkUser.id,
-        email: appUser.email,
-        imageUrl: appUser.imageUrl,
+        userID: session.id,
+        email: session.email,
       };
     } catch (err: any) {
       throw APIError.unauthenticated("invalid token", { reason: err.message });

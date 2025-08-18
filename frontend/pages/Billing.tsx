@@ -1,9 +1,9 @@
 import { useQuery } from "@tanstack/react-query";
 import { useBackend } from "../hooks/useBackend";
+import { useAuth } from "../hooks/useAuth";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { CheckCircle } from "lucide-react";
-import { useAuth } from "@clerk/clerk-react";
 
 const plans = {
   free: {
@@ -25,24 +25,14 @@ const plans = {
 
 export default function Billing() {
   const backend = useBackend();
-  const { isSignedIn, isLoaded } = useAuth();
+  const { isAuthenticated } = useAuth();
   
   const { data, isLoading, error } = useQuery({
     queryKey: ["subscription"],
     queryFn: () => backend.user.getSubscription(),
-    enabled: isLoaded && isSignedIn,
+    enabled: isAuthenticated,
     retry: 1,
   });
-
-  // Show loading state while Clerk is loading
-  if (!isLoaded) {
-    return <div>Caricamento autenticazione...</div>;
-  }
-
-  // Show sign-in prompt if not authenticated
-  if (!isSignedIn) {
-    return <div>Effettua l'accesso per gestire l'abbonamento.</div>;
-  }
 
   const currentPlan = data?.subscription?.plan || "free";
 

@@ -1,14 +1,24 @@
--- Users table stores basic user information linked to Clerk auth.
+-- Users table stores basic user information.
 CREATE TABLE users (
   id BIGSERIAL PRIMARY KEY,
-  clerk_id TEXT UNIQUE NOT NULL,
-  email TEXT,
+  email TEXT UNIQUE NOT NULL,
+  password_hash TEXT NOT NULL,
   first_name TEXT,
   last_name TEXT,
-  image_url TEXT,
   created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
-CREATE INDEX idx_users_clerk_id ON users(clerk_id);
+CREATE INDEX idx_users_email ON users(email);
+
+-- User sessions for authentication.
+CREATE TABLE user_sessions (
+  id BIGSERIAL PRIMARY KEY,
+  user_id BIGINT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  token TEXT UNIQUE NOT NULL,
+  expires_at TIMESTAMPTZ NOT NULL,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+CREATE INDEX idx_user_sessions_token ON user_sessions(token);
+CREATE INDEX idx_user_sessions_user_id ON user_sessions(user_id);
 
 -- User preferences for trading.
 CREATE TABLE user_preferences (

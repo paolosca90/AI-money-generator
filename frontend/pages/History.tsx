@@ -1,29 +1,19 @@
 import { useQuery } from "@tanstack/react-query";
 import { useBackend } from "../hooks/useBackend";
+import { useAuth } from "../hooks/useAuth";
 import HistoryTable from "../components/tables/HistoryTable";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { useAuth } from "@clerk/clerk-react";
 
 export default function History() {
   const backend = useBackend();
-  const { isSignedIn, isLoaded } = useAuth();
+  const { isAuthenticated } = useAuth();
   
   const { data, isLoading, error } = useQuery({
     queryKey: ["history"],
     queryFn: () => backend.analysis.listHistory(),
-    enabled: isLoaded && isSignedIn,
+    enabled: isAuthenticated,
     retry: 1,
   });
-
-  // Show loading state while Clerk is loading
-  if (!isLoaded) {
-    return <div>Caricamento autenticazione...</div>;
-  }
-
-  // Show sign-in prompt if not authenticated
-  if (!isSignedIn) {
-    return <div>Effettua l'accesso per visualizzare lo storico.</div>;
-  }
 
   return (
     <div className="space-y-6">

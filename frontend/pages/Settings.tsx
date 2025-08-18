@@ -1,5 +1,6 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useBackend } from "../hooks/useBackend";
+import { useAuth } from "../hooks/useAuth";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import * as z from "zod";
@@ -8,7 +9,6 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
 import { useToast } from "@/components/ui/use-toast";
-import { useAuth } from "@clerk/clerk-react";
 
 const preferencesSchema = z.object({
   riskPercentage: z.coerce.number().min(0.1).max(10),
@@ -27,19 +27,19 @@ export default function Settings() {
   const backend = useBackend();
   const queryClient = useQueryClient();
   const { toast } = useToast();
-  const { isSignedIn, isLoaded } = useAuth();
+  const { isAuthenticated } = useAuth();
 
   const { data: prefsData, isLoading: isLoadingPrefs, error: prefsError } = useQuery({
     queryKey: ["preferences"],
     queryFn: () => backend.user.getPreferences(),
-    enabled: isLoaded && isSignedIn,
+    enabled: isAuthenticated,
     retry: 1,
   });
 
   const { data: mt5Data, isLoading: isLoadingMt5, error: mt5Error } = useQuery({
     queryKey: ["mt5Config"],
     queryFn: () => backend.user.getMt5Config(),
-    enabled: isLoaded && isSignedIn,
+    enabled: isAuthenticated,
     retry: 1,
   });
 
@@ -85,16 +85,6 @@ export default function Settings() {
       toast({ variant: "destructive", title: "Errore", description: err.message });
     },
   });
-
-  // Show loading state while Clerk is loading
-  if (!isLoaded) {
-    return <div>Caricamento autenticazione...</div>;
-  }
-
-  // Show sign-in prompt if not authenticated
-  if (!isSignedIn) {
-    return <div>Effettua l'accesso per accedere alle impostazioni.</div>;
-  }
 
   return (
     <div className="space-y-6">

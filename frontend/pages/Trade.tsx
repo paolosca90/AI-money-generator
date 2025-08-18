@@ -1,15 +1,14 @@
 import { useState } from "react";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { useBackend } from "../hooks/useBackend";
+import { useAuth } from "../hooks/useAuth";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useToast } from "@/components/ui/use-toast";
 import SignalCard from "../components/cards/SignalCard";
 import PositionsTable from "../components/tables/PositionsTable";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { TradingStrategy } from "~backend/analysis/trading-strategies";
-import { useAuth } from "@clerk/clerk-react";
 
 const supportedSymbols = ["BTCUSD", "ETHUSD", "EURUSD", "GBPUSD", "XAUUSD", "CRUDE"];
 
@@ -18,7 +17,7 @@ export default function Trade() {
   const [strategy, setStrategy] = useState<TradingStrategy | undefined>(undefined);
   const backend = useBackend();
   const { toast } = useToast();
-  const { isSignedIn, isLoaded } = useAuth();
+  const { isAuthenticated } = useAuth();
 
   const predictMutation = useMutation({
     mutationFn: () => backend.analysis.predict({ symbol, strategy }),
@@ -35,7 +34,6 @@ export default function Trade() {
     mutationFn: (params: { tradeId: string; lotSize: number }) => backend.analysis.execute(params),
     onSuccess: () => {
       toast({ title: "Successo", description: "Trade eseguito con successo." });
-      // Invalidate positions query to refetch
     },
     onError: (err) => {
       console.error("Execute error:", err);
@@ -46,19 +44,9 @@ export default function Trade() {
   const { data: positionsData, isLoading: isLoadingPositions, error: positionsError } = useQuery({
     queryKey: ["positions"],
     queryFn: () => backend.analysis.listPositions(),
-    enabled: isLoaded && isSignedIn,
+    enabled: isAuthenticated,
     retry: 1,
   });
-
-  // Show loading state while Clerk is loading
-  if (!isLoaded) {
-    return <div>Caricamento autenticazione...</div>;
-  }
-
-  // Show sign-in prompt if not authenticated
-  if (!isSignedIn) {
-    return <div>Effettua l'accesso per accedere al trading.</div>;
-  }
 
   return (
     <div className="space-y-6">
