@@ -32,7 +32,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     if (savedToken) {
       setToken(savedToken);
       // Verify token and get user info
-      backend.with({ auth: `Bearer ${savedToken}` }).user.me()
+      backend.with({ auth: savedToken }).user.me()
         .then(response => {
           if (response.user) {
             setUser(response.user);
@@ -76,7 +76,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const logout = async () => {
     try {
       if (token) {
-        await backend.with({ auth: `Bearer ${token}` }).user.logout();
+        await backend.with({ auth: token }).user.logout();
       }
     } catch (error) {
       console.error("Logout error:", error);

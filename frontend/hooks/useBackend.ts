@@ -10,8 +10,9 @@ export function useBackend() {
     return backend;
   }
 
-  // For authenticated endpoints, we pass the token.
+  // For authenticated endpoints, we pass the token as a string.
+  // The backend auth handler expects just the token string.
   return backend.with({
-    auth: `Bearer ${token}`,
+    auth: token,
   });
 }
