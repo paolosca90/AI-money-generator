@@ -13,9 +13,13 @@ export interface AuthData {
 
 const auth = authHandler<AuthParams, AuthData>(
   async ({ authorization }) => {
-    // Handle both "Bearer token" and direct token formats
+    if (!authorization) {
+      throw APIError.unauthenticated("missing authorization header");
+    }
+
+    // Extract token from Authorization header
     let token = authorization;
-    if (token?.startsWith("Bearer ")) {
+    if (token.startsWith("Bearer ")) {
       token = token.replace("Bearer ", "");
     }
     
