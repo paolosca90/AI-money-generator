@@ -1,3 +1,19 @@
+// TradingStrategy enum as requested in the problem statement (for compatibility)
+export var TradingStrategyEnum;
+(function (TradingStrategyEnum) {
+    TradingStrategyEnum["SCALPING"] = "SCALPING";
+    TradingStrategyEnum["INTRADAY"] = "INTRADAY";
+    TradingStrategyEnum["SWING"] = "SWING";
+})(TradingStrategyEnum || (TradingStrategyEnum = {}));
+// Technical analysis strategy enum with common trading strategies
+export var TechnicalAnalysisStrategyEnum;
+(function (TechnicalAnalysisStrategyEnum) {
+    TechnicalAnalysisStrategyEnum["MOVING_AVERAGE"] = "MOVING_AVERAGE";
+    TechnicalAnalysisStrategyEnum["BOLLINGER_BANDS"] = "BOLLINGER_BANDS";
+    TechnicalAnalysisStrategyEnum["RSI"] = "RSI";
+    TechnicalAnalysisStrategyEnum["MACD"] = "MACD";
+    TechnicalAnalysisStrategyEnum["SUPPORT_RESISTANCE"] = "SUPPORT_RESISTANCE";
+})(TechnicalAnalysisStrategyEnum || (TechnicalAnalysisStrategyEnum = {}));
 export const TRADING_STRATEGIES = {
     SCALPING: {
         name: "Scalping",
