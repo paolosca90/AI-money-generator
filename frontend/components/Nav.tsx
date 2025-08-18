@@ -1,11 +1,12 @@
 import { NavLink } from "react-router-dom";
-import { Home, CandlestickChart, History, Settings, CreditCard } from "lucide-react";
+import { Home, CandlestickChart, History, Settings, CreditCard, Zap } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 
 const Nav = () => {
   const navItems = [
     { to: "/", icon: Home, label: "Dashboard" },
     { to: "/trade", icon: CandlestickChart, label: "Trading" },
+    { to: "/signals", icon: Zap, label: "Segnali" },
     { to: "/history", icon: History, label: "Storico" },
     { to: "/settings", icon: Settings, label: "Impostazioni" },
     { to: "/billing", icon: CreditCard, label: "Abbonamento" },
@@ -29,6 +30,6 @@ const Nav = () => {
       ))}
     </nav>
   );
-};
+}
 
 export default Nav;

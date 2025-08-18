@@ -3,10 +3,11 @@ import backend from "~backend/client";
 
 // Returns an authenticated backend client for making API calls.
 export function useBackend() {
-  const { token } = useAuth();
+  const { token, isAuthenticated } = useAuth();
   
-  if (!token) {
-    // For public endpoints, no auth is needed.
+  // Always return the backend client, but with auth if available
+  if (!isAuthenticated || !token) {
+    // For public endpoints or when not authenticated
     return backend;
   }
 

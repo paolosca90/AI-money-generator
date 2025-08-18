@@ -36,6 +36,7 @@ function AppContent() {
       <Routes>
         <Route path="/" element={<Dashboard />} />
         <Route path="/trade" element={<Trade />} />
+        <Route path="/signals" element={<Trade />} />
         <Route path="/history" element={<History />} />
         <Route path="/settings" element={<Settings />} />
         <Route path="/billing" element={<Billing />} />
