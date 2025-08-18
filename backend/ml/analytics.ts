@@ -77,21 +77,21 @@ export const getMLAnalytics = api<void, MLAnalytics>(
       maxDrawdown: getMetricValue(modelMetrics, 'max_drawdown', 0.15),
     };
 
-    // Get prediction statistics
+    // Get prediction statistics with proper type casting
     const predictionStats = await mlDB.queryRow`
       SELECT 
-        COUNT(*) as total_predictions,
-        COUNT(CASE WHEN accuracy_score > 0.5 THEN 1 END) as correct_predictions,
-        AVG(predicted_confidence) as avg_confidence,
-        AVG(CASE WHEN actual_profit_loss > 0 THEN 1.0 ELSE 0.0 END) as win_rate
+        CAST(COUNT(*) AS BIGINT) as total_predictions,
+        CAST(COUNT(CASE WHEN accuracy_score > 0.5 THEN 1 END) AS BIGINT) as correct_predictions,
+        CAST(AVG(predicted_confidence) AS DOUBLE PRECISION) as avg_confidence,
+        CAST(AVG(CASE WHEN actual_profit_loss > 0 THEN 1.0 ELSE 0.0 END) AS DOUBLE PRECISION) as win_rate
       FROM ml_prediction_accuracy 
       WHERE prediction_date >= NOW() - INTERVAL '30 days'
     `;
 
     const profitStats = await analysisDB.queryRow`
       SELECT 
-        COALESCE(SUM(CASE WHEN profit_loss > 0 THEN profit_loss ELSE 0 END), 0) as total_profit,
-        COALESCE(ABS(SUM(CASE WHEN profit_loss < 0 THEN profit_loss ELSE 0 END)), 1) as total_loss
+        COALESCE(CAST(SUM(CASE WHEN profit_loss > 0 THEN profit_loss ELSE 0 END) AS DOUBLE PRECISION), 0.0) as total_profit,
+        COALESCE(CAST(ABS(SUM(CASE WHEN profit_loss < 0 THEN profit_loss ELSE 0 END)) AS DOUBLE PRECISION), 1.0) as total_loss
       FROM trading_signals 
       WHERE profit_loss IS NOT NULL 
       AND created_at >= NOW() - INTERVAL '30 days'
@@ -109,7 +109,7 @@ export const getMLAnalytics = api<void, MLAnalytics>(
     const featureImportance = await mlDB.queryAll`
       SELECT 
         feature_name,
-        AVG(importance_score) as importance,
+        CAST(AVG(importance_score) AS DOUBLE PRECISION) as importance,
         feature_type
       FROM ml_feature_importance 
       WHERE created_at >= NOW() - INTERVAL '7 days'
@@ -122,9 +122,9 @@ export const getMLAnalytics = api<void, MLAnalytics>(
     const learningProgress = await mlDB.queryAll`
       SELECT 
         training_epoch as epoch,
-        training_loss,
-        validation_loss,
-        (1.0 - validation_loss) as accuracy
+        CAST(training_loss AS DOUBLE PRECISION) as training_loss,
+        CAST(validation_loss AS DOUBLE PRECISION) as validation_loss,
+        CAST((1.0 - validation_loss) AS DOUBLE PRECISION) as accuracy
       FROM ml_learning_progress 
       WHERE created_at >= NOW() - INTERVAL '7 days'
       ORDER BY training_epoch DESC
@@ -136,9 +136,9 @@ export const getMLAnalytics = api<void, MLAnalytics>(
       SELECT 
         pattern_name as pattern,
         pattern_type as type,
-        confidence_score as confidence,
-        success_rate,
-        avg_profit,
+        CAST(confidence_score AS DOUBLE PRECISION) as confidence,
+        CAST(success_rate AS DOUBLE PRECISION) as success_rate,
+        CAST(avg_profit AS DOUBLE PRECISION) as avg_profit,
         detected_at
       FROM ml_market_patterns 
       WHERE detected_at >= NOW() - INTERVAL '7 days'
@@ -150,9 +150,9 @@ export const getMLAnalytics = api<void, MLAnalytics>(
     const performanceTimeline = await mlDB.queryAll`
       SELECT 
         date_period::text as date,
-        accuracy_rate as accuracy,
-        total_profit_loss as profit_loss,
-        total_predictions as predictions
+        CAST(accuracy_rate AS DOUBLE PRECISION) as accuracy,
+        CAST(total_profit_loss AS DOUBLE PRECISION) as profit_loss,
+        CAST(total_predictions AS BIGINT) as predictions
       FROM ml_performance_timeline 
       WHERE date_period >= CURRENT_DATE - INTERVAL '30 days'
       ORDER BY date_period ASC
@@ -162,10 +162,10 @@ export const getMLAnalytics = api<void, MLAnalytics>(
     const adaptiveParameters = await mlDB.queryAll`
       SELECT DISTINCT ON (parameter_name)
         parameter_name as parameter,
-        parameter_value as current_value,
-        LAG(parameter_value) OVER (PARTITION BY parameter_name ORDER BY adapted_at) as previous_value,
+        CAST(parameter_value AS DOUBLE PRECISION) as current_value,
+        CAST(LAG(parameter_value) OVER (PARTITION BY parameter_name ORDER BY adapted_at) AS DOUBLE PRECISION) as previous_value,
         adaptation_reason,
-        (performance_after - performance_before) as performance_improvement
+        CAST((performance_after - performance_before) AS DOUBLE PRECISION) as performance_improvement
       FROM ml_adaptive_parameters 
       WHERE adapted_at >= NOW() - INTERVAL '7 days'
       ORDER BY parameter_name, adapted_at DESC

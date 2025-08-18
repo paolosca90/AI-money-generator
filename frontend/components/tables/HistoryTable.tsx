@@ -30,25 +30,33 @@ const HistoryTable: React.FC<HistoryTableProps> = ({ signals, isLoading }) => {
         </TableRow>
       </TableHeader>
       <TableBody>
-        {signals.map((signal) => (
-          <TableRow key={signal.tradeId}>
-            <TableCell>{new Date(signal.analysis.createdAt).toLocaleString()}</TableCell>
-            <TableCell>{signal.symbol}</TableCell>
-            <TableCell>
-              <Badge variant={signal.direction === "LONG" ? "default" : "destructive"}>
-                {signal.direction}
-              </Badge>
-            </TableCell>
-            <TableCell>{signal.entryPrice.toFixed(5)}</TableCell>
-            <TableCell>{signal.analysis.executionPrice?.toFixed(5) || "-"}</TableCell>
-            <TableCell className={signal.analysis.profitLoss > 0 ? "text-green-500" : "text-red-500"}>
-              {signal.analysis.profitLoss?.toFixed(2) || "-"}
-            </TableCell>
-            <TableCell>
-              <Badge variant="secondary">{signal.analysis.status}</Badge>
-            </TableCell>
-          </TableRow>
-        ))}
+        {signals.map((signal) => {
+          // Safely access nested properties with fallbacks
+          const createdAt = signal.analysis?.createdAt || new Date().toISOString();
+          const executionPrice = signal.analysis?.executionPrice;
+          const profitLoss = signal.analysis?.profitLoss;
+          const status = signal.analysis?.status || 'pending';
+          
+          return (
+            <TableRow key={signal.tradeId}>
+              <TableCell>{new Date(createdAt).toLocaleString()}</TableCell>
+              <TableCell>{signal.symbol}</TableCell>
+              <TableCell>
+                <Badge variant={signal.direction === "LONG" ? "default" : "destructive"}>
+                  {signal.direction}
+                </Badge>
+              </TableCell>
+              <TableCell>{signal.entryPrice.toFixed(5)}</TableCell>
+              <TableCell>{executionPrice ? executionPrice.toFixed(5) : "-"}</TableCell>
+              <TableCell className={profitLoss && profitLoss > 0 ? "text-green-500" : profitLoss && profitLoss < 0 ? "text-red-500" : ""}>
+                {profitLoss !== null && profitLoss !== undefined ? profitLoss.toFixed(2) : "-"}
+              </TableCell>
+              <TableCell>
+                <Badge variant="secondary">{status}</Badge>
+              </TableCell>
+            </TableRow>
+          );
+        })}
       </TableBody>
     </Table>
   );
