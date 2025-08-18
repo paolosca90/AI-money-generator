@@ -5,23 +5,11 @@ import backend from "~backend/client";
 export function useBackend() {
   const { token, isAuthenticated } = useAuth();
   
-  // Debug logging
-  console.log("useBackend - isAuthenticated:", isAuthenticated, "token exists:", !!token);
-  
-  // For authenticated endpoints, we pass the token in the Authorization header format.
-  // The backend auth handler expects the token in the Authorization header.
   if (isAuthenticated && token) {
-    console.log("useBackend - Using authenticated client with token length:", token.length, "token preview:", token.substring(0, 10) + "...");
-    
-    // Use the correct format for Encore.ts client authentication
     return backend.with({
-      auth: {
-        authorization: `Bearer ${token}`,
-      },
+      auth: `Bearer ${token}`,
     });
   }
 
-  console.log("useBackend - Using unauthenticated client");
-  // For public endpoints or when not authenticated
   return backend;
 }

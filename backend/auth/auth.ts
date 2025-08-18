@@ -13,11 +13,7 @@ export interface AuthData {
 
 const auth = authHandler<AuthParams, AuthData>(
   async ({ authorization }) => {
-    console.log("Auth handler called with authorization header present:", !!authorization);
-    console.log("Auth handler: Full authorization header:", authorization);
-    
     if (!authorization) {
-      console.log("Auth handler: No authorization header found");
       throw APIError.unauthenticated("missing authorization header");
     }
 
@@ -25,19 +21,13 @@ const auth = authHandler<AuthParams, AuthData>(
     let token = authorization;
     if (token.startsWith("Bearer ")) {
       token = token.substring(7); // Remove "Bearer " prefix
-      console.log("Auth handler: Extracted Bearer token, length:", token.length, "preview:", token.substring(0, 10) + "...");
-    } else {
-      console.log("Auth handler: Token without Bearer prefix, length:", token.length, "preview:", token.substring(0, 10) + "...");
     }
     
     if (!token || token.trim() === "") {
-      console.log("Auth handler: Empty token after extraction");
       throw APIError.unauthenticated("missing token");
     }
 
     try {
-      console.log("Auth handler: Validating token in database");
-      
       // Validate token and get user
       const session = await userDB.queryRow`
         SELECT u.id, u.email, s.expires_at
@@ -47,29 +37,25 @@ const auth = authHandler<AuthParams, AuthData>(
       `;
 
       if (!session) {
-        console.log("Auth handler: No session found for token");
-        throw APIError.unauthenticated("invalid token - session not found");
+        throw APIError.unauthenticated("invalid token");
       }
 
       // Check if session has expired
       const now = new Date();
       const expiresAt = new Date(session.expires_at);
       if (expiresAt <= now) {
-        console.log("Auth handler: Session expired at:", expiresAt);
         throw APIError.unauthenticated("token expired");
       }
 
-      console.log("Auth handler: Valid session found for user:", session.id, "email:", session.email);
       return {
         userID: session.id,
         email: session.email,
       };
     } catch (err: any) {
-      console.error("Auth handler: Database error:", err);
       if (err.code && err.code.startsWith('unauthenticated')) {
-        throw err; // Re-throw authentication errors
+        throw err;
       }
-      throw APIError.unauthenticated("token validation failed", { reason: err.message });
+      throw APIError.unauthenticated("token validation failed");
     }
   }
 );

@@ -27,70 +27,49 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
-    // Check for existing token in localStorage
     const savedToken = localStorage.getItem("auth_token");
-    console.log("AuthProvider - Checking saved token:", !!savedToken, savedToken ? `length: ${savedToken.length}` : "");
     
     if (savedToken) {
       setToken(savedToken);
-      // Verify token and get user info using the correct auth format
-      console.log("AuthProvider - Verifying token with backend, token preview:", savedToken.substring(0, 10) + "...");
-      
-      backend.with({ 
-        auth: {
-          authorization: `Bearer ${savedToken}`,
-        }
-      }).user.me()
+      backend.with({ auth: `Bearer ${savedToken}` }).user.me()
         .then(response => {
-          console.log("AuthProvider - Token verification response:", response);
           if (response.user) {
             setUser(response.user);
-            console.log("AuthProvider - User set successfully:", response.user.email);
           } else {
-            console.log("AuthProvider - No user in response, clearing token");
             localStorage.removeItem("auth_token");
             setToken(null);
           }
         })
-        .catch((error) => {
-          console.error("AuthProvider - Token verification failed:", error);
+        .catch(() => {
           localStorage.removeItem("auth_token");
           setToken(null);
         })
         .finally(() => {
-          console.log("AuthProvider - Token verification complete");
           setIsLoading(false);
         });
     } else {
-      console.log("AuthProvider - No saved token found");
       setIsLoading(false);
     }
   }, []);
 
   const login = async (email: string, password: string) => {
     try {
-      console.log("AuthProvider - Attempting login for:", email);
       const response = await backend.user.login({ email, password });
-      console.log("AuthProvider - Login successful, token length:", response.token.length, "user:", response.user.email);
       setUser(response.user);
       setToken(response.token);
       localStorage.setItem("auth_token", response.token);
     } catch (error) {
-      console.error("AuthProvider - Login failed:", error);
       throw error;
     }
   };
 
   const register = async (email: string, password: string, firstName?: string, lastName?: string) => {
     try {
-      console.log("AuthProvider - Attempting registration for:", email);
       const response = await backend.user.register({ email, password, firstName, lastName });
-      console.log("AuthProvider - Registration successful, token length:", response.token.length, "user:", response.user.email);
       setUser(response.user);
       setToken(response.token);
       localStorage.setItem("auth_token", response.token);
     } catch (error) {
-      console.error("AuthProvider - Registration failed:", error);
       throw error;
     }
   };
@@ -98,17 +77,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const logout = async () => {
     try {
       if (token) {
-        console.log("AuthProvider - Attempting logout");
-        await backend.with({ 
-          auth: {
-            authorization: `Bearer ${token}`,
-          }
-        }).user.logout();
+        await backend.with({ auth: `Bearer ${token}` }).user.logout();
       }
     } catch (error) {
-      console.error("AuthProvider - Logout error:", error);
+      console.error("Logout error:", error);
     } finally {
-      console.log("AuthProvider - Clearing user and token");
       setUser(null);
       setToken(null);
       localStorage.removeItem("auth_token");
@@ -116,14 +89,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   };
 
   const isAuthenticated = !!user && !!token;
-  console.log("AuthProvider - Current state:", { 
-    hasUser: !!user, 
-    hasToken: !!token, 
-    isAuthenticated, 
-    isLoading,
-    tokenLength: token?.length,
-    userEmail: user?.email
-  });
 
   return (
     <AuthContext.Provider value={{
