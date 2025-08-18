@@ -139,9 +139,18 @@ export function getOptimalStrategy(
     [TradingStrategy.INTRADAY]: calculateStrategyScore(TradingStrategy.INTRADAY, volatility, trendStrength, confidence)
   };
   
-  return Object.entries(scores).reduce((best, [strategy, score]) => 
-    score > (scores as any)[best] ? strategy as TradingStrategy : best, TradingStrategy.INTRADAY
-  );
+  // Find the strategy with the highest score
+  let bestStrategy = TradingStrategy.INTRADAY;
+  let bestScore = scores[TradingStrategy.INTRADAY];
+  
+  for (const [strategy, score] of Object.entries(scores)) {
+    if (score > bestScore) {
+      bestStrategy = strategy as TradingStrategy;
+      bestScore = score;
+    }
+  }
+  
+  return bestStrategy;
 }
 
 function isStrategyValid(

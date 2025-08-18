@@ -174,7 +174,7 @@ export const webhook = api<TelegramUpdate, WebhookResponse>(
 
         // Process the message with enhanced error handling
         try {
-          await processMessage(chatId, userId, text);
+          await processMessage(chatId, userId, text!); // text is guaranteed to exist due to the condition above
           console.log(`[${timestamp}] ✅ Message processed successfully`);
         } catch (processError) {
           console.error(`[${timestamp}] ❌ Message processing failed:`, processError);

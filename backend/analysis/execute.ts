@@ -141,8 +141,6 @@ function getEstimatedHoldingTime(strategy: TradingStrategy, maxHours: number): s
       return "1-15 minutes";
     case TradingStrategy.INTRADAY:
       return "1-8 hours";
-    case TradingStrategy.SWING:
-      return "1-7 days";
     default:
       return `Up to ${maxHours} hours`;
   }
