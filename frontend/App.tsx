@@ -4,6 +4,7 @@ import { Toaster } from "@/components/ui/toaster";
 
 import Layout from "./components/Layout";
 import Dashboard from "./pages/Dashboard";
+import MLDashboard from "./pages/MLDashboard";
 import Trade from "./pages/Trade";
 import History from "./pages/History";
 import Settings from "./pages/Settings";
@@ -18,6 +19,7 @@ function App() {
         <Layout>
           <Routes>
             <Route path="/" element={<Dashboard />} />
+            <Route path="/ml" element={<MLDashboard />} />
             <Route path="/trade" element={<Trade />} />
             <Route path="/signals" element={<Trade />} />
             <Route path="/history" element={<History />} />

@@ -1,10 +1,11 @@
 import { NavLink } from "react-router-dom";
-import { Home, CandlestickChart, History, Settings, CreditCard, Zap } from "lucide-react";
+import { Home, CandlestickChart, History, Settings, CreditCard, Zap, Brain } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 
 const Nav = () => {
   const navItems = [
     { to: "/", icon: Home, label: "Dashboard" },
+    { to: "/ml", icon: Brain, label: "ML Analytics", badge: "AI" },
     { to: "/trade", icon: CandlestickChart, label: "Trading" },
     { to: "/signals", icon: Zap, label: "Segnali" },
     { to: "/history", icon: History, label: "Storico" },
@@ -26,6 +27,11 @@ const Nav = () => {
         >
           <item.icon className="h-4 w-4" />
           {item.label}
+          {item.badge && (
+            <Badge variant="secondary" className="ml-auto text-xs">
+              {item.badge}
+            </Badge>
+          )}
         </NavLink>
       ))}
     </nav>
