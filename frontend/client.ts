@@ -94,6 +94,7 @@ import { getMarketOverview as api_analysis_market_overview_getMarketOverview } f
 import { getPerformance as api_analysis_performance_getPerformance } from "~backend/analysis/performance";
 import { listPositions as api_analysis_positions_listPositions } from "~backend/analysis/positions";
 import { predict as api_analysis_predict_predict } from "~backend/analysis/predict";
+import { getTopSignals as api_analysis_top_signals_getTopSignals } from "~backend/analysis/top-signals";
 
 export namespace analysis {
 
@@ -106,6 +107,7 @@ export namespace analysis {
             this.execute = this.execute.bind(this)
             this.getMarketOverview = this.getMarketOverview.bind(this)
             this.getPerformance = this.getPerformance.bind(this)
+            this.getTopSignals = this.getTopSignals.bind(this)
             this.listHistory = this.listHistory.bind(this)
             this.listPositions = this.listPositions.bind(this)
             this.predict = this.predict.bind(this)
@@ -146,6 +148,15 @@ export namespace analysis {
             // Now make the actual call to the API
             const resp = await this.baseClient.callTypedAPI(`/analysis/performance`, {method: "GET", body: undefined})
             return JSON.parse(await resp.text(), dateReviver) as ResponseType<typeof api_analysis_performance_getPerformance>
+        }
+
+        /**
+         * Retrieves the top 3 trading signals for the dashboard.
+         */
+        public async getTopSignals(): Promise<ResponseType<typeof api_analysis_top_signals_getTopSignals>> {
+            // Now make the actual call to the API
+            const resp = await this.baseClient.callTypedAPI(`/analysis/top-signals`, {method: "GET", body: undefined})
+            return JSON.parse(await resp.text(), dateReviver) as ResponseType<typeof api_analysis_top_signals_getTopSignals>
         }
 
         /**

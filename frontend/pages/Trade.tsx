@@ -14,7 +14,7 @@ import { Sparkles, TrendingUp, Clock, Target } from "lucide-react";
 
 const assetCategories = {
   "🔥 Popolari": [
-    "BTCUSD", "ETHUSD", "EURUSD", "GBPUSD", "XAUUSD", "US500", "NAS100"
+    "BTCUSD", "ETHUSD", "EURUSD", "GBPUSD", "XAUUSD", "US500", "NAS100", "US30"
   ],
   "💱 Forex Majors": [
     "EURUSD", "GBPUSD", "USDJPY", "USDCHF", "AUDUSD", "USDCAD", "NZDUSD"
@@ -33,7 +33,7 @@ const assetCategories = {
     "GBPPLN", "GBPSEK", "GBPNOK", "GBPDKK", "GBPTRY", "GBPZAR"
   ],
   "📈 Indici CFD": [
-    "US30", "SPX500", "NAS100", "UK100", "GER40", "FRA40", "ESP35", 
+    "US30", "US500", "SPX500", "NAS100", "UK100", "GER40", "FRA40", "ESP35", 
     "ITA40", "AUS200", "JPN225", "HK50", "CHINA50", "INDIA50"
   ],
   "🏗️ Materie Prime": [
@@ -67,7 +67,7 @@ const strategyDescriptions = {
 
 export default function Trade() {
   const location = useLocation();
-  const [symbol, setSymbol] = useState("BTCUSD");
+  const [symbol, setSymbol] = useState("US30");
   const [strategy, setStrategy] = useState<TradingStrategy | "auto">("auto");
   const backend = useBackend();
   const { toast } = useToast();
@@ -244,6 +244,19 @@ export default function Trade() {
               <p className="text-sm text-muted-foreground">{selectedStrategy.description}</p>
             </div>
           )}
+
+          {/* Special notice for US indices */}
+          {(symbol === "US30" || symbol === "US500" || symbol === "SPX500" || symbol === "NAS100") && (
+            <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4">
+              <div className="flex items-center gap-2 mb-2">
+                <span className="text-lg">🇺🇸</span>
+                <span className="font-semibold text-yellow-800">Indici USA Selezionati</span>
+              </div>
+              <p className="text-sm text-yellow-700">
+                Il sistema utilizzerà automaticamente il formato simbolo corretto per il tuo broker (es. {symbol}pm, {symbol}.pm, ecc.)
+              </p>
+            </div>
+          )}
         </CardContent>
       </Card>
 
@@ -264,6 +277,9 @@ export default function Trade() {
                     <p>• Analisi tecnica con 15+ indicatori</p>
                     <p>• Valutazione sentiment e smart money</p>
                     <p>• Calcolo livelli di confidenza</p>
+                    {(symbol === "US30" || symbol === "US500" || symbol === "SPX500" || symbol === "NAS100") && (
+                      <p>• Rilevamento formato simbolo ottimale per indici USA</p>
+                    )}
                   </div>
                 </div>
               </CardContent>
@@ -358,7 +374,7 @@ export default function Trade() {
         </div>
       </div>
 
-      {/* Quick Tips */}
+      {/* Enhanced Tips for US Indices */}
       <Card className="bg-gradient-to-r from-green-50 to-blue-50 border-green-200">
         <CardHeader>
           <CardTitle className="text-green-800">💡 Suggerimenti per il Trading</CardTitle>
@@ -381,10 +397,10 @@ export default function Trade() {
             </div>
             <div className="text-center">
               <div className="w-12 h-12 bg-purple-100 rounded-full flex items-center justify-center mx-auto mb-2">
-                <span className="text-2xl">📊</span>
+                <span className="text-2xl">🇺🇸</span>
               </div>
-              <h4 className="font-semibold text-purple-800">Monitora Performance</h4>
-              <p className="text-sm text-purple-700">Controlla regolarmente la dashboard</p>
+              <h4 className="font-semibold text-purple-800">Indici USA</h4>
+              <p className="text-sm text-purple-700">Sistema ottimizzato per US30, US500, NAS100</p>
             </div>
           </div>
         </CardContent>

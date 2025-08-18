@@ -170,7 +170,7 @@ async function fetchWithTimeout(url: string, options: RequestInit, timeoutMs: nu
 async function findCorrectSymbolFormat(baseUrl: string, symbol: string): Promise<string | null> {
   const symbolVariations = getSymbolVariations(symbol);
   
-  console.log(`🔍 Trying to find correct symbol format for ${symbol}. Testing variations: ${symbolVariations.slice(0, 5).join(', ')}...`);
+  console.log(`🔍 Trying to find correct symbol format for ${symbol}. Testing variations: ${symbolVariations.slice(0, 8).join(', ')}...`);
   
   for (const variation of symbolVariations) {
     try {
@@ -198,20 +198,94 @@ async function findCorrectSymbolFormat(baseUrl: string, symbol: string): Promise
 
 function getSymbolVariations(symbol: string): string[] {
   const variations = [symbol];
-  const suffixes = ['m', 'pm', 'pro', 'ecn', 'raw', 'c', 'i', '.', '_m', '_pro'];
+  
+  // Enhanced symbol mapping for US indices
+  const specificMappings = getSpecificSymbolMappings(symbol);
+  variations.push(...specificMappings);
+  
+  // Common suffixes
+  const suffixes = ['m', 'pm', 'pro', 'ecn', 'raw', 'c', 'i', '.', '_m', '_pro', '_ecn', '.m', '.pm', '.pro'];
   suffixes.forEach(suffix => {
     variations.push(symbol + suffix);
   });
   
+  // Common prefixes
   const prefixes = ['m', 'pro', 'ecn'];
   prefixes.forEach(prefix => {
     variations.push(prefix + symbol);
   });
   
+  // Additional broker-specific mappings
   const brokerSpecificMappings = getBrokerSpecificMappings(symbol);
   variations.push(...brokerSpecificMappings);
   
   return [...new Set(variations)];
+}
+
+function getSpecificSymbolMappings(symbol: string): string[] {
+  const mappings: { [key: string]: string[] } = {
+    // US Indices - comprehensive mapping
+    "US30": [
+      "US30pm", "US30.pm", "US30_pm", "US30pro", "US30.pro", "US30_pro",
+      "DJ30", "DJ30pm", "DJ30.pm", "DJI30", "DJI30pm", "DJIA", "DJIApm",
+      "DOW", "DOWpm", "DOW30", "DOW30pm", "YM", "YMpm", "DOWJONES", "DOWJONESpm",
+      "US30c", "US30i", "US30ecn", "US30.ecn", "US30_ecn", "US30raw", "US30.raw"
+    ],
+    "US500": [
+      "US500pm", "US500.pm", "US500_pm", "US500pro", "US500.pro", "US500_pro",
+      "SPX500", "SPX500pm", "SPX500.pm", "SP500", "SP500pm", "SPY", "SPYpm",
+      "ES", "ESpm", "SPXUSD", "SPXUSDpm", "S&P500", "S&P500pm",
+      "US500c", "US500i", "US500ecn", "US500.ecn", "US500_ecn", "US500raw", "US500.raw"
+    ],
+    "SPX500": [
+      "SPX500pm", "SPX500.pm", "SPX500_pm", "SPX500pro", "SPX500.pro", "SPX500_pro",
+      "US500", "US500pm", "US500.pm", "SP500", "SP500pm", "SPY", "SPYpm",
+      "ES", "ESpm", "SPXUSD", "SPXUSDpm", "S&P500", "S&P500pm",
+      "SPX500c", "SPX500i", "SPX500ecn", "SPX500.ecn", "SPX500_ecn", "SPX500raw", "SPX500.raw"
+    ],
+    "NAS100": [
+      "NAS100pm", "NAS100.pm", "NAS100_pm", "NAS100pro", "NAS100.pro", "NAS100_pro",
+      "NASDAQ", "NASDAQpm", "NASDAQ.pm", "NDX", "NDXpm", "QQQ", "QQQpm",
+      "NQ", "NQpm", "NASUSD", "NASUSDpm", "TECH100", "TECH100pm",
+      "NAS100c", "NAS100i", "NAS100ecn", "NAS100.ecn", "NAS100_ecn", "NAS100raw", "NAS100.raw"
+    ],
+    // Forex pairs
+    "EURUSD": [
+      "EURUSDpm", "EURUSD.pm", "EURUSD_pm", "EURUSDpro", "EURUSDc", "EURUSDi", 
+      "EURUSD.pro", "EURUSD.ecn", "EURUSD_pro", "EURUSD_ecn", "EURUSDraw", "EURUSD.raw"
+    ],
+    "GBPUSD": [
+      "GBPUSDpm", "GBPUSD.pm", "GBPUSD_pm", "GBPUSDpro", "GBPUSDc", "GBPUSDi", 
+      "GBPUSD.pro", "GBPUSD.ecn", "GBPUSD_pro", "GBPUSD_ecn", "GBPUSDraw", "GBPUSD.raw"
+    ],
+    "USDJPY": [
+      "USDJPYpm", "USDJPY.pm", "USDJPY_pm", "USDJPYpro", "USDJPYc", "USDJPYi", 
+      "USDJPY.pro", "USDJPY.ecn", "USDJPY_pro", "USDJPY_ecn", "USDJPYraw", "USDJPY.raw"
+    ],
+    // Gold
+    "XAUUSD": [
+      "XAUUSDpm", "XAUUSD.pm", "XAUUSD_pm", "XAUUSDpro", "XAUUSDc", "XAUUSDi", 
+      "GOLD", "GOLDpm", "GOLD.pm", "GOLD_pm", "GOLDpro", "GOLDc", "GOLDi",
+      "XAUUSD.pro", "XAUUSD.ecn", "XAUUSD_pro", "XAUUSD_ecn", "XAUUSDraw", "XAUUSD.raw"
+    ],
+    // Crypto
+    "BTCUSD": [
+      "BTCUSDpm", "BTCUSD.pm", "BTCUSD_pm", "BTCUSDpro", "BTCUSDc", "BTCUSDi", 
+      "BITCOIN", "BTC", "BTCUSD.pro", "BTCUSD.ecn", "BTCUSD_pro", "BTCUSD_ecn"
+    ],
+    "ETHUSD": [
+      "ETHUSDpm", "ETHUSD.pm", "ETHUSD_pm", "ETHUSDpro", "ETHUSDc", "ETHUSDi", 
+      "ETHEREUM", "ETH", "ETHUSD.pro", "ETHUSD.ecn", "ETHUSD_pro", "ETHUSD_ecn"
+    ],
+    // Oil
+    "CRUDE": [
+      "CRUDEpm", "CRUDE.pm", "CRUDE_pm", "CRUDEpro", "CRUDEc", "CRUDEi", 
+      "WTI", "WTIpm", "WTI.pm", "USOIL", "USOILpm", "USOIL.pm", "CL", "CLpm",
+      "CRUDE.pro", "CRUDE.ecn", "CRUDE_pro", "CRUDE_ecn", "CRUDEraw", "CRUDE.raw"
+    ]
+  };
+  
+  return mappings[symbol] || [];
 }
 
 function getBrokerSpecificMappings(symbol: string): string[] {
