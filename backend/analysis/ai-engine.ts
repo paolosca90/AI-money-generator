@@ -14,6 +14,8 @@ import {
   calculateEnhancedConfidence,
   EnhancedConfidenceResult
 } from "./enhanced-confidence-system";
+import { learningEngine } from "../ml/learning-engine";
+import { TradingStrategy } from "./trading-strategies";
 
 const geminiApiKey = secret("GeminiApiKey");
 
@@ -72,7 +74,7 @@ export interface AIAnalysis {
 const geminiCache = new Map<string, { response: any; timestamp: number }>();
 const CACHE_DURATION = 5 * 60 * 1000; // 5 minutes
 
-export async function analyzeWithAI(marketData: TimeframeData, symbol: string): Promise<AIAnalysis> {
+export async function analyzeWithAI(marketData: TimeframeData, symbol: string, strategy: TradingStrategy): Promise<AIAnalysis> {
   // Extract key data from different timeframes
   const data5m = marketData["5m"];
   const data15m = marketData["15m"];
@@ -174,8 +176,21 @@ export async function analyzeWithAI(marketData: TimeframeData, symbol: string): 
     symbol
   );
 
-  console.log(`🎯 Enhanced confidence: ${enhancedConfidence.finalConfidence.toFixed(1)}% (Grade: ${enhancedConfidence.confidenceGrade})`);
+  console.log(`🎯 Base confidence: ${enhancedConfidence.finalConfidence.toFixed(1)}% (Grade: ${enhancedConfidence.confidenceGrade})`);
   
+  // Apply adaptive learning adjustments
+  let finalConfidence = enhancedConfidence.finalConfidence;
+  const adjustments = await learningEngine.getConfidenceAdjustments(symbol, marketContext.sessionType, strategy);
+  if (adjustments.length > 0) {
+    console.log(`🧠 Applying ${adjustments.length} adaptive learning adjustments...`);
+    for (const adj of adjustments) {
+      console.log(`   - ${adj.parameter}: ${adj.value}%`);
+      finalConfidence += adj.value;
+    }
+    finalConfidence = Math.max(15, Math.min(98, finalConfidence));
+    console.log(`🧠 Adjusted confidence: ${finalConfidence.toFixed(1)}%`);
+  }
+
   // Log warnings if any
   if (enhancedConfidence.warnings.length > 0) {
     console.log(`⚠️ Warnings: ${enhancedConfidence.warnings.join(', ')}`);
@@ -199,7 +214,7 @@ export async function analyzeWithAI(marketData: TimeframeData, symbol: string): 
 
   return {
     direction: enhancedDirection,
-    confidence: enhancedConfidence.finalConfidence, // Use enhanced confidence as primary
+    confidence: finalConfidence,
     enhancedConfidence, // Include full enhanced confidence result
     support: enhancedLevels.support,
     resistance: enhancedLevels.resistance,

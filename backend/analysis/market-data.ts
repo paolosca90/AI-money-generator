@@ -8,6 +8,7 @@ export interface MarketDataPoint {
   low: number;
   close: number;
   volume: number;
+  spread: number;
   indicators: {
     rsi: number;
     macd: number;
@@ -17,6 +18,13 @@ export interface MarketDataPoint {
 
 export interface TimeframeData {
   [timeframe: string]: MarketDataPoint;
+}
+
+interface SymbolInfo {
+  name: string;
+  spread: number;
+  point: number;
+  // other fields can be added if needed
 }
 
 export async function fetchMarketData(symbol: string, timeframes: string[], mt5Config: Mt5Config): Promise<TimeframeData> {
@@ -91,11 +99,13 @@ async function fetchMT5Data(symbol: string, timeframe: string, mt5Config: Mt5Con
     const baseUrl = `http://${host}:${port}`;
 
     // Try to find the correct symbol format for this broker
-    const correctSymbol = await findCorrectSymbolFormat(baseUrl, symbol);
-    if (!correctSymbol) {
+    const symbolInfoResult = await findCorrectSymbolFormat(baseUrl, symbol);
+    if (!symbolInfoResult) {
       console.log(`❌ Symbol ${symbol} not found in any format on this broker`);
       return null;
     }
+    const { name: correctSymbol, info: symbolInfo } = symbolInfoResult;
+    const spreadInPrice = symbolInfo.spread * symbolInfo.point;
 
     // Fetch rates data with the correct symbol and longer timeout
     const response = await fetchWithTimeout(`${baseUrl}/rates`, {
@@ -127,7 +137,7 @@ async function fetchMT5Data(symbol: string, timeframe: string, mt5Config: Mt5Con
     // Calculate indicators based on the fetched rates
     const indicators = calculateIndicatorsFromRates(result.rates);
 
-    console.log(`📊 Successfully fetched MT5 data for ${symbol} (${correctSymbol}) ${timeframe} - Close: ${close}, Volume: ${tick_volume}`);
+    console.log(`📊 Successfully fetched MT5 data for ${symbol} (${correctSymbol}) ${timeframe} - Close: ${close}, Volume: ${tick_volume}, Spread: ${spreadInPrice}`);
 
     return {
       timestamp: time * 1000,
@@ -136,6 +146,7 @@ async function fetchMT5Data(symbol: string, timeframe: string, mt5Config: Mt5Con
       low,
       close,
       volume: tick_volume,
+      spread: spreadInPrice,
       indicators,
     };
 
@@ -167,7 +178,7 @@ async function fetchWithTimeout(url: string, options: RequestInit, timeoutMs: nu
   }
 }
 
-async function findCorrectSymbolFormat(baseUrl: string, symbol: string): Promise<string | null> {
+async function findCorrectSymbolFormat(baseUrl: string, symbol: string): Promise<{ name: string; info: SymbolInfo } | null> {
   const symbolVariations = getSymbolVariations(symbol);
   
   console.log(`🔍 Trying to find correct symbol format for ${symbol}. Testing variations: ${symbolVariations.slice(0, 8).join(', ')}...`);
@@ -184,7 +195,7 @@ async function findCorrectSymbolFormat(baseUrl: string, symbol: string): Promise
         const result = await response.json() as any;
         if (result.symbol_info && !result.error) {
           console.log(`✅ Found correct symbol format: ${symbol} → ${variation}`);
-          return variation;
+          return { name: variation, info: result.symbol_info };
         }
       }
     } catch (error) {
@@ -390,6 +401,7 @@ function createEnhancedFallbackData(symbol: string, timeframe: string): MarketDa
   const volume = Math.floor(baseVolume * (0.5 + Math.random()));
   
   const indicators = calculateRealisticIndicators(open, high, low, close, symbol);
+  const spread = basePrice * volatility * 0.05; // Simulate a spread
   
   return {
     timestamp: Date.now(),
@@ -398,6 +410,7 @@ function createEnhancedFallbackData(symbol: string, timeframe: string): MarketDa
     low: Math.round(low * 100000) / 100000,
     close: Math.round(close * 100000) / 100000,
     volume,
+    spread,
     indicators,
   };
 }

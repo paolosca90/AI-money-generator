@@ -33,35 +33,33 @@ export class MLLearningEngine {
   private currentEpoch = 0;
 
   async trainModel(): Promise<LearningMetrics> {
-    console.log("🤖 Starting ML model training...");
+    console.log("🤖 Starting ML model training cycle...");
 
-    // Get training data from recent trades
     const trainingData = await this.getTrainingData();
     
-    if (trainingData.length < 50) {
-      console.log("⚠️ Insufficient training data, using simulated metrics");
+    if (trainingData.length < 20) {
+      console.log("⚠️ Insufficient training data (< 20 trades), skipping training cycle.");
       return this.generateSimulatedMetrics();
     }
 
-    // Simulate training process
-    const metrics = await this.simulateTraining(trainingData);
-    
-    // Record training progress
-    await this.recordTrainingProgress(metrics);
-    
-    // Update feature importance
-    await this.updateFeatureImportance();
-    
-    // Adapt learning parameters if needed
-    await this.adaptLearningParameters(metrics);
+    // Analyze performance by different dimensions
+    await this.analyzeAndAdaptByDimension('symbol', trainingData);
+    await this.analyzeAndAdaptByDimension('strategy', trainingData);
+    await this.analyzeAndAdaptByDimension('session', trainingData);
 
-    console.log("✅ ML model training completed");
+    const metrics = await this.simulateTraining(trainingData);
+    await this.recordTrainingProgress(metrics);
+    await this.updateFeatureImportance();
+
+    console.log("✅ ML model training cycle completed.");
     return metrics;
   }
 
   private async getTrainingData() {
     return await analysisDB.queryAll`
       SELECT 
+        ts.symbol,
+        ts.strategy,
         ts.direction as predicted_direction,
         ts.confidence,
         ts.profit_loss,
@@ -78,6 +76,85 @@ export class MLLearningEngine {
       ORDER BY ts.created_at DESC
       LIMIT 1000
     `;
+  }
+
+  private async analyzeAndAdaptByDimension(dimension: 'symbol' | 'strategy' | 'session', data: any[]) {
+    const groupedData = data.reduce((acc, trade) => {
+      let key = 'UNKNOWN';
+      if (dimension === 'session') {
+        key = trade.analysis_data?.enhancedTechnical?.marketContext?.sessionType || 'UNKNOWN';
+      } else {
+        key = trade[dimension] || 'UNKNOWN';
+      }
+      
+      if (!acc[key]) acc[key] = [];
+      acc[key].push(trade);
+      return acc;
+    }, {} as Record<string, any[]>);
+
+    for (const key in groupedData) {
+      if (key === 'UNKNOWN') continue;
+
+      const trades = groupedData[key];
+      if (trades.length < 10) continue; // Need at least 10 trades for a meaningful adaptation
+
+      const winCount = trades.filter(t => t.profit_loss > 0).length;
+      const winRate = winCount / trades.length;
+
+      const paramName = `CONFIDENCE_ADJ_${dimension.toUpperCase()}_${key}`;
+      let adjustment = 0;
+      let reason = '';
+
+      if (winRate < 0.45) { // Poor performance
+          adjustment = -10;
+          reason = `Low win rate (${(winRate * 100).toFixed(0)}%) for ${dimension} ${key}`;
+      } else if (winRate > 0.75) { // Strong performance
+          adjustment = 5;
+          reason = `High win rate (${(winRate * 100).toFixed(0)}%) for ${dimension} ${key}`;
+      } else {
+          // Remove adjustment if performance is neutral
+          adjustment = 0;
+          reason = `Neutral win rate (${(winRate * 100).toFixed(0)}%) for ${dimension} ${key}. Resetting adjustment.`;
+      }
+
+      if (adjustment !== 0) {
+        console.log(`💡 ADAPTIVE LEARNING: Applying adjustment for ${paramName}: ${adjustment}%. Reason: ${reason}`);
+        await mlDB.exec`
+            INSERT INTO ml_adaptive_parameters (model_name, parameter_name, parameter_value, adaptation_reason, adapted_at)
+            VALUES ('enhanced_ai_model', ${paramName}, ${adjustment}, ${reason}, NOW())
+            ON CONFLICT (model_name, parameter_name) DO UPDATE SET
+                parameter_value = EXCLUDED.parameter_value,
+                adaptation_reason = EXCLUDED.adaptation_reason,
+                adapted_at = NOW();
+        `;
+      } else {
+        // If performance is neutral, we can remove the adjustment from the database
+        console.log(`💡 ADAPTIVE LEARNING: ${reason}`);
+        await mlDB.exec`
+          DELETE FROM ml_adaptive_parameters
+          WHERE model_name = 'enhanced_ai_model' AND parameter_name = ${paramName};
+        `;
+      }
+    }
+  }
+
+  async getConfidenceAdjustments(symbol: string, session: string, strategy: string): Promise<{ parameter: string, value: number }[]> {
+    const paramNames = [
+        `CONFIDENCE_ADJ_SYMBOL_${symbol}`,
+        `CONFIDENCE_ADJ_SESSION_${session}`,
+        `CONFIDENCE_ADJ_STRATEGY_${strategy}`
+    ];
+
+    const results = await mlDB.queryAll`
+        SELECT parameter_name, parameter_value
+        FROM ml_adaptive_parameters
+        WHERE parameter_name = ANY(${paramNames})
+    `;
+
+    return results.map(r => ({
+        parameter: r.parameter_name,
+        value: Number(r.parameter_value)
+    }));
   }
 
   private async simulateTraining(trainingData: any[]): Promise<LearningMetrics> {
@@ -126,10 +203,10 @@ export class MLLearningEngine {
       }
     }
 
-    const accuracy = correctPredictions / totalSamples;
-    const precision = truePositives / (truePositives + falsePositives) || 0;
-    const recall = truePositives / (truePositives + falseNegatives) || 0;
-    const f1Score = 2 * (precision * recall) / (precision + recall) || 0;
+    const accuracy = totalSamples > 0 ? correctPredictions / totalSamples : 0;
+    const precision = (truePositives + falsePositives) > 0 ? truePositives / (truePositives + falsePositives) : 0;
+    const recall = (truePositives + falseNegatives) > 0 ? truePositives / (truePositives + falseNegatives) : 0;
+    const f1Score = (precision + recall) > 0 ? 2 * (precision * recall) / (precision + recall) : 0;
 
     return {
       accuracy,
@@ -216,68 +293,6 @@ export class MLLearningEngine {
           'enhanced_ai_model', ${this.modelVersion}, ${feature.name}, ${feature.importance}, ${feature.type}
         )
       `;
-    }
-  }
-
-  private async adaptLearningParameters(metrics: LearningMetrics) {
-    // Simulate adaptive learning parameter adjustment
-    const currentLearningRate = 0.001;
-    const newLearningRate = metrics.accuracy < 0.7 ? currentLearningRate * 1.1 : currentLearningRate * 0.95;
-    
-    const currentRegularization = 0.01;
-    const newRegularization = metrics.accuracy < 0.7 ? currentRegularization * 1.2 : currentRegularization * 0.9;
-
-    await mlDB.exec`
-      INSERT INTO ml_adaptive_parameters (
-        model_name, parameter_name, parameter_value, parameter_type,
-        adaptation_reason, performance_before, performance_after, adapted_at
-      ) VALUES 
-        ('enhanced_ai_model', 'learning_rate', ${newLearningRate}, 'optimization',
-         'Accuracy-based adjustment', ${metrics.accuracy - 0.05}, ${metrics.accuracy}, NOW()),
-        ('enhanced_ai_model', 'regularization', ${newRegularization}, 'regularization',
-         'Overfitting prevention', ${metrics.accuracy - 0.03}, ${metrics.accuracy}, NOW())
-    `;
-  }
-
-  async detectMarketPatterns(symbol: string, marketData: any): Promise<void> {
-    // Simulate pattern detection
-    const patterns = [
-      {
-        name: 'Double Bottom',
-        type: 'reversal',
-        confidence: 0.75 + Math.random() * 0.2,
-        successRate: 0.68 + Math.random() * 0.15,
-        avgProfit: 150 + Math.random() * 100
-      },
-      {
-        name: 'Bull Flag',
-        type: 'continuation',
-        confidence: 0.70 + Math.random() * 0.25,
-        successRate: 0.72 + Math.random() * 0.18,
-        avgProfit: 120 + Math.random() * 80
-      },
-      {
-        name: 'Head and Shoulders',
-        type: 'reversal',
-        confidence: 0.65 + Math.random() * 0.3,
-        successRate: 0.65 + Math.random() * 0.2,
-        avgProfit: 180 + Math.random() * 120
-      }
-    ];
-
-    for (const pattern of patterns) {
-      if (pattern.confidence > 0.8) {
-        await mlDB.exec`
-          INSERT INTO ml_market_patterns (
-            pattern_name, pattern_type, symbol, timeframe, confidence_score,
-            success_rate, avg_profit, pattern_data, detected_at
-          ) VALUES (
-            ${pattern.name}, ${pattern.type}, ${symbol}, '15m', ${pattern.confidence},
-            ${pattern.successRate}, ${pattern.avgProfit}, 
-            ${JSON.stringify({ marketData, detectionMethod: 'ml_pattern_recognition' })}, NOW()
-          )
-        `;
-      }
     }
   }
 

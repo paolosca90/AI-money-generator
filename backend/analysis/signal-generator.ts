@@ -67,10 +67,11 @@ export async function generateSignalForSymbol(symbol: string, userStrategy?: Tra
   if ((marketData as any)["1m"]) completeMarketData["1m"] = (marketData as any)["1m"];
   if ((marketData as any)["1h"]) completeMarketData["1h"] = (marketData as any)["1h"];
   
-  console.log(`Performing AI analysis for ${symbol}`);
-  const aiAnalysis = await analyzeWithAI(completeMarketData, symbol);
+  const optimalStrategy = getOptimalStrategy(completeMarketData, symbol, userStrategy);
   
-  const optimalStrategy = getOptimalStrategy(completeMarketData, aiAnalysis, symbol, userStrategy);
+  console.log(`Performing AI analysis for ${symbol} with strategy ${optimalStrategy}`);
+  const aiAnalysis = await analyzeWithAI(completeMarketData, symbol, optimalStrategy);
+  
   const strategyConfig = TRADING_STRATEGIES[optimalStrategy];
   
   console.log(`Selected strategy: ${optimalStrategy} for ${symbol}`);
@@ -79,9 +80,10 @@ export async function generateSignalForSymbol(symbol: string, userStrategy?: Tra
   
   const currentPrice = completeMarketData["5m"].close;
   const atr = completeMarketData["5m"].indicators.atr;
+  const spread = completeMarketData["5m"].spread;
   
   const priceTargets = calculateStrategyTargets(
-    optimalStrategy, currentPrice, atr, aiAnalysis.direction, symbol
+    optimalStrategy, currentPrice, atr, aiAnalysis.direction, symbol, spread
   );
   
   const recommendedLotSize = calculatePositionSize(
