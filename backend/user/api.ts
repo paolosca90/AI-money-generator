@@ -105,3 +105,20 @@ export const getSubscription = api<void, { subscription: Subscription | null }>(
   };
   return { subscription };
 });
+
+// getMt5ConfigForUser returns the MT5 configuration for a specific user (used by scheduler).
+export const getMt5ConfigForUser = api<{ userId: number }, { config: Mt5Config | null }>({
+  method: "GET",
+  path: "/user/mt5-config/:userId",
+  expose: false, // Internal API for scheduler
+}, async (params) => {
+  // For demo purposes, return the same config for all users
+  const config: Mt5Config = {
+    userId: params.userId,
+    host: "154.61.187.189", // Your actual VPS IP
+    port: 8080,
+    login: "6001637", // Your actual MT5 account
+    server: "PureMGlobal-MT5", // Your actual server
+  };
+  return { config };
+});

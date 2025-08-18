@@ -1,7 +1,6 @@
 import { cron } from "encore.dev/cron";
 import { analysisDB } from "../analysis/db";
 import { closeMT5Position } from "../analysis/mt5-bridge";
-import { user } from "~encore/clients";
 
 // This cron job runs every minute to check for trades that need to be automatically closed.
 export const checkExpiredTrades = cron("check-expired-trades", {
@@ -37,14 +36,16 @@ export const checkExpiredTrades = cron("check-expired-trades", {
 
         console.log(`Scheduler: Closing trade ${trade.trade_id} (Order ID: ${trade.mt5_order_id}) due to expiration...`);
         
-        // Get user's MT5 config to close the position
-        const mt5Config = await user.getMt5ConfigForUser({ userId: trade.user_id });
-        if (!mt5Config.config) {
-          console.error(`Scheduler: Could not find MT5 config for user ${trade.user_id} to close trade ${trade.trade_id}.`);
-          continue;
-        }
+        // Use your actual VPS MT5 config to close the position
+        const mt5Config = {
+          host: "154.61.187.189", // Your actual VPS IP
+          port: 8080,
+          login: "6001637", // Your actual MT5 account
+          server: "PureMGlobal-MT5", // Your actual server
+          password: "demo"
+        };
 
-        const result = await closeMT5Position(trade.mt5_order_id, mt5Config.config);
+        const result = await closeMT5Position(trade.mt5_order_id, mt5Config);
 
         if (result.success) {
           await analysisDB.exec`

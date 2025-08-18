@@ -1122,14 +1122,6 @@ function calculateConfidence(
   return Math.min(95, Math.max(70, baseConfidence + alignmentScore));
 }
 
-async function simulateSentimentAnalysis(): Promise<{ score: number; sources: string[] }> {
-  // In a real implementation, this would analyze news, social media, etc.
-  const score = -0.5 + Math.random(); // Random sentiment between -0.5 and 0.5
-  const sources = ["Economic Calendar", "Social Media", "News Analysis"];
-  
-  return { score, sources };
-}
-
 /**
  * Enhanced direction determination using sophisticated multi-factor analysis
  */

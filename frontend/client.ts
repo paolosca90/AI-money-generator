@@ -34,6 +34,7 @@ const BROWSER = typeof globalThis === "object" && ("window" in globalThis);
  */
 export class Client {
     public readonly analysis: analysis.ServiceClient
+    public readonly ml: ml.ServiceClient
     public readonly user: user.ServiceClient
     private readonly options: ClientOptions
     private readonly target: string
@@ -50,6 +51,7 @@ export class Client {
         this.options = options ?? {}
         const base = new BaseClient(this.target, this.options)
         this.analysis = new analysis.ServiceClient(base)
+        this.ml = new ml.ServiceClient(base)
         this.user = new user.ServiceClient(base)
     }
 
@@ -84,9 +86,11 @@ export interface ClientOptions {
 /**
  * Import the endpoint handlers to derive the types for the client.
  */
+import { closePosition as api_analysis_close_position_closePosition } from "~backend/analysis/close-position";
 import { execute as api_analysis_execute_execute } from "~backend/analysis/execute";
 import { recordFeedback as api_analysis_feedback_recordFeedback } from "~backend/analysis/feedback";
 import { listHistory as api_analysis_history_listHistory } from "~backend/analysis/history";
+import { getMarketOverview as api_analysis_market_overview_getMarketOverview } from "~backend/analysis/market-overview";
 import { getPerformance as api_analysis_performance_getPerformance } from "~backend/analysis/performance";
 import { listPositions as api_analysis_positions_listPositions } from "~backend/analysis/positions";
 import { predict as api_analysis_predict_predict } from "~backend/analysis/predict";
@@ -98,12 +102,23 @@ export namespace analysis {
 
         constructor(baseClient: BaseClient) {
             this.baseClient = baseClient
+            this.closePosition = this.closePosition.bind(this)
             this.execute = this.execute.bind(this)
+            this.getMarketOverview = this.getMarketOverview.bind(this)
             this.getPerformance = this.getPerformance.bind(this)
             this.listHistory = this.listHistory.bind(this)
             this.listPositions = this.listPositions.bind(this)
             this.predict = this.predict.bind(this)
             this.recordFeedback = this.recordFeedback.bind(this)
+        }
+
+        /**
+         * Closes an open position on MetaTrader 5.
+         */
+        public async closePosition(params: RequestType<typeof api_analysis_close_position_closePosition>): Promise<ResponseType<typeof api_analysis_close_position_closePosition>> {
+            // Now make the actual call to the API
+            const resp = await this.baseClient.callTypedAPI(`/analysis/close-position`, {method: "POST", body: JSON.stringify(params)})
+            return JSON.parse(await resp.text(), dateReviver) as ResponseType<typeof api_analysis_close_position_closePosition>
         }
 
         /**
@@ -113,6 +128,15 @@ export namespace analysis {
             // Now make the actual call to the API
             const resp = await this.baseClient.callTypedAPI(`/analysis/execute`, {method: "POST", body: JSON.stringify(params)})
             return JSON.parse(await resp.text(), dateReviver) as ResponseType<typeof api_analysis_execute_execute>
+        }
+
+        /**
+         * Retrieves market overview with top performing assets and relevant news.
+         */
+        public async getMarketOverview(): Promise<ResponseType<typeof api_analysis_market_overview_getMarketOverview>> {
+            // Now make the actual call to the API
+            const resp = await this.baseClient.callTypedAPI(`/analysis/market-overview`, {method: "GET", body: undefined})
+            return JSON.parse(await resp.text(), dateReviver) as ResponseType<typeof api_analysis_market_overview_getMarketOverview>
         }
 
         /**
@@ -158,6 +182,67 @@ export namespace analysis {
             // Now make the actual call to the API
             const resp = await this.baseClient.callTypedAPI(`/analysis/feedback`, {method: "POST", body: JSON.stringify(params)})
             return JSON.parse(await resp.text(), dateReviver) as ResponseType<typeof api_analysis_feedback_recordFeedback>
+        }
+    }
+}
+
+/**
+ * Import the endpoint handlers to derive the types for the client.
+ */
+import { getMLAnalytics as api_ml_analytics_getMLAnalytics } from "~backend/ml/analytics";
+import {
+    detectPatterns as api_ml_training_detectPatterns,
+    getRecommendations as api_ml_training_getRecommendations,
+    trainModel as api_ml_training_trainModel
+} from "~backend/ml/training";
+
+export namespace ml {
+
+    export class ServiceClient {
+        private baseClient: BaseClient
+
+        constructor(baseClient: BaseClient) {
+            this.baseClient = baseClient
+            this.detectPatterns = this.detectPatterns.bind(this)
+            this.getMLAnalytics = this.getMLAnalytics.bind(this)
+            this.getRecommendations = this.getRecommendations.bind(this)
+            this.trainModel = this.trainModel.bind(this)
+        }
+
+        /**
+         * Triggers pattern detection for a specific symbol.
+         */
+        public async detectPatterns(params: RequestType<typeof api_ml_training_detectPatterns>): Promise<ResponseType<typeof api_ml_training_detectPatterns>> {
+            // Now make the actual call to the API
+            const resp = await this.baseClient.callTypedAPI(`/ml/detect-patterns`, {method: "POST", body: JSON.stringify(params)})
+            return JSON.parse(await resp.text(), dateReviver) as ResponseType<typeof api_ml_training_detectPatterns>
+        }
+
+        /**
+         * Retrieves comprehensive ML analytics and performance metrics.
+         */
+        public async getMLAnalytics(): Promise<ResponseType<typeof api_ml_analytics_getMLAnalytics>> {
+            // Now make the actual call to the API
+            const resp = await this.baseClient.callTypedAPI(`/ml/analytics`, {method: "GET", body: undefined})
+            return JSON.parse(await resp.text(), dateReviver) as ResponseType<typeof api_ml_analytics_getMLAnalytics>
+        }
+
+        /**
+         * Gets ML model recommendations for optimization.
+         */
+        public async getRecommendations(): Promise<ResponseType<typeof api_ml_training_getRecommendations>> {
+            // Now make the actual call to the API
+            const resp = await this.baseClient.callTypedAPI(`/ml/recommendations`, {method: "GET", body: undefined})
+            return JSON.parse(await resp.text(), dateReviver) as ResponseType<typeof api_ml_training_getRecommendations>
+        }
+
+        /**
+         * Triggers ML model training and returns performance metrics.
+         */
+        public async trainModel(params: RequestType<typeof api_ml_training_trainModel>): Promise<ResponseType<typeof api_ml_training_trainModel>> {
+            // Now make the actual call to the API
+            const resp = await this.baseClient.callTypedAPI(`/ml/train`, {method: "POST", body: JSON.stringify(params)})
+            return JSON.parse(await resp.text(), dateReviver) as ResponseType<typeof api_ml_training_trainModel>
         }
     }
 }
