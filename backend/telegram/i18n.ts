@@ -57,6 +57,11 @@ export interface MessageKeys {
   'subscription.expired': string;
   'subscription.features': string;
   'subscription.upgrade_info': string;
+  
+  // Trade management
+  'trade.auto_closed': string;
+  'trade.executed': string;
+  'trade.closed': string;
 }
 
 const messages: Record<SupportedLanguage, MessageKeys> = {
@@ -114,6 +119,11 @@ const messages: Record<SupportedLanguage, MessageKeys> = {
     'subscription.expired': '❌ Your subscription has expired. Please renew to continue using premium features.',
     'subscription.features': '🎯 **Your Available Features**',
     'subscription.upgrade_info': '🚀 **Upgrade Your Plan**\n\n**Why Upgrade?**\n• More VPS configurations\n• Advanced AI strategies\n• Priority support\n• Exclusive features',
+    
+    // Trade management
+    'trade.auto_closed': '🔄 **Trade Auto-Closed**\n\nTrade {tradeId} has been automatically closed before the NY session end.',
+    'trade.executed': '✅ **Trade Executed Successfully!**',
+    'trade.closed': '✅ **Position Closed Successfully!**',
   },
   
   it: {
@@ -170,10 +180,15 @@ const messages: Record<SupportedLanguage, MessageKeys> = {
     'subscription.expired': '❌ Il tuo abbonamento è scaduto. Rinnova per continuare a usare le funzionalità premium.',
     'subscription.features': '🎯 **Le Tue Funzionalità Disponibili**',
     'subscription.upgrade_info': '🚀 **Aggiorna il Tuo Piano**\n\n**Perché Aggiornare?**\n• Più configurazioni VPS\n• Strategie AI avanzate\n• Supporto prioritario\n• Funzionalità esclusive',
+    
+    // Trade management
+    'trade.auto_closed': '🔄 **Trade Chiuso Automaticamente**\n\nIl trade {tradeId} è stato chiuso automaticamente prima della fine della sessione NY.',
+    'trade.executed': '✅ **Trade Eseguito con Successo!**',
+    'trade.closed': '✅ **Posizione Chiusa con Successo!**',
   }
 };
 
-export function getMessage(key: keyof MessageKeys, language: SupportedLanguage = 'en', params: Record<string, string | number> = {}): string {
+export function getMessage(key: keyof MessageKeys, language: SupportedLanguage = 'it', params: Record<string, string | number> = {}): string {
   let message = messages[language][key] || messages['en'][key];
   
   // Replace parameters in the message
@@ -186,9 +201,8 @@ export function getMessage(key: keyof MessageKeys, language: SupportedLanguage =
 }
 
 export function getUserLanguage(userId: number): SupportedLanguage {
-  // For now, default to English. In a real implementation, 
-  // this would fetch from user preferences database
-  return 'en';
+  // For now, default to Italian since the system is primarily Italian
+  return 'it';
 }
 
 export function setUserLanguage(userId: number, language: SupportedLanguage): Promise<void> {
@@ -198,7 +212,7 @@ export function setUserLanguage(userId: number, language: SupportedLanguage): Pr
 }
 
 // Utility functions for common message patterns
-export function formatCurrency(amount: number, language: SupportedLanguage = 'en'): string {
+export function formatCurrency(amount: number, language: SupportedLanguage = 'it'): string {
   if (language === 'it') {
     return new Intl.NumberFormat('it-IT', { 
       style: 'currency', 
@@ -214,7 +228,7 @@ export function formatCurrency(amount: number, language: SupportedLanguage = 'en
   }).format(amount);
 }
 
-export function formatPercentage(value: number, language: SupportedLanguage = 'en'): string {
+export function formatPercentage(value: number, language: SupportedLanguage = 'it'): string {
   if (language === 'it') {
     return new Intl.NumberFormat('it-IT', { 
       style: 'percent',
@@ -230,7 +244,7 @@ export function formatPercentage(value: number, language: SupportedLanguage = 'e
   }).format(value / 100);
 }
 
-export function formatNumber(value: number, language: SupportedLanguage = 'en'): string {
+export function formatNumber(value: number, language: SupportedLanguage = 'it'): string {
   if (language === 'it') {
     return new Intl.NumberFormat('it-IT').format(value);
   }

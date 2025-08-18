@@ -1,16 +1,7 @@
 export enum TradingStrategy {
-    SCALPING = "SCALPING",
-    INTRADAY = "INTRADAY",
-    SWING = "SWING"
-}
-
-// Technical analysis strategy enum with common trading strategies
-export enum TechnicalAnalysisStrategyEnum {
-  MOVING_AVERAGE = "MOVING_AVERAGE",
-  BOLLINGER_BANDS = "BOLLINGER_BANDS",
-  RSI = "RSI",
-  MACD = "MACD",
-  SUPPORT_RESISTANCE = "SUPPORT_RESISTANCE"
+  SCALPING = "SCALPING",
+  INTRADAY = "INTRADAY", 
+  SWING = "SWING"
 }
 
 export interface StrategyConfig {
@@ -33,14 +24,14 @@ export const TRADING_STRATEGIES: Record<TradingStrategy, StrategyConfig> = {
     name: "Scalping",
     description: "Trade veloci che catturano piccoli movimenti di prezzo (1-15 minuti)",
     timeframes: ["1m", "5m"],
-    riskRewardRatio: 1.5, // 1:1.5 risk/reward
-    stopLossMultiplier: 0.8, // Tight stop loss
-    takeProfitMultiplier: 1.2, // Quick profit taking
-    maxHoldingTime: 0.25, // 15 minutes max
-    minConfidence: 90, // Increased from 85 - scalping needs highest quality signals
-    maxLotSize: 0.5, // Moderate position size
-    volatilityThreshold: 0.002, // Low volatility preferred
-    trendStrengthRequired: 0.7, // Strong trend required
+    riskRewardRatio: 1.5,
+    stopLossMultiplier: 0.8,
+    takeProfitMultiplier: 1.2,
+    maxHoldingTime: 0.25,
+    minConfidence: 90,
+    maxLotSize: 0.5,
+    volatilityThreshold: 0.002,
+    trendStrengthRequired: 0.7,
     marketConditions: ["HIGH_VOLUME", "TRENDING", "LOW_SPREAD"]
   },
   
@@ -48,14 +39,14 @@ export const TRADING_STRATEGIES: Record<TradingStrategy, StrategyConfig> = {
     name: "Intraday",
     description: "Day trading che cattura movimenti di prezzo medi (1-8 ore)",
     timeframes: ["5m", "15m", "30m"],
-    riskRewardRatio: 2.0, // 1:2 risk/reward
-    stopLossMultiplier: 1.0, // Standard stop loss
-    takeProfitMultiplier: 2.0, // Standard profit taking
-    maxHoldingTime: 8, // 8 hours max
-    minConfidence: 80, // Increased from 75 for better quality
-    maxLotSize: 1.0, // Standard position size
-    volatilityThreshold: 0.005, // Medium volatility
-    trendStrengthRequired: 0.5, // Moderate trend required
+    riskRewardRatio: 2.0,
+    stopLossMultiplier: 1.0,
+    takeProfitMultiplier: 2.0,
+    maxHoldingTime: 8,
+    minConfidence: 80,
+    maxLotSize: 1.0,
+    volatilityThreshold: 0.005,
+    trendStrengthRequired: 0.5,
     marketConditions: ["NORMAL_VOLUME", "TRENDING", "BREAKOUT"]
   },
   
@@ -63,14 +54,14 @@ export const TRADING_STRATEGIES: Record<TradingStrategy, StrategyConfig> = {
     name: "Swing Trading",
     description: "Trade multi-giorno che catturano ampi movimenti di prezzo (1-7 giorni)",
     timeframes: ["30m", "1h", "4h"],
-    riskRewardRatio: 3.0, // 1:3 risk/reward
-    stopLossMultiplier: 1.5, // Wider stop loss
-    takeProfitMultiplier: 4.5, // Larger profit targets
-    maxHoldingTime: 168, // 7 days max
-    minConfidence: 75, // Increased from 70 for improved quality
-    maxLotSize: 2.0, // Larger position size
-    volatilityThreshold: 0.01, // Higher volatility acceptable
-    trendStrengthRequired: 0.3, // Trend not strictly required
+    riskRewardRatio: 3.0,
+    stopLossMultiplier: 1.5,
+    takeProfitMultiplier: 4.5,
+    maxHoldingTime: 168,
+    minConfidence: 75,
+    maxLotSize: 2.0,
+    volatilityThreshold: 0.01,
+    trendStrengthRequired: 0.3,
     marketConditions: ["ANY_VOLUME", "REVERSAL", "CONSOLIDATION"]
   }
 };
@@ -84,50 +75,6 @@ export interface StrategyPriceTargets {
   riskRewardRatio: number;
 }
 
-// Additional interfaces as requested in the problem statement
-export interface StrategyResult {
-  success: boolean;
-  signal: "LONG" | "SHORT" | "NONE";
-  confidence: number;
-  entryPrice?: number;
-  stopLoss?: number;
-  takeProfit?: number;
-  reason: string;
-}
-
-// Strategy parameter interfaces for technical analysis
-export interface MovingAverageParams {
-  fastPeriod: number;
-  slowPeriod: number;
-  signalPeriod?: number;
-}
-
-export interface RSIParams {
-  period: number;
-  overboughtLevel: number;
-  oversoldLevel: number;
-}
-
-export interface MACDParams {
-  fastPeriod: number;
-  slowPeriod: number;
-  signalPeriod: number;
-}
-
-export interface BollingerBandsParams {
-  period: number;
-  standardDeviations: number;
-}
-
-export interface SupportResistanceParams {
-  lookbackPeriods: number;
-  minTouches: number;
-  tolerance: number;
-}
-
-// Union type for all strategy parameters
-export type StrategyParams = MovingAverageParams | RSIParams | MACDParams | BollingerBandsParams | SupportResistanceParams;
-
 export function calculateStrategyTargets(
   strategy: TradingStrategy,
   currentPrice: number,
@@ -138,10 +85,8 @@ export function calculateStrategyTargets(
   const config = TRADING_STRATEGIES[strategy];
   const symbolCharacteristics = getSymbolCharacteristics(symbol);
   
-  // Adjust ATR based on strategy and symbol
   const adjustedATR = atr * symbolCharacteristics.volatilityMultiplier;
   
-  // Calculate base stop loss and take profit distances
   const stopLossDistance = adjustedATR * config.stopLossMultiplier;
   const takeProfitDistance = adjustedATR * config.takeProfitMultiplier;
   
@@ -156,7 +101,6 @@ export function calculateStrategyTargets(
     takeProfit = currentPrice - takeProfitDistance;
   }
   
-  // Apply symbol-specific minimum movements
   const minMovement = symbolCharacteristics.minMovement;
   
   if (direction === "LONG") {
@@ -167,7 +111,6 @@ export function calculateStrategyTargets(
     takeProfit = Math.min(takeProfit, currentPrice - minMovement * config.riskRewardRatio);
   }
   
-  // Calculate risk and reward amounts
   const riskAmount = Math.abs(currentPrice - stopLoss);
   const rewardAmount = Math.abs(takeProfit - currentPrice);
   const actualRiskReward = rewardAmount / riskAmount;
@@ -188,24 +131,20 @@ export function getOptimalStrategy(
   symbol: string,
   userPreference?: TradingStrategy
 ): TradingStrategy {
-  // If user has a preference, validate it and return if suitable
   if (userPreference && isStrategyValid(userPreference, marketData, aiAnalysis, symbol)) {
     return userPreference;
   }
   
-  // Analyze market conditions to determine best strategy
   const volatility = calculateMarketVolatility(marketData);
   const trendStrength = calculateTrendStrength(marketData);
   const confidence = aiAnalysis.confidence;
   
-  // Score each strategy based on current conditions
   const scores = {
     [TradingStrategy.SCALPING]: calculateStrategyScore(TradingStrategy.SCALPING, volatility, trendStrength, confidence),
     [TradingStrategy.INTRADAY]: calculateStrategyScore(TradingStrategy.INTRADAY, volatility, trendStrength, confidence),
     [TradingStrategy.SWING]: calculateStrategyScore(TradingStrategy.SWING, volatility, trendStrength, confidence)
   };
   
-  // Return strategy with highest score
   return Object.entries(scores).reduce((best, [strategy, score]) => 
     score > (scores as any)[best] ? strategy as TradingStrategy : best, TradingStrategy.INTRADAY
   );
@@ -221,11 +160,10 @@ function isStrategyValid(
   const volatility = calculateMarketVolatility(marketData);
   const trendStrength = calculateTrendStrength(marketData);
   
-  // Check if conditions meet strategy requirements
   return (
     aiAnalysis.confidence >= config.minConfidence &&
-    volatility <= config.volatilityThreshold * 2 && // Allow some flexibility
-    trendStrength >= config.trendStrengthRequired * 0.8 // Allow some flexibility
+    volatility <= config.volatilityThreshold * 2 &&
+    trendStrength >= config.trendStrengthRequired * 0.8
   );
 }
 
@@ -238,16 +176,13 @@ function calculateStrategyScore(
   const config = TRADING_STRATEGIES[strategy];
   let score = 0;
   
-  // Confidence score (0-40 points)
   if (confidence >= config.minConfidence) {
     score += Math.min(40, (confidence - config.minConfidence) / (100 - config.minConfidence) * 40);
   }
   
-  // Volatility score (0-30 points)
   const volatilityFit = 1 - Math.abs(volatility - config.volatilityThreshold) / config.volatilityThreshold;
   score += Math.max(0, volatilityFit * 30);
   
-  // Trend strength score (0-30 points)
   if (trendStrength >= config.trendStrengthRequired) {
     score += Math.min(30, (trendStrength - config.trendStrengthRequired) / (1 - config.trendStrengthRequired) * 30);
   }
@@ -260,7 +195,6 @@ function calculateMarketVolatility(marketData: any): number {
   const data15m = marketData["15m"];
   const data30m = marketData["30m"];
   
-  // Calculate average volatility across timeframes
   const volatilities = [
     data5m.indicators.atr / data5m.close,
     data15m.indicators.atr / data15m.close,
@@ -275,19 +209,17 @@ function calculateTrendStrength(marketData: any): number {
   const data15m = marketData["15m"];
   const data30m = marketData["30m"];
   
-  // Calculate trend consistency across timeframes
   const prices = [data5m.close, data15m.close, data30m.close];
   const isUptrend = prices.every((price, i) => i === 0 || price >= prices[i - 1]);
   const isDowntrend = prices.every((price, i) => i === 0 || price <= prices[i - 1]);
   
   if (isUptrend || isDowntrend) {
-    // Calculate strength based on price movement
     const totalMove = Math.abs(prices[0] - prices[prices.length - 1]);
     const avgPrice = prices.reduce((sum, price) => sum + price, 0) / prices.length;
     return Math.min(1, totalMove / avgPrice * 100);
   }
   
-  return 0; // No clear trend
+  return 0;
 }
 
 function getSymbolCharacteristics(symbol: string) {
@@ -347,9 +279,8 @@ export function getStrategyRecommendation(
   
   let recommendation = `${config.name} Strategy Selected:\n\n`;
   
-  // Add strategy-specific recommendations
   switch (strategy) {
-    case "SCALPING":
+    case TradingStrategy.SCALPING:
       recommendation += "🔥 SCALPING SETUP:\n";
       recommendation += "• Quick entry/exit (1-15 minutes)\n";
       recommendation += "• Tight stop loss for capital protection\n";
@@ -358,7 +289,7 @@ export function getStrategyRecommendation(
       recommendation += "• Best during high volume sessions\n";
       break;
       
-    case "INTRADAY":
+    case TradingStrategy.INTRADAY:
       recommendation += "⚡ INTRADAY SETUP:\n";
       recommendation += "• Hold for 1-8 hours maximum\n";
       recommendation += "• Balanced risk/reward ratio\n";
@@ -367,7 +298,7 @@ export function getStrategyRecommendation(
       recommendation += "• Monitor news and events\n";
       break;
       
-    case "SWING":
+    case TradingStrategy.SWING:
       recommendation += "📈 SWING TRADING SETUP:\n";
       recommendation += "• Multi-day holding period\n";
       recommendation += "• Wider stops for volatility\n";
@@ -377,13 +308,11 @@ export function getStrategyRecommendation(
       break;
   }
   
-  // Add market condition analysis
   recommendation += `\n📊 MARKET CONDITIONS:\n`;
   recommendation += `• Volatility: ${(volatility * 100).toFixed(2)}%\n`;
   recommendation += `• Trend Strength: ${(trendStrength * 100).toFixed(0)}%\n`;
   recommendation += `• Confidence: ${aiAnalysis.confidence}%\n`;
   
-  // Add warnings if conditions are not optimal
   if (aiAnalysis.confidence < config.minConfidence) {
     recommendation += `\n⚠️ WARNING: Confidence below optimal (${config.minConfidence}%)\n`;
   }
@@ -407,10 +336,8 @@ export function calculatePositionSize(
 ): number {
   const config = TRADING_STRATEGIES[strategy];
   
-  // Calculate position size based on risk management
   const maxRiskAmount = accountBalance * (riskPercentage / 100);
   const positionSize = Math.min(maxRiskAmount / riskAmount, config.maxLotSize);
   
-  // Round to appropriate lot size increments
   return Math.round(positionSize * 100) / 100;
 }
