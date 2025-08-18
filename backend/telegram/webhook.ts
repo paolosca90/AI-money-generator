@@ -51,11 +51,15 @@ export const webhook = api<TelegramUpdate, WebhookResponse>(
   { expose: true, method: "POST", path: "/telegram/webhook" },
   async (update) => {
     try {
+      console.log("Received Telegram update:", JSON.stringify(update, null, 2));
+      
       if (update.message && update.message.text) {
         const message = update.message;
         const chatId = message.chat.id;
         const userId = message.from.id;
         const text = message.text;
+
+        console.log(`Processing message from user ${userId} in chat ${chatId}: ${text}`);
 
         // Store user interaction
         await telegramDB.exec`
@@ -72,6 +76,8 @@ export const webhook = api<TelegramUpdate, WebhookResponse>(
         const chatId = callbackQuery.message?.chat.id;
         const userId = callbackQuery.from.id;
         const callbackData = callbackQuery.data;
+
+        console.log(`Processing callback query from user ${userId}: ${callbackData}`);
 
         if (chatId && callbackData) {
           // Process the callback query

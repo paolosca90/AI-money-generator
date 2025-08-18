@@ -111,11 +111,11 @@ export function getTradingModeInfo(mode: TradingStrategy): string {
 export function getAllTradingModesInfo(): string {
   let info = "🎯 **Modalità di Trading Disponibili:**\n\n";
   
-  const modes: TradingStrategy[] = ['SCALPING', 'INTRADAY', 'SWING'];
+  const modes: TradingStrategy[] = ['SCALPING', 'INTRADAY'];
   
   modes.forEach((mode, index) => {
     const config = TRADING_STRATEGIES[mode];
-    const emoji = mode === 'SCALPING' ? '⚡' : mode === 'INTRADAY' ? '📈' : '🎯';
+    const emoji = mode === 'SCALPING' ? '⚡' : '📈';
     
     info += `${emoji} **${index + 1}. ${config.name}**\n`;
     info += `• Timeframe: ${config.timeframes.join(', ')}\n`;

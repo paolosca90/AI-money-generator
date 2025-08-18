@@ -17,9 +17,11 @@ import {
 } from "./user-state-manager";
 import { TradingStrategy } from "../analysis/trading-strategies";
 import { getMT5Positions, closeMT5Position } from "../analysis/mt5-bridge";
+import { getMessage, getUserLanguage } from "./i18n";
 
 export async function processMessage(chatId: number, userId: number, text: string): Promise<void> {
   const command = text.toLowerCase().trim();
+  const userLanguage = getUserLanguage(userId);
 
   try {
     // Check if user is in a state that requires specific handling
@@ -36,7 +38,7 @@ export async function processMessage(chatId: number, userId: number, text: strin
                        await checkClientFeature(userId, "premium_signals");
       
       if (!hasAccess) {
-        await sendMessage(chatId, "❌ Hai bisogno di un abbonamento attivo per accedere ai segnali AI. Usa `/subscription` per saperne di più.");
+        await sendMessage(chatId, getMessage('error.subscription_required', userLanguage));
         return;
       }
       
@@ -45,8 +47,6 @@ export async function processMessage(chatId: number, userId: number, text: strin
       await handleStrategyCommand(chatId, command, TradingStrategy.SCALPING, userId);
     } else if (command.startsWith("/intraday")) {
       await handleStrategyCommand(chatId, command, TradingStrategy.INTRADAY, userId);
-    } else if (command.startsWith("/swing")) {
-      await handleStrategyCommand(chatId, command, TradingStrategy.SWING, userId);
     } else if (command.startsWith("/execute") || command.startsWith("/ordina")) {
       await handleExecuteCommand(chatId, command);
     } else if (command.startsWith("/stato")) {
@@ -78,7 +78,7 @@ export async function processMessage(chatId: number, userId: number, text: strin
       const hasAccess = await checkClientFeature(userId, "vps_management");
       
       if (!hasAccess) {
-        await sendMessage(chatId, "❌ Hai bisogno di un abbonamento attivo per accedere alla gestione VPS. Usa `/subscription` per saperne di più.");
+        await sendMessage(chatId, getMessage('error.vps_access_denied', userLanguage));
         return;
       }
       
@@ -88,7 +88,7 @@ export async function processMessage(chatId: number, userId: number, text: strin
       const hasAccess = await checkClientFeature(userId, "vps_management");
       
       if (!hasAccess) {
-        await sendMessage(chatId, "❌ Hai bisogno di un abbonamento attivo per accedere alla configurazione VPS. Usa `/subscription` per saperne di più.");
+        await sendMessage(chatId, getMessage('error.vps_access_denied', userLanguage));
         return;
       }
       
@@ -109,7 +109,7 @@ export async function processMessage(chatId: number, userId: number, text: strin
     }
   } catch (error) {
     console.error("Error processing message:", error);
-    await sendMessage(chatId, "❌ Si è verificato un errore durante l'elaborazione della tua richiesta. Riprova.");
+    await sendMessage(chatId, getMessage('error.general', userLanguage));
   }
 }
 
@@ -136,7 +136,7 @@ export async function processCallbackQuery(chatId: number, userId: number, callb
       await handleStrategyCommand(chatId, `/segnale ${symbol}`, strategy, userId);
     }
     else if (callbackData === "new_analysis") {
-      await sendMessage(chatId, "📊 Scegli la tua strategia di trading:\n\n⚡ `/scalping SIMBOLO` - Trade veloci (1-15 min)\n📈 `/intraday SIMBOLO` - Day trading (1-8 ore)\n🎯 `/swing SIMBOLO` - Trade multi-giorno (1-7 giorni)\n\nEsempio: `/scalping EURUSD`");
+      await sendMessage(chatId, "📊 Scegli la tua strategia di trading:\n\n⚡ `/scalping SIMBOLO` - Trade veloci (1-15 min)\n📈 `/intraday SIMBOLO` - Day trading (1-6 ore)\n\nEsempio: `/scalping EURUSD`");
     }
     else if (callbackData === "show_performance") {
       await handlePerformanceCommand(chatId);
@@ -224,14 +224,14 @@ ${modeInfo}
 
 🚀 **Pronto per Tradare:**
 • Usa \`/segnale SIMBOLO\` per analisi con la tua modalità preferita
-• Usa \`/scalping SIMBOLO\`, \`/intraday SIMBOLO\`, o \`/swing SIMBOLO\` per strategie specifiche
+• Usa \`/scalping SIMBOLO\` o \`/intraday SIMBOLO\` per strategie specifiche
 • Usa \`/impostazioni\` per cambiare le tue preferenze
 
 💡 **Avvio Rapido:** Prova \`/${userPrefs.tradingMode.toLowerCase()} BTCUSD\` per un segnale!
     `;
     const keyboard = createInlineKeyboard([
       [
-        { text: `${userPrefs.tradingMode === TradingStrategy.SCALPING ? '⚡' : userPrefs.tradingMode === TradingStrategy.INTRADAY ? '📈' : '🎯'} ${userPrefs.tradingMode} BTCUSD`, callback_data: `strategy_${userPrefs.tradingMode}_BTCUSD` }
+        { text: `${userPrefs.tradingMode === TradingStrategy.SCALPING ? '⚡' : '📈'} ${userPrefs.tradingMode} BTCUSD`, callback_data: `strategy_${userPrefs.tradingMode}_BTCUSD` }
       ],
       [
         { text: "⚙️ Impostazioni", callback_data: "show_settings" },
@@ -267,8 +267,7 @@ Seleziona una modalità qui sotto per vedere informazioni dettagliate e continua
   const keyboard = createInlineKeyboard([
     [
       { text: "⚡ Scalping", callback_data: "mode_SCALPING" },
-      { text: "📈 Intraday", callback_data: "mode_INTRADAY" },
-      { text: "🎯 Swing", callback_data: "mode_SWING" }
+      { text: "📈 Intraday", callback_data: "mode_INTRADAY" }
     ],
     [
       { text: "❓ Aiutami a Scegliere", callback_data: "show_strategies" }
@@ -384,7 +383,7 @@ Prova questi comandi:
   `;
   const keyboard = createInlineKeyboard([
     [
-      { text: `${preferences.tradingMode === TradingStrategy.SCALPING ? '⚡' : preferences.tradingMode === TradingStrategy.INTRADAY ? '📈' : '🎯'} Ottieni Segnale ${preferences.tradingMode}`, callback_data: `strategy_${preferences.tradingMode}_BTCUSD` }
+      { text: `${preferences.tradingMode === TradingStrategy.SCALPING ? '⚡' : '📈'} Ottieni Segnale ${preferences.tradingMode}`, callback_data: `strategy_${preferences.tradingMode}_BTCUSD` }
     ],
     [
       { text: "📊 Vedi Tutte le Strategie", callback_data: "show_strategies" },
@@ -422,7 +421,6 @@ Usa \`/start\` per riconfigurare la tua modalità di trading e impostazioni di r
 • \`/segnale SIMBOLO\` - Usa la tua modalità preferita (${userPrefs.tradingMode})
 • \`/scalping SIMBOLO\` - Forza modalità scalping
 • \`/intraday SIMBOLO\` - Forza modalità intraday  
-• \`/swing SIMBOLO\` - Forza modalità swing
 • \`/performance\` - Vedi le tue statistiche di trading
   `;
   const keyboard = createInlineKeyboard([
@@ -445,7 +443,7 @@ async function handlePredictCommand(chatId: number, command: string, userId?: nu
     const userPrefs = userId ? await getUserPreferences(userId) : null;
     const strategy = userPrefs?.tradingMode;
     const strategyText = strategy ? ` usando la tua modalità preferita ${strategy}` : "";
-    await sendMessage(chatId, `🧠 **Analisi ML Avanzata per ${symbol}**${strategyText}\n\n🔍 Analizzando struttura di mercato, flusso smart money e determinando strategia ottimale...\n\n⏳ Questo può richiedere 10-15 secondi per un'analisi completa.`);
+    await sendMessage(chatId, `🧠 **Analisi AI Avanzata per ${symbol}**${strategyText}\n\n🔍 Analizzando confluenza multi-timeframe, indicatori tecnici avanzati, VWAP, sentiment e condizioni di mercato...\n\n⏳ Questo può richiedere 10-15 secondi per un'analisi completa.`);
     const prediction = await predict({
       symbol,
       strategy
@@ -465,10 +463,9 @@ async function handleStrategyCommand(chatId: number, command: string, strategy: 
     const userPrefs = userId ? await getUserPreferences(userId) : null;
     const strategyEmojis = {
       [TradingStrategy.SCALPING]: "⚡",
-      [TradingStrategy.INTRADAY]: "📈",
-      [TradingStrategy.SWING]: "🎯"
+      [TradingStrategy.INTRADAY]: "📈"
     };
-    await sendMessage(chatId, `${strategyEmojis[strategy]} **Analisi ${strategy} per ${symbol}**\n\n🔍 Analizzando il mercato per opportunità ${strategy.toLowerCase()}...\n\n⏳ Ottimizzando livelli di entrata, stop loss e take profit...`);
+    await sendMessage(chatId, `${strategyEmojis[strategy]} **Analisi ${strategy} per ${symbol}**\n\n🔍 Analizzando confluenza multi-timeframe, indicatori tecnici avanzati, VWAP e condizioni di mercato per opportunità ${strategy.toLowerCase()}...\n\n⏳ Ottimizzando livelli di entrata, stop loss e take profit...`);
     const prediction = await predict({
       symbol,
       strategy: strategy
@@ -484,8 +481,7 @@ async function handleStrategyCommand(chatId: number, command: string, strategy: 
 async function sendTradingSignal(chatId: number, prediction: any, userPrefs?: UserPreferences | null): Promise<void> {
   const strategyEmojis: Record<string, string> = {
     [TradingStrategy.SCALPING]: "⚡",
-    [TradingStrategy.INTRADAY]: "📈",
-    [TradingStrategy.SWING]: "🎯"
+    [TradingStrategy.INTRADAY]: "📈"
   };
 
   const confidenceEmoji = prediction.confidence >= 85 ? "🔥" : prediction.confidence >= 75 ? "⚡" : "⚠️";
@@ -521,11 +517,14 @@ ${confidenceEmoji} **Confidenza:** **${prediction.confidence}%**
 📊 **Analisi Strategia:**
 ${prediction.strategyRecommendation}
 
-🧠 **Analisi Tecnica AI:**
-• **Trend:** ${prediction.analysis?.technical?.trend || 'N/A'}
+🧠 **Analisi Tecnica AI Avanzata:**
+• **Trend Multi-TF:** ${prediction.analysis?.technical?.trend || 'N/A'}
+• **Confluenza:** ${prediction.analysis?.enhancedTechnical?.multiTimeframeAnalysis?.confluence || 'N/A'}%
 • **Supporto:** ${prediction.analysis?.technical?.support || 'N/A'}
 • **Resistenza:** ${prediction.analysis?.technical?.resistance || 'N/A'}
 • **Smart Money:** ${prediction.analysis?.smartMoney?.institutionalFlow || 'N/A'}
+• **VWAP Trend:** ${prediction.analysis?.vwap?.analysis?.trend || 'N/A'}
+• **Sentiment:** ${prediction.analysis?.sentiment?.score || 'N/A'}
 
 💡 **Gestione Rischio:**
 Usa sempre lo stop loss e non rischiare mai più del 2% del tuo account per trade.
@@ -676,8 +675,9 @@ ${gradeEmoji} **Punteggio:** ${prediction.confidence}%
 📈 **Direzione:** ${prediction.direction}
 
 **Fattori Determinanti:**
-• Confluenza Multi-Timeframe: ${prediction.analysis?.technical?.trend || 'N/A'}
+• Confluenza Multi-Timeframe: ${prediction.analysis?.enhancedTechnical?.multiTimeframeAnalysis?.confluence || 'N/A'}%
 • Analisi Smart Money: ${prediction.analysis?.smartMoney?.institutionalFlow || 'N/A'}
+• VWAP Trend: ${prediction.analysis?.vwap?.analysis?.trend || 'N/A'}
 • Sentiment di Mercato: ${prediction.analysis?.sentiment?.score || 'N/A'}
 • Volatilità: ${prediction.analysis?.volatility?.daily || 'N/A'}
 
@@ -752,8 +752,7 @@ async function handleHelpCommand(chatId: number): Promise<void> {
 **🎯 Comandi di Trading:**
 • \`/segnale SIMBOLO\` - Analisi AI con strategia ottimale
 • \`/scalping SIMBOLO\` - Trade veloci (1-15 min)
-• \`/intraday SIMBOLO\` - Day trading (1-8 ore)
-• \`/swing SIMBOLO\` - Trade multi-giorno (1-7 giorni)
+• \`/intraday SIMBOLO\` - Day trading (1-6 ore)
 • \`/ordina TRADE_ID DIMENSIONE_LOTTO\` - Esegui trade su MT5
 
 **📊 Gestione Posizioni:**
@@ -836,34 +835,32 @@ async function handleSymbolsCommand(chatId: number): Promise<void> {
 📊 **Simboli di Trading Supportati**
 
 **💰 Coppie Forex Principali:**
-• **EURUSD** - Euro/Dollaro USA ⚡📈🎯
-• **GBPUSD** - Sterlina/Dollaro USA ⚡📈🎯
-• **USDJPY** - Dollaro USA/Yen Giapponese ⚡📈🎯
-• **AUDUSD** - Dollaro Australiano/Dollaro USA 📈🎯
-• **USDCAD** - Dollaro USA/Dollaro Canadese 📈🎯
-• **USDCHF** - Dollaro USA/Franco Svizzero 📈🎯
-• **NZDUSD** - Dollaro Neozelandese/Dollaro USA 📈🎯
+• **EURUSD** - Euro/Dollaro USA ⚡📈
+• **GBPUSD** - Sterlina/Dollaro USA ⚡📈
+• **USDJPY** - Dollaro USA/Yen Giapponese ⚡📈
+• **AUDUSD** - Dollaro Australiano/Dollaro USA 📈
+• **USDCAD** - Dollaro USA/Dollaro Canadese 📈
+• **USDCHF** - Dollaro USA/Franco Svizzero 📈
+• **NZDUSD** - Dollaro Neozelandese/Dollaro USA 📈
 
 **💎 Criptovalute:**
-• **BTCUSD** - Bitcoin ⚡📈🎯
-• **ETHUSD** - Ethereum ⚡📈🎯
+• **BTCUSD** - Bitcoin ⚡📈
+• **ETHUSD** - Ethereum ⚡📈
 
 **🏆 Metalli Preziosi:**
-• **XAUUSD** - Oro 📈🎯
+• **XAUUSD** - Oro 📈
 
 **🛢️ Materie Prime:**
-• **CRUDE** - Petrolio WTI 📈🎯
-• **BRENT** - Petrolio Brent 📈🎯
+• **CRUDE** - Petrolio WTI 📈
+• **BRENT** - Petrolio Brent 📈
 
 **🎯 Simboli per Strategia:**
 ⚡ = Eccellente per SCALPING (1-15 min)
-📈 = Eccellente per INTRADAY (1-8 ore)  
-🎯 = Eccellente per SWING (1-7 giorni)
+📈 = Eccellente per INTRADAY (1-6 ore)  
 
 **Esempi di Uso:**
 • \`/scalping BTCUSD\` - Scalping Bitcoin
 • \`/intraday EURUSD\` - Intraday Euro
-• \`/swing XAUUSD\` - Swing trading Oro
   `;
   await sendMessage(chatId, message);
 }
@@ -887,12 +884,6 @@ ${getAllTradingModesInfo()}
 • Vuoi rischio/rendimento bilanciato
 • Puoi controllare i trade 2-3 volte al giorno
 • Preferisci opportunità a medio termine
-
-**Scegli SWING se:**
-• Sei un professionista impegnato
-• Preferisci trading hands-off
-• Vuoi target di profitto più grandi
-• Puoi mantenere posizioni per giorni
 
 **💡 Suggerimenti Pro:**
 • Usa \`/impostazioni\` per impostare la tua modalità preferita

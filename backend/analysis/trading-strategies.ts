@@ -1,7 +1,6 @@
 export enum TradingStrategy {
   SCALPING = "SCALPING",
-  INTRADAY = "INTRADAY", 
-  SWING = "SWING"
+  INTRADAY = "INTRADAY"
 }
 
 export interface StrategyConfig {
@@ -37,32 +36,17 @@ export const TRADING_STRATEGIES: Record<TradingStrategy, StrategyConfig> = {
   
   [TradingStrategy.INTRADAY]: {
     name: "Intraday",
-    description: "Day trading che cattura movimenti di prezzo medi (1-8 ore)",
+    description: "Day trading ottimizzato per chiusura entro la sessione di New York (1-6 ore)",
     timeframes: ["5m", "15m", "30m"],
     riskRewardRatio: 2.0,
     stopLossMultiplier: 1.0,
     takeProfitMultiplier: 2.0,
-    maxHoldingTime: 8,
+    maxHoldingTime: 6, // Ridotto da 8 a 6 ore per garantire chiusura entro NY
     minConfidence: 80,
     maxLotSize: 1.0,
     volatilityThreshold: 0.005,
     trendStrengthRequired: 0.5,
     marketConditions: ["NORMAL_VOLUME", "TRENDING", "BREAKOUT"]
-  },
-  
-  [TradingStrategy.SWING]: {
-    name: "Swing Trading",
-    description: "Trade multi-giorno che catturano ampi movimenti di prezzo (1-7 giorni)",
-    timeframes: ["30m", "1h", "4h"],
-    riskRewardRatio: 3.0,
-    stopLossMultiplier: 1.5,
-    takeProfitMultiplier: 4.5,
-    maxHoldingTime: 168,
-    minConfidence: 75,
-    maxLotSize: 2.0,
-    volatilityThreshold: 0.01,
-    trendStrengthRequired: 0.3,
-    marketConditions: ["ANY_VOLUME", "REVERSAL", "CONSOLIDATION"]
   }
 };
 
@@ -139,10 +123,20 @@ export function getOptimalStrategy(
   const trendStrength = calculateTrendStrength(marketData);
   const confidence = aiAnalysis.confidence;
   
+  // Calcola il tempo rimanente fino alla chiusura di NY (22:00 CET)
+  const now = new Date();
+  const nyCloseHour = 22; // 22:00 CET
+  const currentHour = now.getHours();
+  const hoursUntilNYClose = currentHour < nyCloseHour ? nyCloseHour - currentHour : 24 - currentHour + nyCloseHour;
+  
+  // Se mancano meno di 2 ore alla chiusura NY, forza scalping
+  if (hoursUntilNYClose < 2) {
+    return TradingStrategy.SCALPING;
+  }
+  
   const scores = {
     [TradingStrategy.SCALPING]: calculateStrategyScore(TradingStrategy.SCALPING, volatility, trendStrength, confidence),
-    [TradingStrategy.INTRADAY]: calculateStrategyScore(TradingStrategy.INTRADAY, volatility, trendStrength, confidence),
-    [TradingStrategy.SWING]: calculateStrategyScore(TradingStrategy.SWING, volatility, trendStrength, confidence)
+    [TradingStrategy.INTRADAY]: calculateStrategyScore(TradingStrategy.INTRADAY, volatility, trendStrength, confidence)
   };
   
   return Object.entries(scores).reduce((best, [strategy, score]) => 
@@ -281,48 +275,39 @@ export function getStrategyRecommendation(
   
   switch (strategy) {
     case TradingStrategy.SCALPING:
-      recommendation += "🔥 SCALPING SETUP:\n";
-      recommendation += "• Quick entry/exit (1-15 minutes)\n";
-      recommendation += "• Tight stop loss for capital protection\n";
-      recommendation += "• High confidence signals only\n";
-      recommendation += "• Monitor spreads and slippage\n";
-      recommendation += "• Best during high volume sessions\n";
+      recommendation += "🔥 SETUP SCALPING:\n";
+      recommendation += "• Entrata/uscita rapida (1-15 minuti)\n";
+      recommendation += "• Stop loss stretto per protezione capitale\n";
+      recommendation += "• Solo segnali ad alta confidenza\n";
+      recommendation += "• Monitora spread e slippage\n";
+      recommendation += "• Migliore durante sessioni ad alto volume\n";
       break;
       
     case TradingStrategy.INTRADAY:
-      recommendation += "⚡ INTRADAY SETUP:\n";
-      recommendation += "• Hold for 1-8 hours maximum\n";
-      recommendation += "• Balanced risk/reward ratio\n";
-      recommendation += "• Follow trend direction\n";
-      recommendation += "• Close before market close\n";
-      recommendation += "• Monitor news and events\n";
-      break;
-      
-    case TradingStrategy.SWING:
-      recommendation += "📈 SWING TRADING SETUP:\n";
-      recommendation += "• Multi-day holding period\n";
-      recommendation += "• Wider stops for volatility\n";
-      recommendation += "• Larger profit targets\n";
-      recommendation += "• Less frequent monitoring\n";
-      recommendation += "• Focus on weekly trends\n";
+      recommendation += "⚡ SETUP INTRADAY:\n";
+      recommendation += "• Mantieni per 1-6 ore massimo\n";
+      recommendation += "• Rapporto rischio/rendimento bilanciato\n";
+      recommendation += "• Segui la direzione del trend\n";
+      recommendation += "• Chiusura automatica prima della fine sessione NY\n";
+      recommendation += "• Monitora notizie ed eventi\n";
       break;
   }
   
-  recommendation += `\n📊 MARKET CONDITIONS:\n`;
-  recommendation += `• Volatility: ${(volatility * 100).toFixed(2)}%\n`;
-  recommendation += `• Trend Strength: ${(trendStrength * 100).toFixed(0)}%\n`;
-  recommendation += `• Confidence: ${aiAnalysis.confidence}%\n`;
+  recommendation += `\n📊 CONDIZIONI DI MERCATO:\n`;
+  recommendation += `• Volatilità: ${(volatility * 100).toFixed(2)}%\n`;
+  recommendation += `• Forza Trend: ${(trendStrength * 100).toFixed(0)}%\n`;
+  recommendation += `• Confidenza: ${aiAnalysis.confidence}%\n`;
   
   if (aiAnalysis.confidence < config.minConfidence) {
-    recommendation += `\n⚠️ WARNING: Confidence below optimal (${config.minConfidence}%)\n`;
+    recommendation += `\n⚠️ ATTENZIONE: Confidenza sotto l'ottimale (${config.minConfidence}%)\n`;
   }
   
   if (volatility > config.volatilityThreshold * 1.5) {
-    recommendation += `\n⚠️ WARNING: High volatility detected\n`;
+    recommendation += `\n⚠️ ATTENZIONE: Alta volatilità rilevata\n`;
   }
   
   if (trendStrength < config.trendStrengthRequired) {
-    recommendation += `\n⚠️ WARNING: Weak trend strength\n`;
+    recommendation += `\n⚠️ ATTENZIONE: Forza del trend debole\n`;
   }
   
   return recommendation;

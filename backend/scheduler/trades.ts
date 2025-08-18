@@ -13,10 +13,22 @@ export const checkExpiredTrades = cron("check-expired-trades", {
 
     try {
       const now = new Date();
+      
+      // Calcola la scadenza automatica per i trade intraday
+      // Chiudi tutti i trade intraday che sono aperti da più di 6 ore
+      const sixHoursAgo = new Date(now.getTime() - 6 * 60 * 60 * 1000);
+      
+      // Trova trade da chiudere (scaduti o intraday aperti da troppo tempo)
       const tradesToClose = await analysisDB.queryAll`
-        SELECT trade_id, mt5_order_id, user_id
-        FROM trading_signals
-        WHERE status = 'executed' AND expires_at IS NOT NULL AND expires_at <= ${now}
+        SELECT ts.trade_id, ts.mt5_order_id, ui.user_id, ui.chat_id
+        FROM trading_signals ts
+        LEFT JOIN user_interactions ui ON ui.user_id::text = ts.trade_id
+        WHERE ts.status = 'executed' 
+        AND (
+          (ts.expires_at IS NOT NULL AND ts.expires_at <= ${now})
+          OR 
+          (ts.strategy = 'INTRADAY' AND ts.executed_at <= ${sixHoursAgo})
+        )
       `;
 
       if (tradesToClose.length === 0) {
@@ -44,10 +56,9 @@ export const checkExpiredTrades = cron("check-expired-trades", {
           console.log(`Scheduler: Successfully closed trade ${trade.trade_id}.`);
           
           // Notify user
-          const user = await telegramDB.queryRow`SELECT chat_id FROM user_preferences WHERE user_id = ${trade.user_id}`;
-          if (user && user.chat_id) {
+          if (trade.chat_id) {
             const message = getMessage('trade.auto_closed', 'it', { tradeId: trade.trade_id });
-            await sendMessage(user.chat_id, message);
+            await sendMessage(trade.chat_id, message);
           }
         } else {
           console.error(`Scheduler: Failed to close trade ${trade.trade_id}. Error: ${result.error}`);
