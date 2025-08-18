@@ -1,5 +1,24 @@
 export type TradingStrategy = "SCALPING" | "INTRADAY" | "SWING";
 
+// TradingStrategy enum as requested in the problem statement (for compatibility)
+export enum TradingStrategyEnum {
+  SCALPING = "SCALPING",
+  INTRADAY = "INTRADAY", 
+  SWING = "SWING"
+}
+
+// Additional strategy types for technical analysis (for future extensibility)
+export type TechnicalAnalysisStrategy = "MOVING_AVERAGE" | "BOLLINGER_BANDS" | "RSI" | "MACD" | "SUPPORT_RESISTANCE";
+
+// Technical analysis strategy enum with common trading strategies
+export enum TechnicalAnalysisStrategyEnum {
+  MOVING_AVERAGE = "MOVING_AVERAGE",
+  BOLLINGER_BANDS = "BOLLINGER_BANDS",
+  RSI = "RSI",
+  MACD = "MACD",
+  SUPPORT_RESISTANCE = "SUPPORT_RESISTANCE"
+}
+
 export interface StrategyConfig {
   name: string;
   description: string;
@@ -70,6 +89,50 @@ export interface StrategyPriceTargets {
   rewardAmount: number;
   riskRewardRatio: number;
 }
+
+// Additional interfaces as requested in the problem statement
+export interface StrategyResult {
+  success: boolean;
+  signal: "LONG" | "SHORT" | "NONE";
+  confidence: number;
+  entryPrice?: number;
+  stopLoss?: number;
+  takeProfit?: number;
+  reason: string;
+}
+
+// Strategy parameter interfaces for technical analysis
+export interface MovingAverageParams {
+  fastPeriod: number;
+  slowPeriod: number;
+  signalPeriod?: number;
+}
+
+export interface RSIParams {
+  period: number;
+  overboughtLevel: number;
+  oversoldLevel: number;
+}
+
+export interface MACDParams {
+  fastPeriod: number;
+  slowPeriod: number;
+  signalPeriod: number;
+}
+
+export interface BollingerBandsParams {
+  period: number;
+  standardDeviations: number;
+}
+
+export interface SupportResistanceParams {
+  lookbackPeriods: number;
+  minTouches: number;
+  tolerance: number;
+}
+
+// Union type for all strategy parameters
+export type StrategyParams = MovingAverageParams | RSIParams | MACDParams | BollingerBandsParams | SupportResistanceParams;
 
 export function calculateStrategyTargets(
   strategy: TradingStrategy,
