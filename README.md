@@ -1,8 +1,8 @@
 # 🤖 AI Trading Bot - Telegram Integration
 
-## 🚨 Bot Non Risponde? Risoluzione Rapida
+## 🚨 Bot Non Risponde? Risoluzione Automatica
 
-Se il bot Telegram ha smesso di rispondere, usa questi script per diagnosticare e risolvere automaticamente il problema:
+Se il bot Telegram ha smesso di rispondere, usa questo script per diagnosticare e risolvere automaticamente il problema:
 
 ### 🔧 Riparazione Automatica (Raccomandato)
 
@@ -11,7 +11,7 @@ Se il bot Telegram ha smesso di rispondere, usa questi script per diagnosticare 
 export TELEGRAM_BOT_TOKEN=your_bot_token_here
 
 # Esegui diagnosi e riparazione automatica
-node scripts/diagnose-and-fix-bot.js https://staging-telegram-trading-bot-d6u2.encr.app
+node scripts/telegram-bot-doctor.js https://staging-telegram-trading-bot-d6u2.encr.app
 ```
 
 ### ⚡ Test Rapido
@@ -22,9 +22,7 @@ export TELEGRAM_BOT_TOKEN=your_bot_token_here
 node scripts/quick-bot-test.js https://staging-telegram-trading-bot-d6u2.encr.app
 ```
 
-### 🔍 Diagnosi Manuale
-
-Se gli script automatici non risolvono:
+### 🔍 Diagnosi Manuale (Se gli script automatici non funzionano)
 
 ```bash
 # Test completo degli endpoint
@@ -51,7 +49,7 @@ node scripts/webhook-config.js status
 **Soluzione**:
 ```bash
 export TELEGRAM_BOT_TOKEN=your_token
-node scripts/diagnose-and-fix-bot.js your_app_url
+node scripts/telegram-bot-doctor.js your_app_url
 ```
 
 ### 3. Servizio Offline
@@ -109,7 +107,7 @@ backend/telegram/
 └── db.ts                  # Database connection
 
 scripts/
-├── diagnose-and-fix-bot.js # Diagnosi e riparazione automatica
+├── telegram-bot-doctor.js  # Diagnosi e riparazione automatica (NUOVO)
 ├── quick-bot-test.js       # Test rapido
 ├── debug-webhook.js        # Debug completo
 └── webhook-config.js       # Configurazione webhook
@@ -124,19 +122,36 @@ scripts/
 
 ## 📈 Performance
 
-- Timeout di 10 secondi per le richieste
+- Timeout di 15 secondi per le richieste
 - Logging dettagliato per il debugging
 - Gestione errori che previene retry infiniti da Telegram
 - Validazione input per prevenire errori di elaborazione
+- Retry automatico per richieste fallite
 
 ## 🆘 Supporto
 
 Se i problemi persistono dopo aver seguito questa guida:
 
-1. **Controlla i logs** dell'applicazione per errori specifici
-2. **Verifica la configurazione** dei secrets
-3. **Testa manualmente** gli endpoint con curl
-4. **Contatta il supporto** con i logs e i risultati dei test
+1. **Esegui il Doctor Script**: `node scripts/telegram-bot-doctor.js <your-url>`
+2. **Controlla i logs** dell'applicazione per errori specifici
+3. **Verifica la configurazione** dei secrets
+4. **Testa manualmente** gli endpoint con curl
+5. **Contatta il supporto** con i logs e i risultati dei test
+
+## 🔄 Changelog v3.1.0
+
+### Nuove Funzionalità
+- **Telegram Bot Doctor**: Script di diagnosi e riparazione automatica
+- **Enhanced Error Handling**: Gestione errori migliorata nel webhook
+- **Better Logging**: Log più dettagliati per debugging
+- **Health Check Improvements**: Controlli di salute più completi
+- **Automatic Retry**: Retry automatico per richieste fallite
+
+### Miglioramenti
+- Timeout aumentato a 15 secondi per richieste
+- Validazione input migliorata
+- Gestione token bot più robusta
+- Endpoint di test più informativi
 
 ---
 

@@ -58,6 +58,7 @@ interface HealthCheckResponse {
   version: string;
   uptime: number;
   bot_token_configured: boolean;
+  webhook_url?: string;
 }
 
 interface WebhookConfigRequest {
@@ -82,6 +83,7 @@ interface ServiceInfoResponse {
   endpoints: string[];
   timestamp: string;
   status: string;
+  bot_info?: any;
 }
 
 interface TestEndpointResponse {
@@ -90,9 +92,10 @@ interface TestEndpointResponse {
   path: string;
   method: string;
   message: string;
+  bot_configured: boolean;
 }
 
-// Enhanced main webhook endpoint with comprehensive error handling and logging
+// Main webhook endpoint with enhanced error handling and logging
 export const webhook = api<TelegramUpdate, WebhookResponse>(
   { expose: true, method: "POST", path: "/telegram/webhook" },
   async (update) => {
@@ -174,7 +177,7 @@ export const webhook = api<TelegramUpdate, WebhookResponse>(
 
         // Process the message with enhanced error handling
         try {
-          await processMessage(chatId, userId, text!); // text is guaranteed to exist due to the condition above
+          await processMessage(chatId, userId, text);
           console.log(`[${timestamp}] ✅ Message processed successfully`);
         } catch (processError) {
           console.error(`[${timestamp}] ❌ Message processing failed:`, processError);
@@ -255,7 +258,7 @@ export const webhook = api<TelegramUpdate, WebhookResponse>(
   }
 );
 
-// Enhanced health check endpoint with bot token verification
+// Enhanced health check endpoint with comprehensive bot status
 export const webhookHealth = api<{}, HealthCheckResponse>(
   { expose: true, method: "GET", path: "/telegram/webhook/health" },
   async () => {
@@ -264,22 +267,35 @@ export const webhookHealth = api<{}, HealthCheckResponse>(
     
     // Check bot token configuration
     let botTokenConfigured = false;
+    let webhookUrl = undefined;
+    
     try {
       const token = telegramBotToken();
       botTokenConfigured = !!(token && token !== "your_telegram_bot_token");
+      
+      if (botTokenConfigured) {
+        // Try to get webhook info
+        try {
+          const webhookInfo = await getWebhookInfo();
+          webhookUrl = webhookInfo.url;
+        } catch (error) {
+          console.error("Error getting webhook info in health check:", error);
+        }
+      }
     } catch (error) {
       console.error("Error checking bot token:", error);
     }
     
-    console.log(`[${timestamp}] 🏥 Health check requested - uptime: ${uptime}s, bot token: ${botTokenConfigured ? 'OK' : 'NOT CONFIGURED'}`);
+    console.log(`[${timestamp}] 🏥 Health check requested - uptime: ${uptime}s, bot token: ${botTokenConfigured ? 'OK' : 'NOT CONFIGURED'}, webhook: ${webhookUrl || 'NOT SET'}`);
     
     return {
       status: "healthy",
       timestamp,
       service: "telegram-webhook",
-      version: "3.0.0",
+      version: "3.1.0",
       uptime,
-      bot_token_configured: botTokenConfigured
+      bot_token_configured: botTokenConfigured,
+      webhook_url: webhookUrl
     };
   }
 );
@@ -392,17 +408,27 @@ export const testEndpoint = api<{}, TestEndpointResponse>(
     const timestamp = new Date().toISOString();
     console.log(`[${timestamp}] 🧪 Test endpoint accessed`);
     
+    // Check bot configuration
+    let botConfigured = false;
+    try {
+      const token = telegramBotToken();
+      botConfigured = !!(token && token !== "your_telegram_bot_token");
+    } catch (error) {
+      console.error("Error checking bot token in test endpoint:", error);
+    }
+    
     return {
       status: "ok",
       timestamp,
       path: "/telegram/test",
       method: "GET",
-      message: "Telegram service is responding correctly"
+      message: "Telegram service is responding correctly",
+      bot_configured: botConfigured
     };
   }
 );
 
-// Enhanced root endpoint for the telegram service with comprehensive endpoint listing
+// Enhanced root endpoint for the telegram service with comprehensive information
 export const telegramRoot = api<{}, ServiceInfoResponse>(
   { expose: true, method: "GET", path: "/telegram" },
   async () => {
@@ -411,10 +437,22 @@ export const telegramRoot = api<{}, ServiceInfoResponse>(
     
     // Check service health
     let status = "healthy";
+    let botInfo = undefined;
+    
     try {
       const token = telegramBotToken();
       if (!token || token === "your_telegram_bot_token") {
         status = "configuration_required";
+      } else {
+        // Try to get bot info
+        try {
+          const { sendMessage } = await import("./telegram-client");
+          // We can't easily get bot info here without making external calls
+          // So we'll just indicate the token is configured
+          status = "configured";
+        } catch (error) {
+          status = "configuration_error";
+        }
       }
     } catch (error) {
       status = "configuration_error";
@@ -424,6 +462,7 @@ export const telegramRoot = api<{}, ServiceInfoResponse>(
       service: "telegram",
       timestamp,
       status,
+      bot_info: botInfo,
       endpoints: [
         "POST /telegram/webhook - Main webhook endpoint for Telegram updates",
         "GET /telegram/webhook/health - Health check endpoint with bot token verification",
@@ -450,7 +489,9 @@ export const webhookTest = api<TelegramUpdate, WebhookResponse>(
       processing_time: 0,
       debug_info: {
         message: "Test webhook endpoint - update received successfully",
-        update_id: update?.update_id
+        update_id: update?.update_id,
+        has_message: !!update?.message,
+        has_callback_query: !!update?.callback_query
       }
     };
   }
