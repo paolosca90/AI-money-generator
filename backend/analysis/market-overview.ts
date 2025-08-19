@@ -1,5 +1,6 @@
 import { api } from "encore.dev/api";
 import { analysisDB } from "./db";
+import { analyzeSentiment } from "./sentiment-analyzer";
 
 export interface AssetReliability {
   symbol: string;
@@ -53,7 +54,7 @@ export const getMarketOverview = api<void, MarketOverview>(
     // Get top performing assets based on recent signals
     const topAssets = await getTopReliableAssets();
     
-    // Get relevant market news
+    // Get relevant market news using the enhanced sentiment analyzer
     const marketNews = await getRelevantMarketNews();
     
     // Calculate market sentiment
@@ -145,74 +146,28 @@ async function getTopReliableAssets(): Promise<AssetReliability[]> {
 }
 
 async function getRelevantMarketNews(): Promise<MarketNews[]> {
-  // In a real implementation, this would fetch from news APIs
-  // For now, we'll generate relevant market news based on current market conditions
-  
-  const currentHour = new Date().getHours();
+  // This function is now driven by the enhanced sentiment analyzer
+  const symbolsToAnalyze = ["EURUSD", "BTCUSD", "XAUUSD", "US500", "CRUDE"];
   const newsItems: MarketNews[] = [];
 
-  // Generate time-relevant news
-  if (currentHour >= 8 && currentHour <= 17) {
-    newsItems.push({
-      id: "news_1",
-      title: "Mercati Europei in Focus: BCE Mantiene Tassi Stabili",
-      summary: "La Banca Centrale Europea ha mantenuto i tassi di interesse invariati, sostenendo l'Euro contro il Dollaro. Gli analisti prevedono volatilità limitata per le coppie EUR.",
-      impact: "MEDIUM",
-      affectedAssets: ["EURUSD", "EURGBP", "EURJPY", "GER40", "FRA40"],
-      source: "Reuters",
-      publishedAt: new Date(Date.now() - 2 * 60 * 60 * 1000), // 2 hours ago
-      sentiment: "NEUTRAL"
-    });
+  for (const symbol of symbolsToAnalyze) {
+    try {
+      const sentiment = await analyzeSentiment(symbol);
+      
+      newsItems.push({
+        id: `news_${symbol}`,
+        title: `Market Update for ${symbol}`,
+        summary: sentiment.summary,
+        impact: Math.abs(sentiment.score) > 0.6 ? "HIGH" : Math.abs(sentiment.score) > 0.3 ? "MEDIUM" : "LOW",
+        affectedAssets: [symbol],
+        source: sentiment.sources.slice(0, 2).join(', '),
+        publishedAt: new Date(Date.now() - Math.random() * 3 * 60 * 60 * 1000),
+        sentiment: sentiment.score > 0.3 ? "POSITIVE" : sentiment.score < -0.3 ? "NEGATIVE" : "NEUTRAL"
+      });
+    } catch (error) {
+      console.error(`Failed to get news for ${symbol}:`, error);
+    }
   }
-
-  if (currentHour >= 14 && currentHour <= 22) {
-    newsItems.push({
-      id: "news_2",
-      title: "Wall Street Apre in Rialzo: Tecnologiche Guidano i Guadagni",
-      summary: "I principali indici USA aprono in territorio positivo, con il settore tecnologico che guida i rialzi. NAS100 e SPX500 mostrano momentum bullish.",
-      impact: "HIGH",
-      affectedAssets: ["SPX500", "NAS100", "US30", "BTCUSD", "ETHUSD"],
-      source: "Bloomberg",
-      publishedAt: new Date(Date.now() - 30 * 60 * 1000), // 30 minutes ago
-      sentiment: "POSITIVE"
-    });
-  }
-
-  // Add crypto-related news
-  newsItems.push({
-    id: "news_3",
-    title: "Bitcoin Consolida Sopra $95,000: Analisti Ottimisti",
-    summary: "Bitcoin mantiene livelli elevati sopra i $95,000, con volumi in crescita. Gli analisti vedono potenziale per ulteriori rialzi verso $100,000.",
-    impact: "HIGH",
-    affectedAssets: ["BTCUSD", "ETHUSD", "LTCUSD", "XRPUSD"],
-    source: "CoinDesk",
-    publishedAt: new Date(Date.now() - 45 * 60 * 1000), // 45 minutes ago
-    sentiment: "POSITIVE"
-  });
-
-  // Add commodities news
-  newsItems.push({
-    id: "news_4",
-    title: "Oro Stabile Vicino ai Massimi: Tensioni Geopolitiche Supportano",
-    summary: "L'oro mantiene livelli elevati vicino ai $2,050, supportato dalle tensioni geopolitiche globali e dall'incertezza economica.",
-    impact: "MEDIUM",
-    affectedAssets: ["XAUUSD", "XAGUSD", "USDCHF"],
-    source: "MarketWatch",
-    publishedAt: new Date(Date.now() - 90 * 60 * 1000), // 1.5 hours ago
-    sentiment: "POSITIVE"
-  });
-
-  // Add forex news
-  newsItems.push({
-    id: "news_5",
-    title: "Dollaro USA Sotto Pressione: Dati Inflazione Deludenti",
-    summary: "Il Dollaro USA perde terreno contro le principali valute dopo dati sull'inflazione inferiori alle attese, alimentando speculazioni su tagli dei tassi Fed.",
-    impact: "HIGH",
-    affectedAssets: ["EURUSD", "GBPUSD", "USDJPY", "AUDUSD", "USDCAD"],
-    source: "Financial Times",
-    publishedAt: new Date(Date.now() - 3 * 60 * 60 * 1000), // 3 hours ago
-    sentiment: "NEGATIVE"
-  });
 
   return newsItems.slice(0, 5);
 }

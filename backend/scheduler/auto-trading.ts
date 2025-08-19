@@ -1,7 +1,7 @@
 import { cron } from "encore.dev/cron";
 import { analysisDB } from "../analysis/db";
 import { generateSignalForSymbol } from "../analysis/signal-generator";
-import { recordSignalAnalytics } from "../analysis/analytics-tracker";
+import { recordSignalAnalytics, recordSignalPerformance } from "../analysis/analytics-tracker";
 import { learningEngine } from "../ml/learning-engine";
 
 // Simboli da analizzare automaticamente
@@ -12,9 +12,9 @@ const AUTO_TRADING_SYMBOLS = [
   "BTCUSD", "ETHUSD", "LTCUSD", "XRPUSD"
 ];
 
-// Genera segnali automaticamente ogni 30 minuti
+// Genera segnali automaticamente ogni 3 minuti
 export const generateAutoSignals = cron("generate-auto-signals", {
-  every: "30m",
+  every: "3m",
   handler: async () => {
     console.log("🤖 Avvio generazione automatica segnali...");
 
@@ -141,11 +141,6 @@ async function simulateTradeClose(signal: any, holdingTimeMs: number) {
   try {
     console.log(`🔄 Simulando chiusura trade ${signal.tradeId} dopo ${holdingTimeMs}ms`);
 
-    // Calcola un esito realistico basato su:
-    // 1. Confidenza del segnale
-    // 2. Condizioni di mercato
-    // 3. Strategia utilizzata
-    // 4. Volatilità del simbolo
     const outcome = calculateRealisticOutcome(signal);
 
     // Aggiorna il trade con l'esito
@@ -157,16 +152,25 @@ async function simulateTradeClose(signal: any, holdingTimeMs: number) {
       WHERE trade_id = ${signal.tradeId}
     `;
 
-    // Registra le performance per il ML
-    await analysisDB.exec`
-      INSERT INTO ai_model_performance (
-        model_version, trade_id, predicted_direction, actual_direction, 
-        confidence, profit_loss, created_at
-      ) VALUES (
-        'auto_v1.0', ${signal.tradeId}, ${signal.direction}, ${outcome.actualDirection}, 
-        ${signal.confidence}, ${outcome.profitLoss}, NOW()
-      )
+    // Registra le performance per il ML in modo strutturato
+    const executedSignal = await analysisDB.queryRow`
+      SELECT executed_at, analysis_data FROM trading_signals WHERE trade_id = ${signal.tradeId}
     `;
+
+    await recordSignalPerformance({
+      tradeId: signal.tradeId,
+      symbol: signal.symbol,
+      predictedDirection: signal.direction,
+      actualDirection: outcome.actualDirection,
+      predictedConfidence: signal.confidence,
+      actualProfitLoss: outcome.profitLoss,
+      executionTime: executedSignal?.executed_at ? new Date(executedSignal.executed_at) : new Date(),
+      closeTime: new Date(),
+      marketConditionsAtEntry: executedSignal?.analysis_data?.enhancedTechnical?.marketContext || {},
+      marketConditionsAtExit: { sessionType: executedSignal?.analysis_data?.enhancedTechnical?.marketContext?.sessionType || 'UNKNOWN', volatilityState: 'NORMAL' },
+      technicalIndicatorsAtEntry: executedSignal?.analysis_data?.technical || {},
+      technicalIndicatorsAtExit: { rsi: 50 + (Math.random() - 0.5) * 20, macd: (Math.random() - 0.5) * 0.001 }
+    });
 
     console.log(`✅ Trade ${signal.tradeId} chiuso: ${outcome.actualDirection} P/L: $${outcome.profitLoss.toFixed(2)}`);
 
