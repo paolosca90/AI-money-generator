@@ -1,6 +1,6 @@
 # Guida all'Utilizzo del Machine Learning
 
-Il nostro sistema di trading integra un potente motore di Machine Learning (ML) per migliorare l'accuratezza delle previsioni e adattarsi dinamicamente alle condizioni di mercato. Questa guida spiega come interpretare e utilizzare le funzionalità ML.
+AI Trading Boost integra un potente motore di Machine Learning (ML) per migliorare l'accuratezza delle previsioni e adattarsi dinamicamente alle condizioni di mercato. Questa guida spiega come interpretare e utilizzare le funzionalità ML.
 
 ## Dashboard di Machine Learning
 
@@ -43,4 +43,4 @@ Nella dashboard, troverai due pulsanti per interagire con il motore ML:
 
 ## Conclusione
 
-Sfruttare le funzionalità di Machine Learning ti permette di avere un sistema che non solo fornisce segnali, ma che si adatta e migliora nel tempo. Monitora regolarmente la dashboard ML e usa le funzionalità interattive per mantenere il tuo bot di trading al massimo delle sue potenzialità.
+Sfruttare le funzionalità di Machine Learning ti permette di avere un sistema che non solo fornisce segnali, ma che si adatta e migliora nel tempo. Monitora regolarmente la dashboard ML e usa le funzionalità interattive per mantenere AI Trading Boost al massimo delle sue potenzialità.

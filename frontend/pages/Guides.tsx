@@ -12,12 +12,12 @@ export default function Guides() {
     {
       id: "getting-started",
       title: "🚀 Guida Introduttiva",
-      description: "Come iniziare con il trading bot AI",
+      description: "Come iniziare con AI Trading Boost",
       difficulty: "Principiante",
       duration: "10 min",
       icon: Play,
       content: {
-        overview: "Questa guida ti aiuterà a configurare e utilizzare il tuo trading bot AI per la prima volta.",
+        overview: "Questa guida ti aiuterà a configurare e utilizzare AI Trading Boost per la prima volta.",
         steps: [
           {
             title: "1. Configurazione Account",
@@ -50,7 +50,7 @@ export default function Guides() {
       duration: "15 min",
       icon: Brain,
       content: {
-        overview: "Il nostro sistema integra machine learning avanzato per migliorare continuamente le performance di trading.",
+        overview: "AI Trading Boost integra machine learning avanzato per migliorare continuamente le performance di trading.",
         steps: [
           {
             title: "Dashboard ML Analytics",
@@ -116,7 +116,7 @@ export default function Guides() {
       duration: "20 min",
       icon: TrendingUp,
       content: {
-        overview: "Il sistema offre diverse strategie ottimizzate per diversi stili di trading e condizioni di mercato.",
+        overview: "AI Trading Boost offre diverse strategie ottimizzate per diversi stili di trading e condizioni di mercato.",
         steps: [
           {
             title: "Scalping",
@@ -149,7 +149,7 @@ export default function Guides() {
       duration: "10 min",
       icon: AlertCircle,
       content: {
-        overview: "Risolvi rapidamente i problemi più comuni che potresti incontrare durante l'utilizzo del sistema.",
+        overview: "Risolvi rapidamente i problemi più comuni che potresti incontrare durante l'utilizzo di AI Trading Boost.",
         steps: [
           {
             title: "Connessione MT5 Fallita",
@@ -182,7 +182,7 @@ export default function Guides() {
     <div className="space-y-6">
       <div>
         <h1 className="text-3xl font-bold">📚 Guide e Documentazione</h1>
-        <p className="text-muted-foreground">Tutto quello che devi sapere per utilizzare al meglio il trading bot AI</p>
+        <p className="text-muted-foreground">Tutto quello che devi sapere per utilizzare al meglio AI Trading Boost</p>
       </div>
 
       <div className="grid gap-6 lg:grid-cols-4">
