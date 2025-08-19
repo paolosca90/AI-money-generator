@@ -52,71 +52,9 @@ export const predict = api<PredictRequest, TradingSignal>(
         throw APIError.failedPrecondition("MT5 configuration or user preferences are not set up. Please configure them in the settings.");
       }
 
-for (const tf of requiredTimeframes) {
-        completeMarketData[tf] = (marketData as any)[tf] || fallbackData;
-      }
-      if ((marketData as any)["1m"]) completeMarketData["1m"] = (marketData as any)["1m"];
-      if ((marketData as any)["1h"]) completeMarketData["1h"] = (marketData as any)["1h"];
-      
-      console.log(`Performing AI analysis for ${symbol}`);
-      const aiAnalysis = await analyzeWithAI(completeMarketData, symbol);
-      
-      const optimalStrategy = getOptimalStrategy(completeMarketData, aiAnalysis, symbol, userStrategy);
-      const strategyConfig = TRADING_STRATEGIES[optimalStrategy];
-      
-      console.log(`Selected strategy: ${optimalStrategy} for ${symbol}`);
-      
-      const sentimentAnalysis = await analyzeSentiment(symbol);
-      
-      const currentPrice = completeMarketData["5m"].close;
-      const atr = completeMarketData["5m"].indicators.atr;
-      
-      const priceTargets = calculateStrategyTargets(
-        optimalStrategy, currentPrice, atr, aiAnalysis.direction, symbol
-      );
-      
-      const recommendedLotSize = calculatePositionSize(
-        optimalStrategy, accountBalance, riskPercentage, priceTargets.riskAmount
-      );
-      
-      const strategyRecommendation = getStrategyRecommendation(optimalStrategy, completeMarketData, aiAnalysis);
-      
-      const chartUrl = await generateChart(symbol, completeMarketData, aiAnalysis);
-      
-      const riskLevel = determineRiskLevel(optimalStrategy, aiAnalysis, completeMarketData);
-      
-      const confidenceInt = Math.round(aiAnalysis.confidence);
-      const maxHoldingTimeHours = Number(strategyConfig.maxHoldingTime);
-      const expiresAt = calculateExpirationTime(optimalStrategy, maxHoldingTimeHours);
-
-      const signal: TradingSignal = {
-        tradeId,
-        symbol,
-        direction: aiAnalysis.direction,
-        strategy: optimalStrategy,
-        entryPrice: priceTargets.entryPrice,
-        takeProfit: priceTargets.takeProfit,
-        stopLoss: priceTargets.stopLoss,
-        confidence: confidenceInt,
-        riskRewardRatio: priceTargets.riskRewardRatio,
-        recommendedLotSize,
-        maxHoldingTime: maxHoldingTimeHours,
-        expiresAt,
-        chartUrl,
-        strategyRecommendation,
-        analysis: {
-          technical: { ...aiAnalysis.technical, ...aiAnalysis.priceAction, support: aiAnalysis.support, resistance: aiAnalysis.resistance },
-          smartMoney: aiAnalysis.smartMoney,
-          professional: aiAnalysis.professionalAnalysis,
-          sentiment: { ...sentimentAnalysis, summary: sentimentAnalysis.summary },
-          volatility: aiAnalysis.volatility,
-          strategy: { name: strategyConfig.name, description: strategyConfig.description, timeframes: strategyConfig.timeframes, marketConditions: strategyConfig.marketConditions, riskLevel },
-          enhancedTechnical: aiAnalysis.enhancedTechnical,
-          vwap: aiAnalysis.vwap,
-        },
-        // NEW: Enhanced institutional analysis for improved signal quality
-        institutionalAnalysis: aiAnalysis.institutionalAnalysis,
-        enhancedConfidence: aiAnalysis.enhancedConfidence,
+      const tradeParams = {
+        accountBalance: preferences.accountBalance,
+        riskPercentage: preferences.riskPercentage
       };
 
       const signal = await generateSignalForSymbol(symbol, mt5Config, tradeParams, userStrategy);
