@@ -28,7 +28,12 @@ interface SymbolInfo {
   // other fields can be added if needed
 }
 
-export async function fetchMarketData(symbol: string, timeframes: string[], mt5Config: Mt5Config): Promise<TimeframeData> {
+export async function fetchMarketData(
+  symbol: string, 
+  timeframes: string[], 
+  mt5Config: Mt5Config, 
+  requireRealData: boolean = false
+): Promise<TimeframeData> {
   const data: TimeframeData = {};
   let mt5Available = false;
 
@@ -78,6 +83,9 @@ export async function fetchMarketData(symbol: string, timeframes: string[], mt5C
 
     // If MT5 failed or unavailable, create fallback data
     if (!dataPoint) {
+      if (requireRealData) {
+        throw new Error(`Real MT5 data required for ${symbol} ${timeframe}, but MT5 is unavailable or returned no data.`);
+      }
       console.log(`⚠️ MT5 data unavailable for ${symbol} ${timeframe}, using enhanced fallback data`);
       dataPoint = createEnhancedFallbackData(symbol, timeframe);
     }
