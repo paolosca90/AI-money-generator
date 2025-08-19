@@ -25,6 +25,7 @@ interface SymbolInfo {
   name: string;
   spread: number;
   point: number;
+  tradable: boolean;
   // other fields can be added if needed
 }
 
@@ -203,7 +204,7 @@ async function findCorrectSymbolFormat(baseUrl: string, symbol: string): Promise
 
       if (response.ok) {
         const result = await response.json() as any;
-        if (result.symbol_info && !result.error) {
+        if (result.symbol_info && !result.error && result.symbol_info.tradable) {
           console.log(`✅ Found correct symbol format: ${symbol} → ${variation}`);
           return { name: variation, info: result.symbol_info };
         }

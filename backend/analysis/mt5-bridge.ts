@@ -144,7 +144,7 @@ async function findCorrectExecutionSymbol(symbol: string, host: string, port: nu
 
       if (response.ok) {
         const result = await response.json() as any;
-        if (result.symbol_info && !result.error && result.symbol_info.visible) {
+        if (result.symbol_info && !result.error && result.symbol_info.tradable) {
           console.log(`✅ Found tradeable symbol: ${symbol} → ${variation}`);
           return variation;
         }

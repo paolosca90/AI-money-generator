@@ -1,9 +1,10 @@
 /**
- * Institutional Trading Analysis Module
- * 
- * This module implements advanced institutional trading concepts to significantly
- * improve signal quality using professional trader methodologies.
+ * Institutional Trading Analysis Module (v2.0)
+ * * Implementa concetti avanzati di trading istituzionale (Market Structure, BOS/CHOCH, Order Blocks)
+ * per migliorare drasticamente la qualità dei segnali.
  */
+
+// --- INTERFACCE POTENZIATE ---
 
 export interface OrderBlock {
   id: string;
@@ -15,7 +16,7 @@ export interface OrderBlock {
   timestamp: number;
   strength: "WEAK" | "MODERATE" | "STRONG" | "EXTREME";
   status: "FRESH" | "TESTED" | "BROKEN";
-  distance: number; // Distance from current price
+  distance: number; // Distanza dal prezzo corrente
 }
 
 export interface FairValueGap {
@@ -30,19 +31,23 @@ export interface FairValueGap {
   volume: number;
 }
 
+export interface StructurePoint {
+  type: "HH" | "HL" | "LH" | "LL"; // Higher High, Higher Low, etc.
+  price: number;
+  timestamp: number;
+}
+
 export interface MarketStructure {
   trend: "UPTREND" | "DOWNTREND" | "RANGING";
-  lastBOS: "BULLISH" | "BEARISH" | null; // Break of Structure
-  lastCHOCH: "BULLISH" | "BEARISH" | null; // Change of Character
-  swingHighs: number[];
-  swingLows: number[];
+  bias: "BULLISH" | "BEARISH" | "NEUTRAL"; // Il "pregiudizio" direzionale basato sulla struttura recente
+  lastBOS: { type: "BULLISH" | "BEARISH"; price: number; timestamp: number } | null;
+  lastCHOCH: { type: "BULLISH" | "BEARISH"; price: number; timestamp: number } | null;
+  swingHighs: { price: number; timestamp: number }[];
+  swingLows: { price: number; timestamp: number }[];
+  structurePoints: StructurePoint[];
   keyLevels: number[];
-  structurePoints: Array<{
-    type: "HH" | "HL" | "LH" | "LL";
-    price: number;
-    timestamp: number;
-  }>;
 }
+
 
 export interface SupplyDemandZone {
   id: string;
@@ -102,6 +107,185 @@ export interface InstitutionalAnalysis {
     volatilityExpected: "LOW" | "MODERATE" | "HIGH" | "EXTREME";
   }>;
 }
+
+
+// --- NUOVE FUNZIONI DI ANALISI STRUTTURALE (SOSTITUZIONE) ---
+
+/**
+ * Identifica gli Swing Highs (massimi di swing) in una serie di candele.
+ * Uno swing high è un massimo locale più alto delle candele circostanti.
+ */
+export function identifySwingHighs(candles: Array<{high: number, timestamp: number}>, lookback: number = 5): { price: number; timestamp: number }[] {
+  const swingHighs: { price: number; timestamp: number }[] = [];
+  if (candles.length < (lookback * 2 + 1)) return [];
+
+  for (let i = lookback; i < candles.length - lookback; i++) {
+    const currentHigh = candles[i].high;
+    let isSwingHigh = true;
+    for (let j = 1; j <= lookback; j++) {
+      if (candles[i - j].high > currentHigh || candles[i + j].high > currentHigh) {
+        isSwingHigh = false;
+        break;
+      }
+    }
+    if (isSwingHigh) {
+      swingHighs.push({ price: currentHigh, timestamp: candles[i].timestamp });
+    }
+  }
+  return swingHighs;
+}
+
+/**
+ * Identifica gli Swing Lows (minimi di swing) in una serie di candele.
+ * Uno swing low è un minimo locale più basso delle candele circostanti.
+ */
+export function identifySwingLows(candles: Array<{low: number, timestamp: number}>, lookback: number = 5): { price: number; timestamp: number }[] {
+  const swingLows: { price: number; timestamp: number }[] = [];
+  if (candles.length < (lookback * 2 + 1)) return [];
+
+  for (let i = lookback; i < candles.length - lookback; i++) {
+    const currentLow = candles[i].low;
+    let isSwingLow = true;
+    for (let j = 1; j <= lookback; j++) {
+      if (candles[i - j].low < currentLow || candles[i + j].low < currentLow) {
+        isSwingLow = false;
+        break;
+      }
+    }
+    if (isSwingLow) {
+      swingLows.push({ price: currentLow, timestamp: candles[i].timestamp });
+    }
+  }
+  return swingLows;
+}
+
+/**
+ * Analizza e ordina i punti di swing per creare una sequenza strutturale.
+ */
+function getStructurePoints(swingHighs: { price: number; timestamp: number }[], swingLows: { price: number; timestamp: number }[]): { price: number; timestamp: number; isHigh: boolean }[] {
+    const combined = [
+        ...swingHighs.map(sh => ({ ...sh, isHigh: true })),
+        ...swingLows.map(sl => ({ ...sl, isHigh: false }))
+    ];
+    return combined.sort((a, b) => a.timestamp - b.timestamp);
+}
+
+/**
+ * Analizza la sequenza di punti di swing per identificare HH, HL, LH, LL e i Break of Structure (BOS) / Change of Character (CHOCH).
+ */
+function analyzeStructuralSequence(points: { price: number; timestamp: number; isHigh: boolean }[]): { structurePoints: StructurePoint[], lastBOS: MarketStructure['lastBOS'], lastCHOCH: MarketStructure['lastCHOCH'] } {
+    const structurePoints: StructurePoint[] = [];
+    let lastBOS: MarketStructure['lastBOS'] = null;
+    let lastCHOCH: MarketStructure['lastCHOCH'] = null;
+
+    if (points.length < 2) return { structurePoints, lastBOS, lastCHOCH };
+
+    for (let i = 1; i < points.length; i++) {
+        const prev = points[i-1];
+        const current = points[i];
+
+        // Se abbiamo due massimi o due minimi consecutivi, ignoriamo il meno significativo
+        if (prev.isHigh === current.isHigh) continue;
+
+        let type: StructurePoint['type'] | null = null;
+        if (current.isHigh) {
+            type = current.price > prev.price ? "HH" : "LH";
+        } else {
+            type = current.price > prev.price ? "HL" : "LL";
+        }
+        structurePoints.push({ type, price: current.price, timestamp: current.timestamp });
+
+        // Identificazione BOS e CHOCH
+        const lastHigh = findLastPoint(structurePoints, p => p.type === "HH" || p.type === "LH", structurePoints.length - 2);
+        const lastLow = findLastPoint(structurePoints, p => p.type === "LL" || p.type === "HL", structurePoints.length - 2);
+
+        if (lastHigh && current.isHigh && current.price > lastHigh.price) { // Break of a high
+            if (lastHigh.type === "HH") { // Bullish trend continuation
+                lastBOS = { type: "BULLISH", price: current.price, timestamp: current.timestamp };
+            } else { // Change of character from bearish to bullish
+                lastCHOCH = { type: "BULLISH", price: current.price, timestamp: current.timestamp };
+            }
+        }
+        if (lastLow && !current.isHigh && current.price < lastLow.price) { // Break of a low
+            if (lastLow.type === "LL") { // Bearish trend continuation
+                lastBOS = { type: "BEARISH", price: current.price, timestamp: current.timestamp };
+            } else { // Change of character from bullish to bearish
+                lastCHOCH = { type: "BEARISH", price: current.price, timestamp: current.timestamp };
+            }
+        }
+    }
+
+    return { structurePoints, lastBOS, lastCHOCH };
+}
+
+function findLastPoint(points: StructurePoint[], filter: (p: StructurePoint) => boolean, startIndex: number): StructurePoint | null {
+    for (let i = startIndex; i >= 0; i--) {
+        if (filter(points[i])) return points[i];
+    }
+    return null;
+}
+
+/**
+ * Determina il trend e il bias basandosi sulla sequenza strutturale.
+ */
+function determineTrendAndBias(points: StructurePoint[]): { trend: MarketStructure['trend'], bias: MarketStructure['bias'] } {
+    if (points.length < 3) return { trend: "RANGING", bias: "NEUTRAL" };
+
+    const lastThree = points.slice(-3);
+    const [p1, p2, p3] = lastThree;
+
+    // Uptrend: Higher Highs and Higher Lows
+    if ((p1.type === "HL" && p2.type === "HH" && p3.type === "HL" && p3.price > p1.price) ||
+        (p1.type === "HH" && p2.type === "HL" && p3.type === "HH" && p3.price > p1.price)) {
+        return { trend: "UPTREND", bias: "BULLISH" };
+    }
+
+    // Downtrend: Lower Lows and Lower Highs
+    if ((p1.type === "LH" && p2.type === "LL" && p3.type === "LH" && p3.price < p1.price) ||
+        (p1.type === "LL" && p2.type === "LH" && p3.type === "LL" && p3.price < p1.price)) {
+        return { trend: "DOWNTREND", bias: "BEARISH" };
+    }
+
+    // Se l'ultimo punto è un massimo più alto (HH) o un minimo più alto (HL), il bias è bullish
+    const lastPoint = points[points.length - 1];
+    if(lastPoint.type === 'HH' || lastPoint.type === 'HL') return { trend: "RANGING", bias: "BULLISH" };
+    if(lastPoint.type === 'LL' || lastPoint.type === 'LH') return { trend: "RANGING", bias: "BEARISH" };
+
+    return { trend: "RANGING", bias: "NEUTRAL" };
+}
+
+
+/**
+ * Funzione principale che orchestra l'analisi della struttura di mercato.
+ */
+export function analyzeMarketStructure(
+  candles: Array<{high: number, low: number, open: number, close: number, volume: number, timestamp: number}>
+): MarketStructure {
+  const swingHighs = identifySwingHighs(candles);
+  const swingLows = identifySwingLows(candles);
+  const orderedPoints = getStructurePoints(swingHighs, swingLows);
+
+  const { structurePoints, lastBOS, lastCHOCH } = analyzeStructuralSequence(orderedPoints);
+  const { trend, bias } = determineTrendAndBias(structurePoints);
+
+  const keyLevels = [...swingHighs.map(s => s.price), ...swingLows.map(s => s.price)]
+                      .filter((v, i, a) => a.indexOf(v) === i) // Unici
+                      .sort((a, b) => a - b);
+
+  return {
+    trend,
+    bias,
+    lastBOS,
+    lastCHOCH,
+    swingHighs,
+    swingLows,
+    structurePoints,
+    keyLevels
+  };
+}
+
+
+// --- FUNZIONI ESISTENTI (NON MODIFICATE IN QUESTO STEP) ---
 
 /**
  * Identify Order Blocks based on institutional order flow patterns
@@ -234,32 +418,6 @@ export function identifyFairValueGaps(
   }
   
   return fvgs.slice(0, 10); // Keep top 10 most recent FVGs
-}
-
-/**
- * Analyze market structure for institutional patterns
- */
-export function analyzeMarketStructure(
-  candles: Array<{high: number, low: number, open: number, close: number, volume: number, timestamp: number}>
-): MarketStructure {
-  const swingHighs = identifySwingHighs(candles);
-  const swingLows = identifySwingLows(candles);
-  const structurePoints = analyzeStructurePoints(swingHighs, swingLows);
-  
-  const trend = determineTrend(structurePoints);
-  const lastBOS = identifyLastBOS(structurePoints);
-  const lastCHOCH = identifyLastCHOCH(structurePoints);
-  const keyLevels = identifyKeyLevels(swingHighs, swingLows);
-  
-  return {
-    trend,
-    lastBOS,
-    lastCHOCH,
-    swingHighs,
-    swingLows,
-    keyLevels,
-    structurePoints
-  };
 }
 
 /**
@@ -510,127 +668,6 @@ function calculateFVGStrength(
   if (score >= 0.6) return "STRONG";
   if (score >= 0.3) return "MODERATE";
   return "WEAK";
-}
-
-// Helper functions for Market Structure analysis
-function identifySwingHighs(candles: any[]): number[] {
-  const swingHighs: number[] = [];
-  const lookback = 5;
-  
-  for (let i = lookback; i < candles.length - lookback; i++) {
-    const current = candles[i].high;
-    let isSwingHigh = true;
-    
-    // Check if current high is higher than surrounding highs
-    for (let j = i - lookback; j <= i + lookback; j++) {
-      if (j !== i && candles[j].high >= current) {
-        isSwingHigh = false;
-        break;
-      }
-    }
-    
-    if (isSwingHigh) {
-      swingHighs.push(current);
-    }
-  }
-  
-  return swingHighs;
-}
-
-function identifySwingLows(candles: any[]): number[] {
-  const swingLows: number[] = [];
-  const lookback = 5;
-  
-  for (let i = lookback; i < candles.length - lookback; i++) {
-    const current = candles[i].low;
-    let isSwingLow = true;
-    
-    // Check if current low is lower than surrounding lows
-    for (let j = i - lookback; j <= i + lookback; j++) {
-      if (j !== i && candles[j].low <= current) {
-        isSwingLow = false;
-        break;
-      }
-    }
-    
-    if (isSwingLow) {
-      swingLows.push(current);
-    }
-  }
-  
-  return swingLows;
-}
-
-function analyzeStructurePoints(swingHighs: number[], swingLows: number[]): Array<{
-  type: "HH" | "HL" | "LH" | "LL";
-  price: number;
-  timestamp: number;
-}> {
-  // Simplified structure analysis - in production this would be more sophisticated
-  return [];
-}
-
-function determineTrend(structurePoints: any[]): "UPTREND" | "DOWNTREND" | "RANGING" {
-  // Basic trend determination based on last structure points
-  if (!structurePoints || structurePoints.length < 2) {
-    return "RANGING";
-  }
-  // Get last two structure points
-  const last = structurePoints[structurePoints.length - 1];
-  const prev = structurePoints[structurePoints.length - 2];
-  // Uptrend: sequence of HH and HL
-  if (
-    (prev.type === "HL" && last.type === "HH") ||
-    (prev.type === "HH" && last.type === "HL")
-  ) {
-    return "UPTREND";
-  }
-  // Downtrend: sequence of LL and LH
-  if (
-    (prev.type === "LH" && last.type === "LL") ||
-    (prev.type === "LL" && last.type === "LH")
-  ) {
-    return "DOWNTREND";
-  }
-  // Otherwise, ranging
-  return "RANGING";
-}
-
-function identifyLastBOS(structurePoints: any[]): "BULLISH" | "BEARISH" | null {
-  // A BOS occurs when price breaks above a previous swing high (bullish BOS)
-  // or below a previous swing low (bearish BOS).
-  // We scan from most recent to oldest, looking for the first such break.
-  if (!structurePoints || structurePoints.length < 2) return null;
-
-  // We'll look for a break of the previous swing high (HH) or swing low (LL)
-  for (let i = structurePoints.length - 1; i > 0; i--) {
-    const curr = structurePoints[i];
-    // Look for a bullish BOS: current price > previous swing high
-    if (curr.type === "HH") {
-      for (let j = i - 1; j >= 0; j--) {
-        if (structurePoints[j].type === "HH" && curr.price > structurePoints[j].price) {
-          return "BULLISH";
-        }
-      }
-    }
-    // Look for a bearish BOS: current price < previous swing low
-    if (curr.type === "LL") {
-      for (let j = i - 1; j >= 0; j--) {
-        if (structurePoints[j].type === "LL" && curr.price < structurePoints[j].price) {
-          return "BEARISH";
-        }
-      }
-    }
-  }
-  return null;
-}
-
-function identifyLastCHOCH(structurePoints: any[]): "BULLISH" | "BEARISH" | null {
-  return null;
-}
-
-function identifyKeyLevels(swingHighs: number[], swingLows: number[]): number[] {
-  return [...swingHighs, ...swingLows].sort((a, b) => a - b);
 }
 
 // Helper functions for Supply/Demand zones
@@ -905,37 +942,31 @@ export function performInstitutionalAnalysis(
 ): InstitutionalAnalysis {
   const currentPrice = data5m.close;
   
-  // Convert data to candle format
-  const candles5m = [data5m].map(d => ({
-    high: d.high, low: d.low, open: d.open, close: d.close, 
-    volume: d.volume, timestamp: Date.now()
-  }));
-  const candles15m = [data15m].map(d => ({
-    high: d.high, low: d.low, open: d.open, close: d.close, 
-    volume: d.volume, timestamp: Date.now()
-  }));
-  const candles30m = [data30m].map(d => ({
-    high: d.high, low: d.low, open: d.open, close: d.close, 
-    volume: d.volume, timestamp: Date.now()
-  }));
-  
-  // For demo purposes, create sample data arrays
-  const sampleCandles = Array.from({ length: 50 }, (_, i) => ({
-    high: currentPrice * (1 + (Math.random() - 0.5) * 0.02),
-    low: currentPrice * (1 - (Math.random()) * 0.02),
-    open: currentPrice * (1 + (Math.random() - 0.5) * 0.01),
-    close: currentPrice * (1 + (Math.random() - 0.5) * 0.01),
-    volume: 1000 + Math.random() * 500,
-    timestamp: Date.now() - (50 - i) * 60000
-  }));
+  // Create a more realistic, but still simulated, candle history for analysis
+  const allCandles = [data5m, data15m, data30m, data1h, data4h, data1d].filter(Boolean);
+  const historicalCandles = Array.from({ length: 50 }, (_, i) => {
+      const baseIndex = Math.min(allCandles.length - 1, Math.floor(i / (50 / allCandles.length)));
+      const baseCandle = allCandles[baseIndex];
+      const variance = (Math.random() - 0.5) * 0.01 * (50 - i) / 50; // less variance for recent candles
+      return {
+          high: baseCandle.high * (1 + variance + 0.001),
+          low: baseCandle.low * (1 + variance - 0.001),
+          open: baseCandle.open * (1 + variance),
+          close: baseCandle.close * (1 + variance),
+          volume: baseCandle.volume * (0.8 + Math.random() * 0.4),
+          timestamp: Date.now() - (50 - i) * 60000 * 5 // 5 min candles
+      };
+  });
+
+  const candlesToAnalyze = historicalCandles.sort((a, b) => a.timestamp - b.timestamp);
   
   // Perform analysis
-  const orderBlocks = identifyOrderBlocks(sampleCandles, "5m", currentPrice);
-  const fairValueGaps = identifyFairValueGaps(sampleCandles, "5m");
-  const marketStructure = analyzeMarketStructure(sampleCandles);
-  const supplyDemandZones = identifySupplyDemandZones(sampleCandles, "5m", currentPrice);
+  const orderBlocks = identifyOrderBlocks(candlesToAnalyze, "5m", currentPrice);
+  const fairValueGaps = identifyFairValueGaps(candlesToAnalyze, "5m");
+  const marketStructure = analyzeMarketStructure(candlesToAnalyze);
+  const supplyDemandZones = identifySupplyDemandZones(candlesToAnalyze, "5m", currentPrice);
   const activeSessions = getActiveInstitutionalSessions();
-  const marketMakerModel = analyzeMarketMakerModel(sampleCandles, orderBlocks, fairValueGaps);
+  const marketMakerModel = analyzeMarketMakerModel(candlesToAnalyze, orderBlocks, fairValueGaps);
   const institutionalLevels = getInstitutionalLevels([data1d], [data1d], [data1d]);
   const killZones = getKillZones();
   
