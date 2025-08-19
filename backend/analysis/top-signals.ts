@@ -35,7 +35,8 @@ export const getTopSignals = api<void, GetTopSignalsResponse>({
   console.log("🔍 Recuperando i migliori segnali automatici...");
 
   try {
-    // Get the top 3 most recent auto-generated signals with highest confidence
+    // Get the top 3 most recent, highest-confidence auto-generated signals,
+    // regardless of their execution status. This ensures we always see the best signals.
     const topSignals = await analysisDB.queryAll`
       SELECT 
         trade_id,
@@ -51,16 +52,16 @@ export const getTopSignals = api<void, GetTopSignalsResponse>({
         analysis_data,
         created_at
       FROM trading_signals
-      WHERE status = 'auto_generated'
+      WHERE status LIKE 'auto_%' -- Catches auto_generated, auto_executed, auto_closed
       AND created_at >= NOW() - INTERVAL '2 hours'
       ORDER BY confidence DESC, created_at DESC
       LIMIT 3
     `;
 
     if (topSignals.length === 0) {
-      console.log("⚠️ Nessun segnale automatico recente trovato, generando segnali di fallback...");
+      console.log("⚠️ Nessun segnale automatico recente trovato, cercando segnali più vecchi...");
       
-      // If no recent auto signals, return the most recent ones available
+      // Fallback: If no recent signals, get the latest 3 auto-generated signals regardless of age.
       const fallbackSignals = await analysisDB.queryAll`
         SELECT 
           trade_id,
@@ -76,16 +77,17 @@ export const getTopSignals = api<void, GetTopSignalsResponse>({
           analysis_data,
           created_at
         FROM trading_signals
-        WHERE status IN ('auto_generated', 'auto_executed', 'auto_closed')
+        WHERE status LIKE 'auto_%'
         ORDER BY created_at DESC
         LIMIT 3
       `;
 
       if (fallbackSignals.length === 0) {
-        // Return empty if no signals at all
+        console.log("🚫 Nessun segnale automatico trovato nel database.");
         return { signals: [] };
       }
 
+      console.log(`✅ Trovati ${fallbackSignals.length} segnali di fallback.`);
       return {
         signals: fallbackSignals.map(signal => transformToAutoSignal(signal))
       };
