@@ -47,7 +47,7 @@ export default function Settings() {
     resolver: zodResolver(preferencesSchema),
     values: {
       riskPercentage: prefsData?.preferences?.riskPercentage || 2,
-      accountBalance: prefsData?.preferences?.accountBalance || 9754.81,
+      accountBalance: prefsData?.preferences?.accountBalance || 9518.40,
     },
   });
 
@@ -251,7 +251,7 @@ export default function Settings() {
                       <p><strong>VPS:</strong> {mt5Data?.config?.host}:{mt5Data?.config?.port}</p>
                       <p><strong>Account:</strong> {mt5Data?.config?.login}</p>
                       <p><strong>Server:</strong> {mt5Data?.config?.server}</p>
-                      <p><strong>Saldo:</strong> $9,754.81</p>
+                      <p><strong>Saldo:</strong> ${prefsData?.preferences?.accountBalance.toFixed(2)}</p>
                     </div>
                   )}
                 </div>

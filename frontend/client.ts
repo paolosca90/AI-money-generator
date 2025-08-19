@@ -138,7 +138,7 @@ export namespace analysis {
         }
 
         /**
-         * Executes a trading signal in SIMULATION mode for data collection.
+         * Executes a trading signal on MetaTrader 5.
          */
         public async execute(params: RequestType<typeof api_analysis_execute_execute>): Promise<ResponseType<typeof api_analysis_execute_execute>> {
             // Now make the actual call to the API

@@ -2,6 +2,8 @@ import { api, APIError } from "encore.dev/api";
 import { analysisDB } from "./db";
 import { TradingStrategy } from "./trading-strategies";
 import { recordSignalPerformance } from "./analytics-tracker";
+import { executeMT5Order } from "./mt5-bridge";
+import { user } from "~encore/clients";
 
 interface ExecuteRequest {
   tradeId: string;
@@ -18,7 +20,7 @@ interface ExecuteResponse {
   error?: string;
 }
 
-// Executes a trading signal in SIMULATION mode for data collection.
+// Executes a trading signal on MetaTrader 5.
 export const execute = api<ExecuteRequest, ExecuteResponse>(
   { 
     expose: true, 
@@ -67,48 +69,59 @@ export const execute = api<ExecuteRequest, ExecuteResponse>(
         throw APIError.invalidArgument(`Invalid lot size: ${lotSize}. Must be between 0.01 and 100.`);
       }
 
-      console.log(`SIMULATING ${strategy} trade ${tradeId}: ${signal.direction} ${signal.symbol} ${lotSize} lots`);
+      // Fetch the MT5 configuration from the single source of truth
+      const { config: mt5Config } = await user.getMt5Config();
+      if (!mt5Config) {
+        throw APIError.failedPrecondition("MT5 configuration is not set up.");
+      }
 
-      // Simulate execution
-      const executionPrice = signal.entry_price * (1 + (Math.random() - 0.5) * 0.0002); // Simulate small slippage
-      const simulatedOrderId = Math.floor(Math.random() * 900000) + 100000;
+      console.log(`EXECUTING ${strategy} trade ${tradeId}: ${signal.direction} ${signal.symbol} ${lotSize} lots`);
+
+      // Execute the order on MT5
+      const executionResult = await executeMT5Order({
+        symbol: signal.symbol,
+        direction: signal.direction as "LONG" | "SHORT",
+        lotSize: lotSize,
+        entryPrice: signal.entry_price,
+        takeProfit: signal.take_profit,
+        stopLoss: signal.stop_loss,
+        comment: `AI Trade ${tradeId}`
+      }, mt5Config);
+
+      if (!executionResult.success) {
+        throw APIError.internal(`Failed to execute trade on MT5: ${executionResult.error}`);
+      }
 
       // Update the signal as executed
       await analysisDB.exec`
         UPDATE trading_signals 
         SET executed_at = NOW(), 
-            mt5_order_id = ${simulatedOrderId},
-            execution_price = ${executionPrice},
+            mt5_order_id = ${executionResult.orderId},
+            execution_price = ${executionResult.executionPrice},
             lot_size = ${lotSize},
             strategy = ${strategy},
             status = 'executed'
         WHERE trade_id = ${tradeId} AND executed_at IS NULL
       `;
-      console.log(`✅ Successfully updated signal ${tradeId} as SIMULATED_EXECUTED with Order ID: ${simulatedOrderId}`);
+      console.log(`✅ Successfully updated signal ${tradeId} as EXECUTED with Order ID: ${executionResult.orderId}`);
 
       // Record performance tracking for ML improvement
       await recordSignalPerformance({
         tradeId,
         symbol: signal.symbol,
-        predictedDirection: signal.direction,
+        predictedDirection: signal.direction as "LONG" | "SHORT",
         predictedConfidence: signal.confidence,
         executionTime: new Date(),
         marketConditionsAtEntry: signal.analysis_data?.enhancedTechnical?.marketContext || {},
         technicalIndicatorsAtEntry: signal.analysis_data?.technical || {}
       });
 
-      // Schedule the simulated close of the trade for data collection
-      const holdingTimeMs = calculateHoldingTime(strategy, signal.max_holding_hours);
-      setTimeout(async () => {
-        await simulateTradeCloseForManualExecution(signal, executionPrice, simulatedOrderId);
-      }, holdingTimeMs);
-
       const estimatedHoldingTime = getEstimatedHoldingTime(strategy, signal.max_holding_hours);
 
       return {
         success: true,
-        orderId: simulatedOrderId,
-        executionPrice: executionPrice,
+        orderId: executionResult.orderId,
+        executionPrice: executionResult.executionPrice,
         strategy,
         estimatedHoldingTime,
       };
@@ -134,95 +147,5 @@ function getEstimatedHoldingTime(strategy: TradingStrategy, maxHours: number): s
       return "1-6 hours";
     default:
       return `Up to ${maxHours} hours`;
-  }
-}
-
-function calculateHoldingTime(strategy: string, maxHours: number): number {
-  const baseTime = {
-    'SCALPING': { min: 1, max: 15 }, // 1-15 minuti
-    'INTRADAY': { min: 60, max: 360 }, // 1-6 ore
-  };
-
-  const times = baseTime[strategy as keyof typeof baseTime] || { min: 30, max: 180 };
-  const randomMinutes = Math.random() * (times.max - times.min) + times.min;
-  return Math.floor(randomMinutes * 60 * 1000);
-}
-
-function calculateRealisticOutcome(signal: any) {
-  const confidence = signal.confidence;
-  const riskReward = signal.risk_reward_ratio;
-  const strategy = signal.strategy;
-  const symbol = signal.symbol;
-
-  let successProbability = 0.5;
-  if (confidence >= 90) successProbability = 0.85;
-  else if (confidence >= 85) successProbability = 0.80;
-  else if (confidence >= 80) successProbability = 0.75;
-  else if (confidence >= 75) successProbability = 0.70;
-  else if (confidence >= 70) successProbability = 0.65;
-  else successProbability = 0.55;
-
-  if (strategy === 'SCALPING') successProbability *= 0.95;
-  const volatileSymbols = ['BTCUSD', 'ETHUSD', 'GBPJPY', 'XAUUSD'];
-  if (volatileSymbols.includes(symbol)) successProbability *= 0.92;
-
-  const isWinning = Math.random() < successProbability;
-  let profitLoss: number;
-  let actualDirection: string;
-
-  if (isWinning) {
-    const baseProfit = 100;
-    profitLoss = baseProfit * riskReward * (signal.lot_size || signal.recommended_lot_size);
-    profitLoss *= (0.8 + Math.random() * 0.4);
-    actualDirection = signal.direction;
-  } else {
-    const baseLoss = 100;
-    profitLoss = -baseLoss * (signal.lot_size || signal.recommended_lot_size);
-    profitLoss *= (0.7 + Math.random() * 0.6);
-    actualDirection = signal.direction === 'LONG' ? 'SHORT' : 'LONG';
-  }
-
-  return {
-    profitLoss: Math.round(profitLoss * 100) / 100,
-    actualDirection,
-    isWinning
-  };
-}
-
-async function simulateTradeCloseForManualExecution(signal: any, executionPrice: number, orderId: number) {
-  try {
-    console.log(`🔄 Simulating close for manually executed trade ${signal.trade_id}`);
-    const outcome = calculateRealisticOutcome(signal);
-
-    await analysisDB.exec`
-      UPDATE trading_signals 
-      SET closed_at = NOW(), 
-          profit_loss = ${outcome.profitLoss},
-          status = 'closed'
-      WHERE trade_id = ${signal.trade_id}
-    `;
-
-    const executedSignal = await analysisDB.queryRow`
-      SELECT executed_at, analysis_data FROM trading_signals WHERE trade_id = ${signal.trade_id}
-    `;
-
-    await recordSignalPerformance({
-      tradeId: signal.trade_id,
-      symbol: signal.symbol,
-      predictedDirection: signal.direction,
-      actualDirection: outcome.actualDirection,
-      predictedConfidence: signal.confidence,
-      actualProfitLoss: outcome.profitLoss,
-      executionTime: executedSignal?.executed_at ? new Date(executedSignal.executed_at) : new Date(),
-      closeTime: new Date(),
-      marketConditionsAtEntry: executedSignal?.analysis_data?.enhancedTechnical?.marketContext || {},
-      marketConditionsAtExit: { sessionType: executedSignal?.analysis_data?.enhancedTechnical?.marketContext?.sessionType || 'UNKNOWN', volatilityState: 'NORMAL' },
-      technicalIndicatorsAtEntry: executedSignal?.analysis_data?.technical || {},
-      technicalIndicatorsAtExit: { rsi: 50 + (Math.random() - 0.5) * 20, macd: (Math.random() - 0.5) * 0.001 }
-    });
-
-    console.log(`✅ Trade ${signal.trade_id} (Order: ${orderId}) closed with outcome: ${outcome.actualDirection}, P/L: $${outcome.profitLoss.toFixed(2)}`);
-  } catch (error) {
-    console.error(`❌ Error simulating close for trade ${signal.trade_id}:`, error);
   }
 }

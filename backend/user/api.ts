@@ -45,7 +45,7 @@ export const getPreferences = api<void, { preferences: UserPreferences | null }>
   const preferences: UserPreferences = {
     userId: 1,
     riskPercentage: 2.0,
-    accountBalance: 9754.81, // Updated to match your actual MT5 balance
+    accountBalance: 9518.40, // Updated to match your actual MT5 balance
     updatedAt: new Date(),
   };
   return { preferences };
