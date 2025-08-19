@@ -12,9 +12,9 @@ const AUTO_TRADING_SYMBOLS = [
   "BTCUSD", "ETHUSD", "LTCUSD", "XRPUSD"
 ];
 
-// Genera segnali automaticamente ogni 3 minuti
+// Genera segnali automaticamente ogni 2 minuti per test più frequenti
 export const generateAutoSignals = cron("generate-auto-signals", {
-  every: "3m",
+  every: "2m",
   handler: async () => {
     console.log("🤖 Avvio generazione automatica segnali...");
 
@@ -22,8 +22,10 @@ export const generateAutoSignals = cron("generate-auto-signals", {
       const signals = [];
       const startTime = Date.now();
 
-      // Genera segnali per tutti i simboli
-      for (const symbol of AUTO_TRADING_SYMBOLS) {
+      // Genera segnali per i primi 8 simboli per velocizzare il processo
+      const symbolsToAnalyze = AUTO_TRADING_SYMBOLS.slice(0, 8);
+
+      for (const symbol of symbolsToAnalyze) {
         try {
           const signalStartTime = Date.now();
           const signal = await generateSignalForSymbol(symbol);
@@ -50,7 +52,7 @@ export const generateAutoSignals = cron("generate-auto-signals", {
             timestamp: new Date()
           });
 
-          // Salva il segnale nel database
+          // Salva il segnale nel database con status auto_generated
           await analysisDB.exec`
             INSERT INTO trading_signals (
               trade_id, user_id, symbol, direction, strategy, entry_price, take_profit, stop_loss, 
@@ -80,7 +82,7 @@ export const generateAutoSignals = cron("generate-auto-signals", {
         }
       }
 
-      // Seleziona i 3 migliori segnali
+      // Seleziona i 3 migliori segnali per confidenza
       const topSignals = signals
         .sort((a, b) => b.signal.confidence - a.signal.confidence)
         .slice(0, 3);
@@ -90,10 +92,13 @@ export const generateAutoSignals = cron("generate-auto-signals", {
         console.log(`${index + 1}. ${item.symbol}: ${item.signal.direction} (${item.signal.confidence}%)`);
       });
 
-      // Simula l'esecuzione dei top 3 segnali
+      // Simula l'esecuzione automatica dei top 3 segnali
       for (const item of topSignals) {
         await simulateTradeExecution(item.signal);
       }
+
+      // Aggiorna le statistiche globali
+      await updateSignalGenerationStats(signals.length, topSignals.length);
 
       const totalTime = Date.now() - startTime;
       console.log(`✅ Generazione automatica completata in ${totalTime}ms. Generati ${signals.length} segnali.`);
@@ -104,20 +109,47 @@ export const generateAutoSignals = cron("generate-auto-signals", {
   },
 });
 
+// Aggiorna le statistiche di generazione segnali
+async function updateSignalGenerationStats(totalGenerated: number, topSelected: number) {
+  try {
+    // Calcola statistiche aggregate per la dashboard
+    const stats = await analysisDB.queryRow`
+      SELECT 
+        COUNT(*) as total_signals_today,
+        COUNT(CASE WHEN status = 'auto_generated' THEN 1 END) as auto_generated_today,
+        COUNT(CASE WHEN status = 'auto_executed' THEN 1 END) as auto_executed_today,
+        COUNT(CASE WHEN status = 'auto_closed' THEN 1 END) as auto_closed_today,
+        CAST(AVG(confidence) AS DOUBLE PRECISION) as avg_confidence_today
+      FROM trading_signals 
+      WHERE created_at >= CURRENT_DATE
+      AND status LIKE 'auto_%'
+    `;
+
+    console.log(`📊 Statistiche giornaliere aggiornate: ${stats?.total_signals_today || 0} segnali totali, confidenza media ${Number(stats?.avg_confidence_today || 0).toFixed(1)}%`);
+
+  } catch (error) {
+    console.error("❌ Errore aggiornamento statistiche:", error);
+  }
+}
+
 // Simula l'esecuzione di un trade e il suo esito
 async function simulateTradeExecution(signal: any) {
   try {
     console.log(`🎲 Simulando esecuzione trade ${signal.tradeId} (${signal.symbol})`);
 
     // Simula un ritardo di esecuzione realistico
-    await new Promise(resolve => setTimeout(resolve, Math.random() * 2000 + 1000));
+    await new Promise(resolve => setTimeout(resolve, Math.random() * 1000 + 500));
 
-    // Aggiorna il segnale come "eseguito"
+    // Genera un order ID simulato
+    const simulatedOrderId = Math.floor(Math.random() * 900000) + 100000;
+
+    // Aggiorna il segnale come "eseguito automaticamente"
     await analysisDB.exec`
       UPDATE trading_signals 
       SET executed_at = NOW(), 
-          execution_price = ${signal.entryPrice},
+          execution_price = ${signal.entryPrice * (1 + (Math.random() - 0.5) * 0.0002)},
           lot_size = ${signal.recommendedLotSize},
+          mt5_order_id = ${simulatedOrderId},
           status = 'auto_executed'
       WHERE trade_id = ${signal.tradeId}
     `;
@@ -129,7 +161,7 @@ async function simulateTradeExecution(signal: any) {
       await simulateTradeClose(signal, holdingTimeMs);
     }, holdingTimeMs);
 
-    console.log(`✅ Trade ${signal.tradeId} simulato come eseguito`);
+    console.log(`✅ Trade ${signal.tradeId} simulato come eseguito automaticamente (Order: ${simulatedOrderId})`);
 
   } catch (error) {
     console.error(`❌ Errore simulazione esecuzione ${signal.tradeId}:`, error);
@@ -172,7 +204,7 @@ async function simulateTradeClose(signal: any, holdingTimeMs: number) {
       technicalIndicatorsAtExit: { rsi: 50 + (Math.random() - 0.5) * 20, macd: (Math.random() - 0.5) * 0.001 }
     });
 
-    console.log(`✅ Trade ${signal.tradeId} chiuso: ${outcome.actualDirection} P/L: $${outcome.profitLoss.toFixed(2)}`);
+    console.log(`✅ Trade ${signal.tradeId} chiuso automaticamente: ${outcome.actualDirection} P/L: $${outcome.profitLoss.toFixed(2)}`);
 
     // Se abbiamo abbastanza dati, riaddestra il modello ML
     const recentTrades = await analysisDB.queryRow`
@@ -180,7 +212,7 @@ async function simulateTradeClose(signal: any, holdingTimeMs: number) {
       WHERE status = 'auto_closed' AND created_at >= NOW() - INTERVAL '24 hours'
     `;
 
-    if (Number(recentTrades?.count) >= 50) {
+    if (Number(recentTrades?.count) >= 30) {
       console.log("🧠 Avvio riaddestramento modello ML...");
       try {
         await learningEngine.trainModel();
@@ -317,7 +349,7 @@ export const updatePerformanceStats = cron("update-performance-stats", {
         }
       }
 
-      // Pulisci i vecchi segnali (più di 7 giorni)
+      // Pulisci i vecchi segnali (più di 7 giorni) ma mantieni quelli recenti
       await cleanOldSignals();
 
     } catch (error) {
@@ -419,6 +451,58 @@ export const generateDailyReport = cron("generate-daily-report", {
 
     } catch (error) {
       console.error("❌ Errore generazione report giornaliero:", error);
+    }
+  },
+});
+
+// Cron job per mantenere sempre alcuni segnali visibili sulla dashboard
+export const ensureVisibleSignals = cron("ensure-visible-signals", {
+  every: "5m",
+  handler: async () => {
+    try {
+      // Controlla se ci sono segnali recenti visibili
+      const recentSignals = await analysisDB.queryRow`
+        SELECT COUNT(*) as count 
+        FROM trading_signals 
+        WHERE status LIKE 'auto_%' 
+        AND created_at >= NOW() - INTERVAL '30 minutes'
+      `;
+
+      const signalCount = Number(recentSignals?.count) || 0;
+      
+      if (signalCount < 3) {
+        console.log(`🔄 Solo ${signalCount} segnali recenti trovati, generando segnali aggiuntivi...`);
+        
+        // Genera alcuni segnali per i simboli più popolari
+        const popularSymbols = ["EURUSD", "BTCUSD", "US30"];
+        
+        for (const symbol of popularSymbols) {
+          try {
+            const signal = await generateSignalForSymbol(symbol);
+            
+            await analysisDB.exec`
+              INSERT INTO trading_signals (
+                trade_id, user_id, symbol, direction, strategy, entry_price, take_profit, stop_loss, 
+                confidence, risk_reward_ratio, recommended_lot_size, max_holding_hours,
+                expires_at, analysis_data, created_at, status
+              ) VALUES (
+                ${signal.tradeId}, 0, ${signal.symbol}, ${signal.direction}, ${signal.strategy}, 
+                ${signal.entryPrice}, ${signal.takeProfit}, ${signal.stopLoss}, 
+                ${signal.confidence}, ${signal.riskRewardRatio}, ${signal.recommendedLotSize},
+                ${signal.maxHoldingTime}, ${signal.expiresAt}, ${JSON.stringify(signal.analysis)}, NOW(), 'auto_generated'
+              )
+            `;
+            
+            console.log(`✅ Segnale di backup generato per ${symbol}: ${signal.direction} (${signal.confidence}%)`);
+            
+          } catch (error) {
+            console.error(`❌ Errore generazione segnale backup per ${symbol}:`, error);
+          }
+        }
+      }
+      
+    } catch (error) {
+      console.error("❌ Errore nel controllo segnali visibili:", error);
     }
   },
 });

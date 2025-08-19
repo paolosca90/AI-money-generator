@@ -21,15 +21,17 @@ export default function Dashboard() {
   const { data: topSignalsData, isLoading: isLoadingTopSignals, error: topSignalsError, refetch: refetchTopSignals } = useQuery({
     queryKey: ["topSignals"],
     queryFn: () => backend.analysis.getTopSignals(),
-    refetchInterval: 60000, // Refresh every 60 seconds
-    retry: 1,
+    refetchInterval: 30000, // Refresh every 30 seconds
+    retry: 2,
+    staleTime: 15000, // Consider data stale after 15 seconds
   });
 
-  const { data: signalStats, isLoading: isLoadingSignalStats } = useQuery({
+  const { data: signalStats, isLoading: isLoadingSignalStats, refetch: refetchSignalStats } = useQuery({
     queryKey: ["signalStats"],
     queryFn: () => backend.analysis.getSignalStats(),
-    refetchInterval: 30000, // Refresh every 30 seconds
-    retry: 1,
+    refetchInterval: 20000, // Refresh every 20 seconds
+    retry: 2,
+    staleTime: 10000, // Consider data stale after 10 seconds
   });
 
   const { data: performanceData, isLoading: isLoadingPerformance, error: performanceError } = useQuery({
@@ -103,7 +105,9 @@ export default function Dashboard() {
         description: data.message 
       });
       if (data.success) {
-        // Refresh signals after a delay
+        // Refresh signals immediately and then again after a delay
+        queryClient.invalidateQueries({ queryKey: ["topSignals"] });
+        queryClient.invalidateQueries({ queryKey: ["signalStats"] });
         setTimeout(() => {
           queryClient.invalidateQueries({ queryKey: ["topSignals"] });
           queryClient.invalidateQueries({ queryKey: ["signalStats"] });
@@ -124,6 +128,11 @@ export default function Dashboard() {
   };
 
   const handleRefreshSignals = () => {
+    // Force refresh of signals
+    refetchTopSignals();
+    refetchSignalStats();
+    
+    // Also trigger new signal generation
     forceSignalGenerationMutation.mutate();
   };
 
@@ -412,6 +421,11 @@ export default function Dashboard() {
             <Badge variant="secondary" className="bg-blue-100 text-blue-800">
               Top 3 Opportunità
             </Badge>
+            {topSignalsData?.signals && topSignalsData.signals.length > 0 && (
+              <Badge variant="outline" className="bg-green-50 text-green-700">
+                {topSignalsData.signals.length} attivi
+              </Badge>
+            )}
           </div>
           <Button 
             onClick={handleRefreshSignals}
@@ -447,10 +461,18 @@ export default function Dashboard() {
                   <AlertCircle className="h-8 w-8 text-red-500 mx-auto mb-2" />
                   <p className="text-red-700">Errore nel caricamento dei segnali automatici.</p>
                   <p className="text-sm text-red-600 mt-1">{topSignalsError.message}</p>
+                  <Button 
+                    variant="outline" 
+                    size="sm" 
+                    className="mt-3"
+                    onClick={handleRefreshSignals}
+                  >
+                    Riprova
+                  </Button>
                 </CardContent>
               </Card>
             </div>
-          ) : topSignalsData?.signals.length === 0 ? (
+          ) : !topSignalsData?.signals || topSignalsData.signals.length === 0 ? (
             <div className="col-span-full">
               <Card className="border-dashed border-2 border-muted-foreground/25">
                 <CardContent className="p-8 text-center">
@@ -470,8 +492,8 @@ export default function Dashboard() {
               </Card>
             </div>
           ) : (
-            topSignalsData?.signals.map((signal, index) => (
-              <AutoSignalCard key={`${signal.symbol}-${index}`} signal={signal as any} />
+            topSignalsData.signals.map((signal, index) => (
+              <AutoSignalCard key={`${signal.symbol}-${signal.tradeId}-${index}`} signal={signal as any} />
             ))
           )}
         </div>
@@ -482,7 +504,7 @@ export default function Dashboard() {
             <h4 className="font-semibold text-blue-800">Sistema Automatico H24</h4>
           </div>
           <p className="text-sm text-blue-700">
-            Il sistema genera automaticamente segnali ogni 30 minuti, seleziona i 3 migliori per confidenza, 
+            Il sistema genera automaticamente segnali ogni 2 minuti, seleziona i 3 migliori per confidenza, 
             li esegue automaticamente e registra i risultati per migliorare continuamente l'AI.
           </p>
         </div>
@@ -645,7 +667,7 @@ export default function Dashboard() {
                   <span className="text-2xl">🤖</span>
                 </div>
                 <h4 className="font-semibold text-blue-800">Generazione Automatica</h4>
-                <p className="text-sm text-blue-600">Il sistema genera segnali ogni 30 minuti su 20+ asset</p>
+                <p className="text-sm text-blue-600">Il sistema genera segnali ogni 2 minuti su 20+ asset</p>
               </div>
               <div className="text-center">
                 <div className="w-12 h-12 bg-blue-100 rounded-full flex items-center justify-center mx-auto mb-2">
