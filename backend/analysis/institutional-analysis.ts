@@ -597,6 +597,31 @@ function determineTrend(structurePoints: any[]): "UPTREND" | "DOWNTREND" | "RANG
 }
 
 function identifyLastBOS(structurePoints: any[]): "BULLISH" | "BEARISH" | null {
+  // A BOS occurs when price breaks above a previous swing high (bullish BOS)
+  // or below a previous swing low (bearish BOS).
+  // We scan from most recent to oldest, looking for the first such break.
+  if (!structurePoints || structurePoints.length < 2) return null;
+
+  // We'll look for a break of the previous swing high (HH) or swing low (LL)
+  for (let i = structurePoints.length - 1; i > 0; i--) {
+    const curr = structurePoints[i];
+    // Look for a bullish BOS: current price > previous swing high
+    if (curr.type === "HH") {
+      for (let j = i - 1; j >= 0; j--) {
+        if (structurePoints[j].type === "HH" && curr.price > structurePoints[j].price) {
+          return "BULLISH";
+        }
+      }
+    }
+    // Look for a bearish BOS: current price < previous swing low
+    if (curr.type === "LL") {
+      for (let j = i - 1; j >= 0; j--) {
+        if (structurePoints[j].type === "LL" && curr.price < structurePoints[j].price) {
+          return "BEARISH";
+        }
+      }
+    }
+  }
   return null;
 }
 
