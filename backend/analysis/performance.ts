@@ -166,12 +166,12 @@ export const getDetailedPerformance = api<void, {
       SELECT 
         DATE(created_at) as trade_date,
         COUNT(*) as total_trades,
-        AVG(CASE WHEN profit_loss > 0 THEN 1.0 ELSE 0.0 END) * 100 as win_rate,
-        AVG(CASE WHEN profit_loss > 0 THEN profit_loss END) as avg_profit,
-        AVG(CASE WHEN profit_loss < 0 THEN profit_loss END) as avg_loss,
+        COALESCE(CAST(AVG(CASE WHEN profit_loss > 0 THEN 1.0 ELSE 0.0 END) * 100 AS DOUBLE PRECISION), 0.0) as win_rate,
+        COALESCE(CAST(AVG(CASE WHEN profit_loss > 0 THEN profit_loss END) AS DOUBLE PRECISION), 0.0) as avg_profit,
+        COALESCE(CAST(AVG(CASE WHEN profit_loss < 0 THEN profit_loss END) AS DOUBLE PRECISION), 0.0) as avg_loss,
         MAX(profit_loss) as best_trade,
         MIN(profit_loss) as worst_trade,
-        AVG(confidence) as avg_confidence,
+        COALESCE(CAST(AVG(confidence) AS DOUBLE PRECISION), 0.0) as avg_confidence,
         SUM(profit_loss) as total_profit_loss
       FROM trading_signals 
       WHERE profit_loss IS NOT NULL
@@ -186,12 +186,12 @@ export const getDetailedPerformance = api<void, {
       SELECT 
         DATE_TRUNC('week', created_at) as trade_week,
         COUNT(*) as total_trades,
-        AVG(CASE WHEN profit_loss > 0 THEN 1.0 ELSE 0.0 END) * 100 as win_rate,
-        AVG(CASE WHEN profit_loss > 0 THEN profit_loss END) as avg_profit,
-        AVG(CASE WHEN profit_loss < 0 THEN profit_loss END) as avg_loss,
+        COALESCE(CAST(AVG(CASE WHEN profit_loss > 0 THEN 1.0 ELSE 0.0 END) * 100 AS DOUBLE PRECISION), 0.0) as win_rate,
+        COALESCE(CAST(AVG(CASE WHEN profit_loss > 0 THEN profit_loss END) AS DOUBLE PRECISION), 0.0) as avg_profit,
+        COALESCE(CAST(AVG(CASE WHEN profit_loss < 0 THEN profit_loss END) AS DOUBLE PRECISION), 0.0) as avg_loss,
         MAX(profit_loss) as best_trade,
         MIN(profit_loss) as worst_trade,
-        AVG(confidence) as avg_confidence,
+        COALESCE(CAST(AVG(confidence) AS DOUBLE PRECISION), 0.0) as avg_confidence,
         SUM(profit_loss) as total_profit_loss
       FROM trading_signals 
       WHERE profit_loss IS NOT NULL
@@ -206,12 +206,12 @@ export const getDetailedPerformance = api<void, {
       SELECT 
         DATE_TRUNC('month', created_at) as trade_month,
         COUNT(*) as total_trades,
-        AVG(CASE WHEN profit_loss > 0 THEN 1.0 ELSE 0.0 END) * 100 as win_rate,
-        AVG(CASE WHEN profit_loss > 0 THEN profit_loss END) as avg_profit,
-        AVG(CASE WHEN profit_loss < 0 THEN profit_loss END) as avg_loss,
+        COALESCE(CAST(AVG(CASE WHEN profit_loss > 0 THEN 1.0 ELSE 0.0 END) * 100 AS DOUBLE PRECISION), 0.0) as win_rate,
+        COALESCE(CAST(AVG(CASE WHEN profit_loss > 0 THEN profit_loss END) AS DOUBLE PRECISION), 0.0) as avg_profit,
+        COALESCE(CAST(AVG(CASE WHEN profit_loss < 0 THEN profit_loss END) AS DOUBLE PRECISION), 0.0) as avg_loss,
         MAX(profit_loss) as best_trade,
         MIN(profit_loss) as worst_trade,
-        AVG(confidence) as avg_confidence,
+        COALESCE(CAST(AVG(confidence) AS DOUBLE PRECISION), 0.0) as avg_confidence,
         SUM(profit_loss) as total_profit_loss
       FROM trading_signals 
       WHERE profit_loss IS NOT NULL
@@ -279,9 +279,9 @@ export const getPerformanceBySymbol = api<void, GetPerformanceBySymbolResponse>(
       SELECT 
         symbol,
         COUNT(*) as total_trades,
-        AVG(CASE WHEN profit_loss > 0 THEN 1.0 ELSE 0.0 END) * 100 as win_rate,
+        CAST(AVG(CASE WHEN profit_loss > 0 THEN 1.0 ELSE 0.0 END) * 100 AS DOUBLE PRECISION) as win_rate,
         SUM(profit_loss) as total_profit_loss,
-        AVG(confidence) as avg_confidence,
+        CAST(AVG(confidence) AS DOUBLE PRECISION) as avg_confidence,
         MAX(profit_loss) as best_trade,
         MIN(profit_loss) as worst_trade
       FROM trading_signals 
@@ -332,10 +332,10 @@ export const getPerformanceByStrategy = api<void, GetPerformanceByStrategyRespon
       SELECT 
         strategy,
         COUNT(*) as total_trades,
-        AVG(CASE WHEN profit_loss > 0 THEN 1.0 ELSE 0.0 END) * 100 as win_rate,
+        CAST(AVG(CASE WHEN profit_loss > 0 THEN 1.0 ELSE 0.0 END) * 100 AS DOUBLE PRECISION) as win_rate,
         SUM(profit_loss) as total_profit_loss,
-        AVG(confidence) as avg_confidence,
-        AVG(EXTRACT(EPOCH FROM (closed_at - executed_at))/3600) as avg_holding_hours
+        CAST(AVG(confidence) AS DOUBLE PRECISION) as avg_confidence,
+        CAST(AVG(EXTRACT(EPOCH FROM (closed_at - executed_at))/3600) AS DOUBLE PRECISION) as avg_holding_hours
       FROM trading_signals 
       WHERE profit_loss IS NOT NULL
       AND status IN ('auto_closed', 'closed', 'executed')

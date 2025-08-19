@@ -169,7 +169,7 @@ export const getSignalStats = api<void, {
           COUNT(CASE WHEN status = 'auto_generated' THEN 1 END) as total_generated,
           COUNT(CASE WHEN status = 'auto_executed' THEN 1 END) as total_executed,
           COUNT(CASE WHEN status = 'auto_closed' THEN 1 END) as total_closed,
-          AVG(confidence) as avg_confidence,
+          CAST(AVG(confidence) AS DOUBLE PRECISION) as avg_confidence,
           MAX(created_at) as last_generation_time
         FROM trading_signals
         WHERE created_at >= NOW() - INTERVAL '24 hours'

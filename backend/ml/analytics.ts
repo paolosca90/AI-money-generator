@@ -104,7 +104,7 @@ export const getMLAnalytics = api<void, MLAnalytics>(
   async () => {
     // Get model performance metrics
     const modelMetrics = await mlDB.queryAll`
-      SELECT metric_type, AVG(metric_value) as avg_value
+      SELECT metric_type, CAST(AVG(metric_value) AS DOUBLE PRECISION) as avg_value
       FROM ml_model_metrics 
       WHERE created_at >= NOW() - INTERVAL '30 days'
       GROUP BY metric_type

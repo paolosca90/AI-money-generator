@@ -110,7 +110,7 @@ export async function getSignalAnalytics(timeframe: 'hour' | 'day' | 'week' | 'm
         COUNT(*) as total_signals,
         COUNT(CASE WHEN success = true THEN 1 END) as successful_signals,
         CAST(COUNT(CASE WHEN success = true THEN 1 END) AS DOUBLE PRECISION) / CAST(COUNT(*) AS DOUBLE PRECISION) * 100 as success_rate,
-        AVG(generation_time_ms) as avg_generation_time
+        CAST(AVG(generation_time_ms) AS DOUBLE PRECISION) as avg_generation_time
       FROM signal_analytics 
       WHERE created_at >= ${timeCondition}
       GROUP BY symbol
@@ -123,7 +123,7 @@ export async function getSignalAnalytics(timeframe: 'hour' | 'day' | 'week' | 'm
         market_conditions->>'sessionType' as session_type,
         market_conditions->>'volatilityState' as volatility_state,
         COUNT(*) as signal_count,
-        AVG(CAST((signal_data->>'confidence')::text AS DOUBLE PRECISION)) as avg_confidence,
+        CAST(AVG(CAST((signal_data->>'confidence')::text AS DOUBLE PRECISION)) AS DOUBLE PRECISION) as avg_confidence,
         COUNT(CASE WHEN success = true THEN 1 END) as successful_count
       FROM signal_analytics 
       WHERE created_at >= ${timeCondition} AND market_conditions IS NOT NULL
@@ -136,7 +136,7 @@ export async function getSignalAnalytics(timeframe: 'hour' | 'day' | 'week' | 'm
       SELECT 
         DATE_TRUNC('hour', created_at) as hour_bucket,
         COUNT(*) as signals_generated,
-        AVG(CAST((signal_data->>'confidence')::text AS DOUBLE PRECISION)) as avg_confidence,
+        CAST(AVG(CAST((signal_data->>'confidence')::text AS DOUBLE PRECISION)) AS DOUBLE PRECISION) as avg_confidence,
         COUNT(CASE WHEN success = true THEN 1 END) as successful_signals
       FROM signal_analytics 
       WHERE created_at >= ${timeCondition} AND signal_data IS NOT NULL
