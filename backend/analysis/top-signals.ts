@@ -313,13 +313,19 @@ export const forceSignalGeneration = api<void, { success: boolean; message: stri
         try {
           const signal = await generateSignalForSymbol(symbol, mt5Config, tradeParams);
           
+          // Check if the signal was generated with real MT5 data (same validation as auto-trading)
+          if (signal.analysis.dataSource !== 'MT5') {
+            console.log(`❌ Forced signal for ${symbol} used fallback data. Discarding.`);
+            continue;
+          }
+          
           await analysisDB.exec`
             INSERT INTO trading_signals (
               trade_id, user_id, symbol, direction, strategy, entry_price, take_profit, stop_loss, 
               confidence, risk_reward_ratio, recommended_lot_size, max_holding_hours,
               expires_at, analysis_data, created_at, status
             ) VALUES (
-              ${signal.tradeId}, 0, ${signal.symbol}, ${signal.direction}, ${signal.strategy}, 
+              ${signal.tradeId}, 1, ${signal.symbol}, ${signal.direction}, ${signal.strategy}, 
               ${signal.entryPrice}, ${signal.takeProfit}, ${signal.stopLoss}, 
               ${signal.confidence}, ${signal.riskRewardRatio}, ${signal.recommendedLotSize},
               ${signal.maxHoldingTime}, ${signal.expiresAt}, ${JSON.stringify(signal.analysis)}, NOW(), 'auto_generated'

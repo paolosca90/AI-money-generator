@@ -36,7 +36,8 @@ export async function generateSignalForSymbol(
   symbol: string, 
   mt5Config: Mt5Config,
   tradeParams: { accountBalance: number, riskPercentage: number },
-  userStrategy?: TradingStrategy
+  userStrategy?: TradingStrategy,
+  requireRealData: boolean = false
 ): Promise<TradingSignal> {
   const tradeId = generateTradeId(symbol);
 
@@ -44,7 +45,7 @@ export async function generateSignalForSymbol(
   
   const { accountBalance, riskPercentage } = tradeParams;
 
-  const marketData = await fetchMarketData(symbol, ["1m", "5m", "15m", "30m", "1h"], mt5Config);
+  const marketData = await fetchMarketData(symbol, ["1m", "5m", "15m", "30m", "1h"], mt5Config, requireRealData);
   
   const availableTimeframes = Object.keys(marketData);
   if (availableTimeframes.length === 0) {
