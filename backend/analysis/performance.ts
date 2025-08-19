@@ -253,8 +253,7 @@ export const getDetailedPerformance = api<void, {
   }
 );
 
-// Get performance by symbol
-export const getPerformanceBySymbol = api<void, Array<{
+interface PerformanceBySymbol {
   symbol: string;
   totalTrades: number;
   winRate: number;
@@ -262,7 +261,14 @@ export const getPerformanceBySymbol = api<void, Array<{
   avgConfidence: number;
   bestTrade: number;
   worstTrade: number;
-}>>(
+}
+
+interface GetPerformanceBySymbolResponse {
+  performance: PerformanceBySymbol[];
+}
+
+// Get performance by symbol
+export const getPerformanceBySymbol = api<void, GetPerformanceBySymbolResponse>(
   {
     expose: true,
     method: "GET",
@@ -287,7 +293,7 @@ export const getPerformanceBySymbol = api<void, Array<{
       ORDER BY total_profit_loss DESC
     `;
 
-    return symbolPerformance.map(row => ({
+    const performance = symbolPerformance.map(row => ({
       symbol: row.symbol,
       totalTrades: Number(row.total_trades),
       winRate: Number(row.win_rate),
@@ -296,18 +302,26 @@ export const getPerformanceBySymbol = api<void, Array<{
       bestTrade: Number(row.best_trade),
       worstTrade: Number(row.worst_trade),
     }));
+
+    return { performance };
   }
 );
 
-// Get performance by strategy
-export const getPerformanceByStrategy = api<void, Array<{
+interface PerformanceByStrategy {
   strategy: string;
   totalTrades: number;
   winRate: number;
   totalProfitLoss: number;
   avgConfidence: number;
   avgHoldingTime: number;
-}>>(
+}
+
+interface GetPerformanceByStrategyResponse {
+  performance: PerformanceByStrategy[];
+}
+
+// Get performance by strategy
+export const getPerformanceByStrategy = api<void, GetPerformanceByStrategyResponse>(
   {
     expose: true,
     method: "GET",
@@ -332,7 +346,7 @@ export const getPerformanceByStrategy = api<void, Array<{
       ORDER BY total_profit_loss DESC
     `;
 
-    return strategyPerformance.map(row => ({
+    const performance = strategyPerformance.map(row => ({
       strategy: row.strategy,
       totalTrades: Number(row.total_trades),
       winRate: Number(row.win_rate),
@@ -340,5 +354,7 @@ export const getPerformanceByStrategy = api<void, Array<{
       avgConfidence: Number(row.avg_confidence),
       avgHoldingTime: Number(row.avg_holding_hours) || 0,
     }));
+
+    return { performance };
   }
 );
