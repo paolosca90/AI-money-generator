@@ -1,6 +1,7 @@
 import { api, APIError } from "encore.dev/api";
 import { closeMT5Position } from "./mt5-bridge";
 import { analysisDB } from "./db";
+import { user } from "~encore/clients";
 
 interface ClosePositionRequest {
   ticket: number;
@@ -30,14 +31,11 @@ export const closePosition = api<ClosePositionRequest, ClosePositionResponse>(
     try {
       console.log(`Attempting to close position ${ticket}`);
 
-      // Use your actual VPS MT5 config
-      const mt5Config = {
-        host: "154.61.187.189", // Your actual VPS IP
-        port: 8080,
-        login: "6001637", // Your actual MT5 account
-        server: "PureMGlobal-MT5", // Your actual server
-        password: "demo"
-      };
+      // Fetch the MT5 configuration from the single source of truth
+      const { config: mt5Config } = await user.getMt5Config();
+      if (!mt5Config) {
+        throw APIError.failedPrecondition("MT5 configuration is not set up.");
+      }
 
       // Close the position on MT5
       const result = await closeMT5Position(ticket, mt5Config);

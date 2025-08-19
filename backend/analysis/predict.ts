@@ -2,6 +2,7 @@ import { api, APIError } from "encore.dev/api";
 import { analysisDB } from "./db";
 import { TradingStrategy } from "./trading-strategies";
 import { TradingSignal, generateSignalForSymbol } from "./signal-generator";
+import { user } from "~encore/clients";
 
 interface PredictRequest {
   symbol: string;
@@ -23,7 +24,20 @@ export const predict = api<PredictRequest, TradingSignal>(
     }
 
     try {
-      const signal = await generateSignalForSymbol(symbol, userStrategy);
+      // Fetch the MT5 configuration and user preferences from the single source of truth
+      const { config: mt5Config } = await user.getMt5Config();
+      const { preferences } = await user.getPreferences();
+
+      if (!mt5Config || !preferences) {
+        throw APIError.failedPrecondition("MT5 configuration or user preferences are not set up. Please configure them in the settings.");
+      }
+
+      const tradeParams = {
+        accountBalance: preferences.accountBalance,
+        riskPercentage: preferences.riskPercentage
+      };
+
+      const signal = await generateSignalForSymbol(symbol, mt5Config, tradeParams, userStrategy);
 
       // Insert the generated signal into the database
       await analysisDB.exec`

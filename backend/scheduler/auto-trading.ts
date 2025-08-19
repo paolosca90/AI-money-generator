@@ -3,6 +3,7 @@ import { analysisDB } from "../analysis/db";
 import { generateSignalForSymbol } from "../analysis/signal-generator";
 import { recordSignalAnalytics, recordSignalPerformance } from "../analysis/analytics-tracker";
 import { learningEngine } from "../ml/learning-engine";
+import { user } from "~encore/clients";
 
 // Simboli da analizzare automaticamente
 const AUTO_TRADING_SYMBOLS = [
@@ -19,6 +20,20 @@ export const generateAutoSignals = cron("generate-auto-signals", {
     console.log("🤖 Avvio generazione automatica segnali...");
 
     try {
+      // Fetch MT5 config and preferences at the start of the cycle
+      const { config: mt5Config } = await user.getMt5Config();
+      const { preferences } = await user.getPreferences();
+
+      if (!mt5Config || !preferences) {
+        console.error("❌ MT5 configuration or preferences not found, skipping auto-trading cycle.");
+        return;
+      }
+
+      const tradeParams = {
+        accountBalance: preferences.accountBalance,
+        riskPercentage: preferences.riskPercentage
+      };
+
       const signals = [];
       const startTime = Date.now();
 
@@ -28,7 +43,7 @@ export const generateAutoSignals = cron("generate-auto-signals", {
       for (const symbol of symbolsToAnalyze) {
         try {
           const signalStartTime = Date.now();
-          const signal = await generateSignalForSymbol(symbol);
+          const signal = await generateSignalForSymbol(symbol, mt5Config, tradeParams);
           const generationTime = Date.now() - signalStartTime;
 
           // Check if the signal was generated with real data
@@ -474,6 +489,20 @@ export const ensureVisibleSignals = cron("ensure-visible-signals", {
   every: "5m",
   handler: async () => {
     try {
+      // Fetch MT5 config and preferences at the start of the cycle
+      const { config: mt5Config } = await user.getMt5Config();
+      const { preferences } = await user.getPreferences();
+
+      if (!mt5Config || !preferences) {
+        console.error("❌ MT5 configuration or preferences not found, skipping ensureVisibleSignals cycle.");
+        return;
+      }
+
+      const tradeParams = {
+        accountBalance: preferences.accountBalance,
+        riskPercentage: preferences.riskPercentage
+      };
+
       // Controlla se ci sono segnali recenti visibili
       const recentSignals = await analysisDB.queryRow`
         SELECT COUNT(*) as count 
@@ -492,7 +521,7 @@ export const ensureVisibleSignals = cron("ensure-visible-signals", {
         
         for (const symbol of popularSymbols) {
           try {
-            const signal = await generateSignalForSymbol(symbol);
+            const signal = await generateSignalForSymbol(symbol, mt5Config, tradeParams);
             
             // Check if the signal was generated with real data
             if (signal.analysis.dataSource !== 'MT5') {

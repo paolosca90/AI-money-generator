@@ -12,6 +12,7 @@ import {
   getStrategyRecommendation,
   calculatePositionSize
 } from "./trading-strategies";
+import type { Mt5Config } from "~backend/user/api";
 
 export interface TradingSignal {
   tradeId: string;
@@ -31,23 +32,17 @@ export interface TradingSignal {
   analysis: any;
 }
 
-export async function generateSignalForSymbol(symbol: string, userStrategy?: TradingStrategy): Promise<TradingSignal> {
+export async function generateSignalForSymbol(
+  symbol: string, 
+  mt5Config: Mt5Config,
+  tradeParams: { accountBalance: number, riskPercentage: number },
+  userStrategy?: TradingStrategy
+): Promise<TradingSignal> {
   const tradeId = generateTradeId(symbol);
 
   console.log(`Starting prediction for ${symbol} with trade ID ${tradeId}`);
   
-  // Use default values for demo purposes
-  const riskPercentage = 2.0;
-  const accountBalance = 9754.81; // Updated to match your actual MT5 balance
-  
-  // Use your actual VPS MT5 config
-  const mt5Config = {
-    host: "154.61.187.189", // Your actual VPS IP
-    port: 8080,
-    login: "6001637", // Your actual MT5 account
-    server: "PureMGlobal-MT5", // Your actual server
-    password: "demo"
-  };
+  const { accountBalance, riskPercentage } = tradeParams;
 
   const marketData = await fetchMarketData(symbol, ["1m", "5m", "15m", "30m", "1h"], mt5Config);
   
