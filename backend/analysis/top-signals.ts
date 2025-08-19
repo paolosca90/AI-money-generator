@@ -1,5 +1,6 @@
-import { api } from "encore.dev/api";
+import { api, APIError } from "encore.dev/api";
 import { analysisDB } from "./db";
+import { user } from "~encore/clients";
 
 // A simplified signal for the dashboard based on real auto-generated signals
 export interface AutoSignal {
@@ -290,16 +291,27 @@ export const forceSignalGeneration = api<void, { success: boolean; message: stri
     try {
       console.log("🔄 Forzando generazione di nuovi segnali...");
       
-      // Import the signal generator function
+      // Fetch config from the single source of truth
+      const { config: mt5Config } = await user.getMt5Config();
+      const { preferences } = await user.getPreferences();
+
+      if (!mt5Config || !preferences) {
+        throw APIError.failedPrecondition("MT5 configuration or user preferences are not set up.");
+      }
+
+      const tradeParams = {
+        accountBalance: preferences.accountBalance,
+        riskPercentage: preferences.riskPercentage
+      };
+      
       const { generateSignalForSymbol } = await import("./signal-generator");
       
-      // Generate signals for popular symbols
       const popularSymbols = ["EURUSD", "BTCUSD", "US30"];
       let generatedCount = 0;
       
       for (const symbol of popularSymbols) {
         try {
-          const signal = await generateSignalForSymbol(symbol);
+          const signal = await generateSignalForSymbol(symbol, mt5Config, tradeParams);
           
           await analysisDB.exec`
             INSERT INTO trading_signals (
@@ -330,9 +342,10 @@ export const forceSignalGeneration = api<void, { success: boolean; message: stri
     } catch (error) {
       console.error("❌ Errore nella forzatura della generazione:", error);
       
+      const errorMessage = error instanceof Error ? error.message : "Errore nella generazione dei segnali. Riprova tra qualche minuto.";
       return {
         success: false,
-        message: "Errore nella generazione dei segnali. Riprova tra qualche minuto."
+        message: errorMessage
       };
     }
   }

@@ -1,6 +1,7 @@
 import { api } from "encore.dev/api";
 import { getMT5Positions, MT5Position } from "./mt5-bridge";
 import { analysisDB } from "./db";
+import { user } from "~encore/clients";
 
 interface ListPositionsResponse {
   positions: MT5Position[];
@@ -13,14 +14,12 @@ export const listPositions = api<void, ListPositionsResponse>({
   expose: true,
 }, async () => {
   try {
-    // Use your actual VPS MT5 config
-    const mt5Config = {
-      host: "154.61.187.189", // Your actual VPS IP
-      port: 8080,
-      login: "6001637", // Your actual MT5 account
-      server: "PureMGlobal-MT5", // Your actual server
-      password: "demo"
-    };
+    // Fetch the MT5 configuration from the single source of truth
+    const { config: mt5Config } = await user.getMt5Config();
+    if (!mt5Config) {
+      console.log("MT5 configuration not set up, cannot fetch positions.");
+      return { positions: [] };
+    }
 
     console.log("Fetching positions from MT5");
 
@@ -55,7 +54,7 @@ export const listPositions = api<void, ListPositionsResponse>({
       
       // Method 2: Match by comment containing trade ID pattern
       if (position.comment) {
-        const tradeIdMatch = position.comment.match(/[A-Z]{3}-\d{8}/);
+        const tradeIdMatch = position.comment.match(/[A-Z]{3}-\d{6,8}/);
         if (tradeIdMatch) {
           const tradeIdFromComment = tradeIdMatch[0];
           const hasMatchingTrade = userTradeSignals.some(signal => signal.trade_id === tradeIdFromComment);
