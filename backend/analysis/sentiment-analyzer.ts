@@ -152,7 +152,7 @@ async function analyzeNewsWithGemini(news: Array<{ title: string; description: s
     const apiKey = geminiApiKey();
     if (!apiKey || apiKey === "your_gemini_key") {
       console.log("Gemini API key not configured for sentiment analysis, using fallback.");
-      return { score: 0, summary: "Sentiment analysis unavailable, using neutral." };
+      return generateFallbackSentiment(news, symbol);
     }
 
     const prompt = createAdvancedSentimentPrompt(news, symbol);
@@ -175,14 +175,16 @@ async function analyzeNewsWithGemini(news: Array<{ title: string; description: s
     if (!response.ok) {
       const errorText = await response.text();
       console.error(`Gemini sentiment API error: ${response.status} ${response.statusText} - ${errorText}`);
-      return { score: 0, summary: "Error communicating with AI for sentiment analysis." };
+      console.log("Using fallback sentiment analysis due to API error.");
+      return generateFallbackSentiment(news, symbol);
     }
 
     const text = await response.text();
     return parseGeminiSentimentResponse(text);
   } catch (error) {
     console.error("Error analyzing sentiment with Gemini:", error);
-    return { score: 0, summary: "Failed to perform AI sentiment analysis." };
+    console.log("Using fallback sentiment analysis due to exception.");
+    return generateFallbackSentiment(news, symbol);
   }
 }
 
@@ -227,4 +229,46 @@ function parseGeminiSentimentResponse(text: string): { score: number; summary: s
         console.error("Error parsing Gemini sentiment JSON response:", error);
         return { score: 0, summary: "Error parsing sentiment response." };
     }
+}
+
+/**
+ * Generates a fallback sentiment analysis when the primary AI service fails.
+ * This function performs a simple keyword-based analysis.
+ */
+function generateFallbackSentiment(news: Array<{ title: string; description: string; source: string; type: string }>, symbol: string): { score: number; summary: string } {
+  let score = 0;
+  let positiveKeywords = 0;
+  let negativeKeywords = 0;
+
+  const bullishWords = ['up', 'rise', 'gain', 'bullish', 'rally', 'strong', 'positive', 'high', 'beat', 'exceed', 'optimism', 'growth', 'boom', 'surge'];
+  const bearishWords = ['down', 'fall', 'loss', 'bearish', 'drop', 'weak', 'negative', 'low', 'miss', 'decline', 'pessimism', 'recession', 'slump', 'crash'];
+
+  const allText = news.map(n => `${n.title} ${n.description}`).join(' ').toLowerCase();
+
+  bullishWords.forEach(word => {
+    positiveKeywords += (allText.match(new RegExp(`\\b${word}\\b`, 'g')) || []).length;
+  });
+
+  bearishWords.forEach(word => {
+    negativeKeywords += (allText.match(new RegExp(`\\b${word}\\b`, 'g')) || []).length;
+  });
+
+  const totalKeywords = positiveKeywords + negativeKeywords;
+  if (totalKeywords > 0) {
+    score = (positiveKeywords - negativeKeywords) / totalKeywords;
+  }
+
+  let summary = `Fallback sentiment analysis for ${symbol}. `;
+  if (score > 0.3) {
+    summary += `Overall sentiment appears positive based on keyword analysis. Found ${positiveKeywords} bullish vs ${negativeKeywords} bearish keywords.`;
+  } else if (score < -0.3) {
+    summary += `Overall sentiment appears negative based on keyword analysis. Found ${negativeKeywords} bearish vs ${positiveKeywords} bullish keywords.`;
+  } else {
+    summary += `Market sentiment is mixed or neutral. Found ${positiveKeywords} bullish and ${negativeKeywords} bearish keywords.`;
+  }
+
+  return {
+    score: Math.max(-1, Math.min(1, score)),
+    summary: summary
+  };
 }
