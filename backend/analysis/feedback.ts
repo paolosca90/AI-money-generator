@@ -1,5 +1,6 @@
 import { api, APIError } from "encore.dev/api";
 import { analysisDB } from "./db";
+import { updateSignalOutcome } from "./analytics-tracker";
 
 interface FeedbackRequest {
   tradeId: string;
@@ -23,7 +24,7 @@ export const recordFeedback = api<FeedbackRequest, FeedbackResponse>(
 
     // Get the original prediction for performance tracking
     const signal = await analysisDB.queryRow`
-      SELECT direction, confidence, user_id FROM trading_signals 
+      SELECT direction, confidence, user_id, symbol FROM trading_signals 
       WHERE trade_id = ${tradeId}
     `;
 
@@ -48,6 +49,11 @@ export const recordFeedback = api<FeedbackRequest, FeedbackResponse>(
         ${signal.confidence}, ${profitLoss}, NOW()
       )
     `;
+
+    // Update comprehensive analytics tracking
+    await updateSignalOutcome(tradeId, actualDirection, profitLoss);
+
+    console.log(`📊 Recorded feedback for ${tradeId}: Predicted ${signal.direction}, Actual ${actualDirection}, P/L: ${profitLoss}`);
 
     return { success: true };
   }

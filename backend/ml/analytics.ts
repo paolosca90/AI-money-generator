@@ -1,6 +1,7 @@
 import { api } from "encore.dev/api";
 import { mlDB } from "./db";
 import { analysisDB } from "../analysis/db";
+import { getSignalAnalytics, getMLTrainingData } from "../analysis/analytics-tracker";
 
 export interface MLAnalytics {
   modelPerformance: {
@@ -50,6 +51,47 @@ export interface MLAnalytics {
     adaptationReason: string;
     performanceImprovement: number;
   }>;
+  signalAnalytics: {
+    successRateBySymbol: Array<{
+      symbol: string;
+      totalSignals: number;
+      successfulSignals: number;
+      successRate: number;
+      avgGenerationTime: number;
+    }>;
+    performanceByConditions: Array<{
+      sessionType: string;
+      volatilityState: string;
+      signalCount: number;
+      avgConfidence: number;
+      successfulCount: number;
+    }>;
+    trendAnalysis: Array<{
+      hour: string;
+      signalsGenerated: number;
+      avgConfidence: number;
+      successfulSignals: number;
+    }>;
+  };
+  mlTrainingInsights: {
+    totalTrainingRecords: number;
+    accuracyBySymbol: Array<{
+      symbol: string;
+      accuracy: number;
+      sampleSize: number;
+    }>;
+    confidenceCalibration: Array<{
+      confidenceRange: string;
+      actualSuccessRate: number;
+      sampleSize: number;
+    }>;
+    marketConditionPerformance: Array<{
+      condition: string;
+      accuracy: number;
+      avgProfitLoss: number;
+      sampleSize: number;
+    }>;
+  };
 }
 
 // Retrieves comprehensive ML analytics and performance metrics.
@@ -171,6 +213,13 @@ export const getMLAnalytics = api<void, MLAnalytics>(
       ORDER BY parameter_name, adapted_at DESC
     `;
 
+    // Get enhanced signal analytics
+    const signalAnalytics = await getSignalAnalytics('day');
+
+    // Get ML training insights
+    const mlTrainingData = await getMLTrainingData();
+    const mlTrainingInsights = await generateMLTrainingInsights(mlTrainingData);
+
     return {
       modelPerformance,
       predictionStats: predictionStatsResult,
@@ -206,9 +255,92 @@ export const getMLAnalytics = api<void, MLAnalytics>(
         adaptationReason: ap.adaptation_reason || '',
         performanceImprovement: Number(ap.performance_improvement) || 0,
       })),
+      signalAnalytics,
+      mlTrainingInsights
     };
   }
 );
+
+async function generateMLTrainingInsights(trainingData: any[]) {
+  if (trainingData.length === 0) {
+    return {
+      totalTrainingRecords: 0,
+      accuracyBySymbol: [],
+      confidenceCalibration: [],
+      marketConditionPerformance: []
+    };
+  }
+
+  // Calculate accuracy by symbol
+  const symbolStats = trainingData.reduce((acc, record) => {
+    if (!acc[record.symbol]) {
+      acc[record.symbol] = { correct: 0, total: 0 };
+    }
+    acc[record.symbol].total++;
+    if (record.wasCorrect) {
+      acc[record.symbol].correct++;
+    }
+    return acc;
+  }, {} as Record<string, { correct: number; total: number }>);
+
+  const accuracyBySymbol = Object.entries(symbolStats).map(([symbol, stats]) => ({
+    symbol,
+    accuracy: stats.correct / stats.total,
+    sampleSize: stats.total
+  }));
+
+  // Calculate confidence calibration
+  const confidenceRanges = [
+    { min: 0, max: 60, label: '0-60%' },
+    { min: 60, max: 70, label: '60-70%' },
+    { min: 70, max: 80, label: '70-80%' },
+    { min: 80, max: 90, label: '80-90%' },
+    { min: 90, max: 100, label: '90-100%' }
+  ];
+
+  const confidenceCalibration = confidenceRanges.map(range => {
+    const recordsInRange = trainingData.filter(r => 
+      r.predictedConfidence >= range.min && r.predictedConfidence < range.max
+    );
+    const successRate = recordsInRange.length > 0 
+      ? recordsInRange.filter(r => r.wasProfitable).length / recordsInRange.length 
+      : 0;
+    
+    return {
+      confidenceRange: range.label,
+      actualSuccessRate: successRate,
+      sampleSize: recordsInRange.length
+    };
+  });
+
+  // Calculate performance by market conditions
+  const conditionStats = trainingData.reduce((acc, record) => {
+    const sessionType = record.generationMarketConditions?.sessionType || 'UNKNOWN';
+    if (!acc[sessionType]) {
+      acc[sessionType] = { correct: 0, total: 0, totalProfitLoss: 0 };
+    }
+    acc[sessionType].total++;
+    if (record.wasCorrect) {
+      acc[sessionType].correct++;
+    }
+    acc[sessionType].totalProfitLoss += record.actualProfitLoss;
+    return acc;
+  }, {} as Record<string, { correct: number; total: number; totalProfitLoss: number }>);
+
+  const marketConditionPerformance = Object.entries(conditionStats).map(([condition, stats]) => ({
+    condition,
+    accuracy: stats.correct / stats.total,
+    avgProfitLoss: stats.totalProfitLoss / stats.total,
+    sampleSize: stats.total
+  }));
+
+  return {
+    totalTrainingRecords: trainingData.length,
+    accuracyBySymbol,
+    confidenceCalibration,
+    marketConditionPerformance
+  };
+}
 
 function getMetricValue(metrics: any[], metricType: string, defaultValue: number): number {
   const metric = metrics.find(m => m.metric_type === metricType);
@@ -361,3 +493,69 @@ export const recordMarketPattern = api<{
     return { success: true };
   }
 );
+
+// Get comprehensive analytics for ML model improvement
+export const getMLTrainingAnalytics = api<void, {
+  trainingData: any[];
+  insights: any;
+  recommendations: string[];
+}>(
+  {
+    expose: true,
+    method: "GET",
+    path: "/ml/training-analytics"
+  },
+  async () => {
+    const trainingData = await getMLTrainingData();
+    const insights = await generateMLTrainingInsights(trainingData);
+    
+    // Generate recommendations based on insights
+    const recommendations = generateMLRecommendations(insights, trainingData);
+    
+    return {
+      trainingData: trainingData.slice(0, 100), // Return only recent 100 for performance
+      insights,
+      recommendations
+    };
+  }
+);
+
+function generateMLRecommendations(insights: any, trainingData: any[]): string[] {
+  const recommendations: string[] = [];
+  
+  // Check overall accuracy
+  const overallAccuracy = trainingData.filter(r => r.wasCorrect).length / trainingData.length;
+  if (overallAccuracy < 0.7) {
+    recommendations.push("🔄 Overall accuracy below 70% - Consider retraining with more diverse data");
+  }
+  
+  // Check confidence calibration
+  const highConfidenceLowSuccess = insights.confidenceCalibration.find(
+    (c: any) => c.confidenceRange === '80-90%' && c.actualSuccessRate < 0.7
+  );
+  if (highConfidenceLowSuccess) {
+    recommendations.push("⚠️ High confidence predictions underperforming - Review confidence calculation");
+  }
+  
+  // Check symbol performance variance
+  const symbolAccuracies = insights.accuracyBySymbol.map((s: any) => s.accuracy);
+  const maxAccuracy = Math.max(...symbolAccuracies);
+  const minAccuracy = Math.min(...symbolAccuracies);
+  if (maxAccuracy - minAccuracy > 0.3) {
+    recommendations.push("📊 Large accuracy variance between symbols - Consider symbol-specific models");
+  }
+  
+  // Check market condition performance
+  const conditionPerformance = insights.marketConditionPerformance;
+  const poorConditions = conditionPerformance.filter((c: any) => c.accuracy < 0.6);
+  if (poorConditions.length > 0) {
+    recommendations.push(`🌍 Poor performance in ${poorConditions.map((c: any) => c.condition).join(', ')} conditions - Adjust strategy`);
+  }
+  
+  if (recommendations.length === 0) {
+    recommendations.push("✅ Model performance is stable across all metrics");
+    recommendations.push("📈 Continue current training approach");
+  }
+  
+  return recommendations;
+}

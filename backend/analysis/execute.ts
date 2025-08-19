@@ -2,6 +2,7 @@ import { api, APIError } from "encore.dev/api";
 import { analysisDB } from "./db";
 import { executeMT5Order } from "./mt5-bridge";
 import { TradingStrategy } from "./trading-strategies";
+import { recordSignalPerformance } from "./analytics-tracker";
 
 interface ExecuteRequest {
   tradeId: string;
@@ -104,6 +105,18 @@ export const execute = api<ExecuteRequest, ExecuteResponse>(
           `;
 
           console.log(`✅ Successfully updated signal ${tradeId} as executed with MT5 order ID: ${result.orderId}`);
+          
+          // Record performance tracking for ML improvement
+          await recordSignalPerformance({
+            tradeId,
+            symbol: signal.symbol,
+            predictedDirection: signal.direction,
+            predictedConfidence: signal.confidence,
+            executionTime: new Date(),
+            marketConditionsAtEntry: signal.analysis_data?.enhancedTechnical?.marketContext || {},
+            technicalIndicatorsAtEntry: signal.analysis_data?.technical || {}
+          });
+          
         } catch (dbError) {
           console.error(`Database update failed for ${tradeId}:`, dbError);
           // Don't throw here as the trade was executed successfully
