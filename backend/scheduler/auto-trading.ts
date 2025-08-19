@@ -88,7 +88,7 @@ export const generateAutoSignals = cron("generate-auto-signals", {
               confidence, risk_reward_ratio, recommended_lot_size, max_holding_hours,
               expires_at, analysis_data, created_at, status
             ) VALUES (
-              ${signal.tradeId}, 1, ${signal.symbol}, ${signal.direction}, ${signal.strategy}, 
+              ${signal.tradeId}, 0, ${signal.symbol}, ${signal.direction}, ${signal.strategy}, 
               ${signal.entryPrice}, ${signal.takeProfit}, ${signal.stopLoss}, 
               ${signal.confidence}, ${signal.riskRewardRatio}, ${signal.recommendedLotSize},
               ${signal.maxHoldingTime}, ${signal.expiresAt}, ${JSON.stringify(signal.analysis)}, NOW(), 'auto_generated'
@@ -535,7 +535,7 @@ export const ensureVisibleSignals = cron("ensure-visible-signals", {
                 confidence, risk_reward_ratio, recommended_lot_size, max_holding_hours,
                 expires_at, analysis_data, created_at, status
               ) VALUES (
-                ${signal.tradeId}, 1, ${signal.symbol}, ${signal.direction}, ${signal.strategy}, 
+                ${signal.tradeId}, 0, ${signal.symbol}, ${signal.direction}, ${signal.strategy}, 
                 ${signal.entryPrice}, ${signal.takeProfit}, ${signal.stopLoss}, 
                 ${signal.confidence}, ${signal.riskRewardRatio}, ${signal.recommendedLotSize},
                 ${signal.maxHoldingTime}, ${signal.expiresAt}, ${JSON.stringify(signal.analysis)}, NOW(), 'auto_generated'

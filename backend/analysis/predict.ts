@@ -121,11 +121,6 @@ for (const tf of requiredTimeframes) {
 
       const signal = await generateSignalForSymbol(symbol, mt5Config, tradeParams, userStrategy);
 
-      // Check if the signal was generated with real MT5 data (same validation as auto-trading)
-      if (signal.analysis.dataSource !== 'MT5') {
-        throw APIError.unavailable(`Unable to generate signal for ${symbol} - MT5 data not available. Please check your MT5 connection.`);
-      }
-
       // Insert the generated signal into the database
       await analysisDB.exec`
         INSERT INTO trading_signals (
