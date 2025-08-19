@@ -64,15 +64,20 @@ export function calculateStrategyTargets(
   currentPrice: number,
   atr: number,
   direction: "LONG" | "SHORT",
-  symbol: string
+  symbol: string,
+  spread: number
 ): StrategyPriceTargets {
   const config = TRADING_STRATEGIES[strategy];
   const symbolCharacteristics = getSymbolCharacteristics(symbol);
   
   const adjustedATR = atr * symbolCharacteristics.volatilityMultiplier;
   
-  const stopLossDistance = adjustedATR * config.stopLossMultiplier;
-  const takeProfitDistance = adjustedATR * config.takeProfitMultiplier;
+  // Ensure stop loss is at least 3x the spread to avoid premature stops
+  const stopLossDistance = Math.max(
+    adjustedATR * config.stopLossMultiplier,
+    spread * 3
+  );
+  const takeProfitDistance = stopLossDistance * config.riskRewardRatio;
   
   let stopLoss: number;
   let takeProfit: number;
@@ -97,7 +102,7 @@ export function calculateStrategyTargets(
   
   const riskAmount = Math.abs(currentPrice - stopLoss);
   const rewardAmount = Math.abs(takeProfit - currentPrice);
-  const actualRiskReward = rewardAmount / riskAmount;
+  const actualRiskReward = riskAmount > 0 ? rewardAmount / riskAmount : 0;
   
   return {
     entryPrice: currentPrice,
@@ -111,17 +116,15 @@ export function calculateStrategyTargets(
 
 export function getOptimalStrategy(
   marketData: any,
-  aiAnalysis: any,
   symbol: string,
   userPreference?: TradingStrategy
 ): TradingStrategy {
-  if (userPreference && isStrategyValid(userPreference, marketData, aiAnalysis, symbol)) {
+  if (userPreference && isStrategyValid(userPreference, marketData, symbol)) {
     return userPreference;
   }
   
   const volatility = calculateMarketVolatility(marketData);
   const trendStrength = calculateTrendStrength(marketData);
-  const confidence = aiAnalysis.confidence;
   
   // Calcola il tempo rimanente fino alla chiusura di NY (22:00 CET)
   const now = new Date();
@@ -135,8 +138,8 @@ export function getOptimalStrategy(
   }
   
   const scores = {
-    [TradingStrategy.SCALPING]: calculateStrategyScore(TradingStrategy.SCALPING, volatility, trendStrength, confidence),
-    [TradingStrategy.INTRADAY]: calculateStrategyScore(TradingStrategy.INTRADAY, volatility, trendStrength, confidence)
+    [TradingStrategy.SCALPING]: calculateStrategyScore(TradingStrategy.SCALPING, volatility, trendStrength),
+    [TradingStrategy.INTRADAY]: calculateStrategyScore(TradingStrategy.INTRADAY, volatility, trendStrength)
   };
   
   // Find the strategy with the highest score
@@ -156,7 +159,6 @@ export function getOptimalStrategy(
 function isStrategyValid(
   strategy: TradingStrategy,
   marketData: any,
-  aiAnalysis: any,
   symbol: string
 ): boolean {
   const config = TRADING_STRATEGIES[strategy];
@@ -164,7 +166,6 @@ function isStrategyValid(
   const trendStrength = calculateTrendStrength(marketData);
   
   return (
-    aiAnalysis.confidence >= config.minConfidence &&
     volatility <= config.volatilityThreshold * 2 &&
     trendStrength >= config.trendStrengthRequired * 0.8
   );
@@ -173,15 +174,10 @@ function isStrategyValid(
 function calculateStrategyScore(
   strategy: TradingStrategy,
   volatility: number,
-  trendStrength: number,
-  confidence: number
+  trendStrength: number
 ): number {
   const config = TRADING_STRATEGIES[strategy];
-  let score = 0;
-  
-  if (confidence >= config.minConfidence) {
-    score += Math.min(40, (confidence - config.minConfidence) / (100 - config.minConfidence) * 40);
-  }
+  let score = 50;
   
   const volatilityFit = 1 - Math.abs(volatility - config.volatilityThreshold) / config.volatilityThreshold;
   score += Math.max(0, volatilityFit * 30);
@@ -396,7 +392,7 @@ export function calculatePositionSize(
   const config = TRADING_STRATEGIES[strategy];
   
   const maxRiskAmount = accountBalance * (riskPercentage / 100);
-  const positionSize = Math.min(maxRiskAmount / riskAmount, config.maxLotSize);
+  const positionSize = riskAmount > 0 ? Math.min(maxRiskAmount / riskAmount, config.maxLotSize) : config.maxLotSize;
   
   return Math.round(positionSize * 100) / 100;
 }

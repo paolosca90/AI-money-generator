@@ -77,11 +77,12 @@ async function tryRealExecution(order: MT5OrderRequest, mt5Config: Mt5Config): P
     const url = `http://${host}:${port}/execute`;
     console.log(`🔗 Connecting to MT5 execution endpoint: ${url}`);
 
-    const symbol = order.symbol.endsWith("pm") ? order.symbol : `${order.symbol}pm`;
+    // Enhanced symbol mapping for execution
+    const correctSymbol = await findCorrectExecutionSymbol(order.symbol, host, port);
     const action = order.direction === "LONG" ? "BUY" : "SELL";
 
     const payload = {
-      symbol: symbol,
+      symbol: correctSymbol,
       action: action,
       volume: order.lotSize,
       sl: order.stopLoss,
@@ -123,6 +124,146 @@ async function tryRealExecution(order: MT5OrderRequest, mt5Config: Mt5Config): P
       error: `Connection to MT5 server failed: ${error.message || error}`,
     };
   }
+}
+
+async function findCorrectExecutionSymbol(symbol: string, host: string, port: number): Promise<string> {
+  const baseUrl = `http://${host}:${port}`;
+  
+  // Get comprehensive symbol variations with priority for execution
+  const symbolVariations = getExecutionSymbolVariations(symbol);
+  
+  console.log(`🔍 Finding correct execution symbol for ${symbol}. Testing ${symbolVariations.length} variations...`);
+  
+  for (const variation of symbolVariations) {
+    try {
+      const response = await fetchWithTimeout(`${baseUrl}/symbol_info`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ symbol: variation }),
+      }, 3000);
+
+      if (response.ok) {
+        const result = await response.json() as any;
+        if (result.symbol_info && !result.error && result.symbol_info.visible) {
+          console.log(`✅ Found tradeable symbol: ${symbol} → ${variation}`);
+          return variation;
+        }
+      }
+    } catch (error) {
+      continue;
+    }
+  }
+  
+  console.log(`⚠️ Using original symbol ${symbol} as fallback`);
+  return symbol;
+}
+
+function getExecutionSymbolVariations(symbol: string): string[] {
+  const variations: string[] = [];
+  
+  // Priority mappings for specific symbols (most common first)
+  const priorityMappings = getPrioritySymbolMappings(symbol);
+  variations.push(...priorityMappings);
+  
+  // Add original symbol
+  variations.push(symbol);
+  
+  // Common broker suffixes (in order of popularity)
+  const commonSuffixes = ['pm', '.pm', '_pm', 'pro', '.pro', '_pro', 'm', '.m', '_m', 'c', 'i', 'ecn', '.ecn', '_ecn', 'raw', '.raw', '_raw'];
+  commonSuffixes.forEach(suffix => {
+    variations.push(symbol + suffix);
+  });
+  
+  // Alternative symbol names
+  const alternativeNames = getAlternativeSymbolNames(symbol);
+  variations.push(...alternativeNames);
+  
+  // Apply suffixes to alternative names
+  alternativeNames.forEach(altName => {
+    commonSuffixes.forEach(suffix => {
+      variations.push(altName + suffix);
+    });
+  });
+  
+  return [...new Set(variations)]; // Remove duplicates
+}
+
+function getPrioritySymbolMappings(symbol: string): string[] {
+  const mappings: { [key: string]: string[] } = {
+    // US Indices - most common formats first
+    "US30": [
+      "US30pm", "US30.pm", "DJ30pm", "DJ30.pm", "DJI30pm", "DJI30.pm",
+      "US30pro", "US30.pro", "DJ30pro", "DJ30.pro", "DJIA", "DJIApm",
+      "DOW30pm", "DOW30.pm", "YMpm", "YM.pm", "US30c", "US30i"
+    ],
+    "US500": [
+      "US500pm", "US500.pm", "SPX500pm", "SPX500.pm", "SP500pm", "SP500.pm",
+      "US500pro", "US500.pro", "SPX500pro", "SPX500.pro", "ESpm", "ES.pm",
+      "SPYpm", "SPY.pm", "US500c", "US500i", "SPX500c", "SPX500i"
+    ],
+    "SPX500": [
+      "SPX500pm", "SPX500.pm", "US500pm", "US500.pm", "SP500pm", "SP500.pm",
+      "SPX500pro", "SPX500.pro", "US500pro", "US500.pro", "ESpm", "ES.pm",
+      "SPYpm", "SPY.pm", "SPX500c", "SPX500i", "US500c", "US500i"
+    ],
+    "NAS100": [
+      "NAS100pm", "NAS100.pm", "NASDAQpm", "NASDAQ.pm", "NDXpm", "NDX.pm",
+      "NAS100pro", "NAS100.pro", "NASDAQpro", "NASDAQ.pro", "NQpm", "NQ.pm",
+      "QQQpm", "QQQ.pm", "NAS100c", "NAS100i", "TECH100pm", "TECH100.pm"
+    ],
+    // Forex
+    "EURUSD": [
+      "EURUSDpm", "EURUSD.pm", "EURUSDpro", "EURUSD.pro", "EURUSDm", "EURUSD.m",
+      "EURUSDc", "EURUSDi", "EURUSDecn", "EURUSD.ecn", "EURUSDraw", "EURUSD.raw"
+    ],
+    "GBPUSD": [
+      "GBPUSDpm", "GBPUSD.pm", "GBPUSDpro", "GBPUSD.pro", "GBPUSDm", "GBPUSD.m",
+      "GBPUSDc", "GBPUSDi", "GBPUSDecn", "GBPUSD.ecn", "GBPUSDraw", "GBPUSD.raw"
+    ],
+    "USDJPY": [
+      "USDJPYpm", "USDJPY.pm", "USDJPYpro", "USDJPY.pro", "USDJPYm", "USDJPY.m",
+      "USDJPYc", "USDJPYi", "USDJPYecn", "USDJPY.ecn", "USDJPYraw", "USDJPY.raw"
+    ],
+    // Gold
+    "XAUUSD": [
+      "XAUUSDpm", "XAUUSD.pm", "GOLDpm", "GOLD.pm", "XAUUSDpro", "XAUUSD.pro",
+      "GOLDpro", "GOLD.pro", "XAUUSDm", "XAUUSD.m", "GOLDm", "GOLD.m",
+      "XAUUSDc", "XAUUSDi", "GOLDc", "GOLDi", "GOLD", "XAUUSDecn", "XAUUSD.ecn"
+    ],
+    // Crypto
+    "BTCUSD": [
+      "BTCUSDpm", "BTCUSD.pm", "BTCUSDpro", "BTCUSD.pro", "BTCUSDm", "BTCUSD.m",
+      "BITCOIN", "BITCOINpm", "BITCOIN.pm", "BTC", "BTCpm", "BTC.pm"
+    ],
+    "ETHUSD": [
+      "ETHUSDpm", "ETHUSD.pm", "ETHUSDpro", "ETHUSD.pro", "ETHUSDm", "ETHUSD.m",
+      "ETHEREUM", "ETHEREUMpm", "ETHEREUM.pm", "ETH", "ETHpm", "ETH.pm"
+    ],
+    // Oil
+    "CRUDE": [
+      "CRUDEpm", "CRUDE.pm", "WTIpm", "WTI.pm", "USOILpm", "USOIL.pm",
+      "CRUDEpro", "CRUDE.pro", "WTIpro", "WTI.pro", "CLpm", "CL.pm",
+      "CRUDEm", "CRUDE.m", "WTIm", "WTI.m", "USOIL", "WTI", "CL"
+    ]
+  };
+  
+  return mappings[symbol] || [];
+}
+
+function getAlternativeSymbolNames(symbol: string): string[] {
+  const alternatives: { [key: string]: string[] } = {
+    "US30": ["DJ30", "DJI30", "DJIA", "DOW", "DOW30", "YM", "DOWJONES"],
+    "US500": ["SPX500", "SP500", "SPY", "ES", "SPXUSD", "S&P500"],
+    "SPX500": ["US500", "SP500", "SPY", "ES", "SPXUSD", "S&P500"],
+    "NAS100": ["NASDAQ", "NDX", "QQQ", "NQ", "NASUSD", "TECH100"],
+    "XAUUSD": ["GOLD"],
+    "BTCUSD": ["BITCOIN", "BTC"],
+    "ETHUSD": ["ETHEREUM", "ETH"],
+    "CRUDE": ["WTI", "USOIL", "CL"],
+    "BRENT": ["BRENT", "UKOIL"]
+  };
+  
+  return alternatives[symbol] || [];
 }
 
 export async function getMT5Positions(mt5Config: Mt5Config): Promise<MT5Position[]> {

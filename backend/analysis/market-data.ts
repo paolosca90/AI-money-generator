@@ -8,15 +8,24 @@ export interface MarketDataPoint {
   low: number;
   close: number;
   volume: number;
+  spread: number;
   indicators: {
     rsi: number;
     macd: number;
     atr: number;
   };
+  source: 'MT5' | 'FALLBACK';
 }
 
 export interface TimeframeData {
   [timeframe: string]: MarketDataPoint;
+}
+
+interface SymbolInfo {
+  name: string;
+  spread: number;
+  point: number;
+  // other fields can be added if needed
 }
 
 export async function fetchMarketData(symbol: string, timeframes: string[], mt5Config: Mt5Config): Promise<TimeframeData> {
@@ -91,11 +100,13 @@ async function fetchMT5Data(symbol: string, timeframe: string, mt5Config: Mt5Con
     const baseUrl = `http://${host}:${port}`;
 
     // Try to find the correct symbol format for this broker
-    const correctSymbol = await findCorrectSymbolFormat(baseUrl, symbol);
-    if (!correctSymbol) {
+    const symbolInfoResult = await findCorrectSymbolFormat(baseUrl, symbol);
+    if (!symbolInfoResult) {
       console.log(`❌ Symbol ${symbol} not found in any format on this broker`);
       return null;
     }
+    const { name: correctSymbol, info: symbolInfo } = symbolInfoResult;
+    const spreadInPrice = symbolInfo.spread * symbolInfo.point;
 
     // Fetch rates data with the correct symbol and longer timeout
     const response = await fetchWithTimeout(`${baseUrl}/rates`, {
@@ -127,7 +138,7 @@ async function fetchMT5Data(symbol: string, timeframe: string, mt5Config: Mt5Con
     // Calculate indicators based on the fetched rates
     const indicators = calculateIndicatorsFromRates(result.rates);
 
-    console.log(`📊 Successfully fetched MT5 data for ${symbol} (${correctSymbol}) ${timeframe} - Close: ${close}, Volume: ${tick_volume}`);
+    console.log(`📊 Successfully fetched MT5 data for ${symbol} (${correctSymbol}) ${timeframe} - Close: ${close}, Volume: ${tick_volume}, Spread: ${spreadInPrice}`);
 
     return {
       timestamp: time * 1000,
@@ -136,7 +147,9 @@ async function fetchMT5Data(symbol: string, timeframe: string, mt5Config: Mt5Con
       low,
       close,
       volume: tick_volume,
+      spread: spreadInPrice,
       indicators,
+      source: 'MT5',
     };
 
   } catch (error) {
@@ -167,10 +180,10 @@ async function fetchWithTimeout(url: string, options: RequestInit, timeoutMs: nu
   }
 }
 
-async function findCorrectSymbolFormat(baseUrl: string, symbol: string): Promise<string | null> {
+async function findCorrectSymbolFormat(baseUrl: string, symbol: string): Promise<{ name: string; info: SymbolInfo } | null> {
   const symbolVariations = getSymbolVariations(symbol);
   
-  console.log(`🔍 Trying to find correct symbol format for ${symbol}. Testing variations: ${symbolVariations.slice(0, 5).join(', ')}...`);
+  console.log(`🔍 Trying to find correct symbol format for ${symbol}. Testing variations: ${symbolVariations.slice(0, 8).join(', ')}...`);
   
   for (const variation of symbolVariations) {
     try {
@@ -184,7 +197,7 @@ async function findCorrectSymbolFormat(baseUrl: string, symbol: string): Promise
         const result = await response.json() as any;
         if (result.symbol_info && !result.error) {
           console.log(`✅ Found correct symbol format: ${symbol} → ${variation}`);
-          return variation;
+          return { name: variation, info: result.symbol_info };
         }
       }
     } catch (error) {
@@ -198,20 +211,94 @@ async function findCorrectSymbolFormat(baseUrl: string, symbol: string): Promise
 
 function getSymbolVariations(symbol: string): string[] {
   const variations = [symbol];
-  const suffixes = ['m', 'pm', 'pro', 'ecn', 'raw', 'c', 'i', '.', '_m', '_pro'];
+  
+  // Enhanced symbol mapping for US indices
+  const specificMappings = getSpecificSymbolMappings(symbol);
+  variations.push(...specificMappings);
+  
+  // Common suffixes
+  const suffixes = ['m', 'pm', 'pro', 'ecn', 'raw', 'c', 'i', '.', '_m', '_pro', '_ecn', '.m', '.pm', '.pro'];
   suffixes.forEach(suffix => {
     variations.push(symbol + suffix);
   });
   
+  // Common prefixes
   const prefixes = ['m', 'pro', 'ecn'];
   prefixes.forEach(prefix => {
     variations.push(prefix + symbol);
   });
   
+  // Additional broker-specific mappings
   const brokerSpecificMappings = getBrokerSpecificMappings(symbol);
   variations.push(...brokerSpecificMappings);
   
   return [...new Set(variations)];
+}
+
+function getSpecificSymbolMappings(symbol: string): string[] {
+  const mappings: { [key: string]: string[] } = {
+    // US Indices - comprehensive mapping
+    "US30": [
+      "US30pm", "US30.pm", "US30_pm", "US30pro", "US30.pro", "US30_pro",
+      "DJ30", "DJ30pm", "DJ30.pm", "DJI30", "DJI30pm", "DJIA", "DJIApm",
+      "DOW", "DOWpm", "DOW30", "DOW30pm", "YM", "YMpm", "DOWJONES", "DOWJONESpm",
+      "US30c", "US30i", "US30ecn", "US30.ecn", "US30_ecn", "US30raw", "US30.raw"
+    ],
+    "US500": [
+      "US500pm", "US500.pm", "US500_pm", "US500pro", "US500.pro", "US500_pro",
+      "SPX500", "SPX500pm", "SPX500.pm", "SP500", "SP500pm", "SPY", "SPYpm",
+      "ES", "ESpm", "SPXUSD", "SPXUSDpm", "S&P500", "S&P500pm",
+      "US500c", "US500i", "US500ecn", "US500.ecn", "US500_ecn", "US500raw", "US500.raw"
+    ],
+    "SPX500": [
+      "SPX500pm", "SPX500.pm", "SPX500_pm", "SPX500pro", "SPX500.pro", "SPX500_pro",
+      "US500", "US500pm", "US500.pm", "SP500", "SP500pm", "SPY", "SPYpm",
+      "ES", "ESpm", "SPXUSD", "SPXUSDpm", "S&P500", "S&P500pm",
+      "SPX500c", "SPX500i", "SPX500ecn", "SPX500.ecn", "SPX500_ecn", "SPX500raw", "SPX500.raw"
+    ],
+    "NAS100": [
+      "NAS100pm", "NAS100.pm", "NAS100_pm", "NAS100pro", "NAS100.pro", "NAS100_pro",
+      "NASDAQ", "NASDAQpm", "NASDAQ.pm", "NDX", "NDXpm", "QQQ", "QQQpm",
+      "NQ", "NQpm", "NASUSD", "NASUSDpm", "TECH100", "TECH100pm",
+      "NAS100c", "NAS100i", "NAS100ecn", "NAS100.ecn", "NAS100_ecn", "NAS100raw", "NAS100.raw"
+    ],
+    // Forex pairs
+    "EURUSD": [
+      "EURUSDpm", "EURUSD.pm", "EURUSD_pm", "EURUSDpro", "EURUSDc", "EURUSDi", 
+      "EURUSD.pro", "EURUSD.ecn", "EURUSD_pro", "EURUSD_ecn", "EURUSDraw", "EURUSD.raw"
+    ],
+    "GBPUSD": [
+      "GBPUSDpm", "GBPUSD.pm", "GBPUSD_pm", "GBPUSDpro", "GBPUSDc", "GBPUSDi", 
+      "GBPUSD.pro", "GBPUSD.ecn", "GBPUSD_pro", "GBPUSD_ecn", "GBPUSDraw", "GBPUSD.raw"
+    ],
+    "USDJPY": [
+      "USDJPYpm", "USDJPY.pm", "USDJPY_pm", "USDJPYpro", "USDJPYc", "USDJPYi", 
+      "USDJPY.pro", "USDJPY.ecn", "USDJPY_pro", "USDJPY_ecn", "USDJPYraw", "USDJPY.raw"
+    ],
+    // Gold
+    "XAUUSD": [
+      "XAUUSDpm", "XAUUSD.pm", "XAUUSD_pm", "XAUUSDpro", "XAUUSDc", "XAUUSDi", 
+      "GOLD", "GOLDpm", "GOLD.pm", "GOLD_pm", "GOLDpro", "GOLDc", "GOLDi",
+      "XAUUSD.pro", "XAUUSD.ecn", "XAUUSD_pro", "XAUUSD_ecn", "XAUUSDraw", "XAUUSD.raw"
+    ],
+    // Crypto
+    "BTCUSD": [
+      "BTCUSDpm", "BTCUSD.pm", "BTCUSD_pm", "BTCUSDpro", "BTCUSDc", "BTCUSDi", 
+      "BITCOIN", "BTC", "BTCUSD.pro", "BTCUSD.ecn", "BTCUSD_pro", "BTCUSD_ecn"
+    ],
+    "ETHUSD": [
+      "ETHUSDpm", "ETHUSD.pm", "ETHUSD_pm", "ETHUSDpro", "ETHUSDc", "ETHUSDi", 
+      "ETHEREUM", "ETH", "ETHUSD.pro", "ETHUSD.ecn", "ETHUSD_pro", "ETHUSD_ecn"
+    ],
+    // Oil
+    "CRUDE": [
+      "CRUDEpm", "CRUDE.pm", "CRUDE_pm", "CRUDEpro", "CRUDEc", "CRUDEi", 
+      "WTI", "WTIpm", "WTI.pm", "USOIL", "USOILpm", "USOIL.pm", "CL", "CLpm",
+      "CRUDE.pro", "CRUDE.ecn", "CRUDE_pro", "CRUDE_ecn", "CRUDEraw", "CRUDE.raw"
+    ]
+  };
+  
+  return mappings[symbol] || [];
 }
 
 function getBrokerSpecificMappings(symbol: string): string[] {
@@ -222,6 +309,10 @@ function getBrokerSpecificMappings(symbol: string): string[] {
     "BTCUSD": ["BTCUSDpm", "BTCUSD.m", "BTCUSD_m", "BTCUSDpro", "BTCUSDc", "BTCUSDi", "BITCOIN", "BTC", "BTCUSD.pro", "BTCUSD.ecn"],
     "ETHUSD": ["ETHUSDpm", "ETHUSD.m", "ETHUSD_m", "ETHUSDpro", "ETHUSDc", "ETHUSDi", "ETHEREUM", "ETH", "ETHUSD.pro", "ETHUSD.ecn"],
     "CRUDE": ["CRUDEpm", "CRUDE.m", "CRUDE_m", "CRUDEpro", "CRUDEc", "CRUDEi", "WTI", "WTIpm", "WTI.m", "USOIL", "USOILpm", "CRUDE.pro", "CRUDE.ecn"],
+    "US30": ["US30pm", "US30.m", "US30_m", "US30pro", "US30c", "US30i", "DJ30", "DJI30", "DJIA", "US30.pro", "US30.ecn"],
+    "SPX500": ["SPX500pm", "SPX500.m", "SPX500_m", "SPX500pro", "SPX500c", "SPX500i", "SP500", "SPY", "US500", "US500pm", "US500.m", "SPX500.pro", "SPX500.ecn"],
+    "US500": ["US500pm", "US500.m", "US500_m", "US500pro", "US500c", "US500i", "SP500", "SPY", "SPX500", "SPX500pm", "SPX500.m", "US500.pro", "US500.ecn"],
+    "NAS100": ["NAS100pm", "NAS100.m", "NAS100_m", "NAS100pro", "NAS100c", "NAS100i", "NASDAQ", "NDX", "QQQ", "NAS100.pro", "NAS100.ecn"],
   };
   
   return mappings[symbol] || [];
@@ -312,6 +403,7 @@ function createEnhancedFallbackData(symbol: string, timeframe: string): MarketDa
   const volume = Math.floor(baseVolume * (0.5 + Math.random()));
   
   const indicators = calculateRealisticIndicators(open, high, low, close, symbol);
+  const spread = basePrice * volatility * 0.05; // Simulate a spread
   
   return {
     timestamp: Date.now(),
@@ -320,7 +412,9 @@ function createEnhancedFallbackData(symbol: string, timeframe: string): MarketDa
     low: Math.round(low * 100000) / 100000,
     close: Math.round(close * 100000) / 100000,
     volume,
+    spread,
     indicators,
+    source: 'FALLBACK',
   };
 }
 
@@ -329,6 +423,7 @@ function getSymbolBasePrice(symbol: string): number {
     "BTCUSD": 95000, "ETHUSD": 3500, "EURUSD": 1.085, "GBPUSD": 1.275,
     "USDJPY": 150.5, "AUDUSD": 0.665, "USDCAD": 1.365, "USDCHF": 0.885,
     "NZDUSD": 0.615, "XAUUSD": 2050, "CRUDE": 75.5, "BRENT": 80.2,
+    "US30": 44500, "SPX500": 5800, "US500": 5800, "NAS100": 20500,
   };
   return basePrices[symbol] || 1.0;
 }
@@ -338,6 +433,7 @@ function getSymbolVolatility(symbol: string): number {
     "BTCUSD": 0.03, "ETHUSD": 0.04, "EURUSD": 0.005, "GBPUSD": 0.008,
     "USDJPY": 0.006, "AUDUSD": 0.007, "USDCAD": 0.006, "USDCHF": 0.005,
     "NZDUSD": 0.008, "XAUUSD": 0.015, "CRUDE": 0.02, "BRENT": 0.018,
+    "US30": 0.015, "SPX500": 0.012, "US500": 0.012, "NAS100": 0.018,
   };
   return volatilities[symbol] || 0.01;
 }
@@ -347,6 +443,7 @@ function getTrendBias(symbol: string): number {
     "BTCUSD": 0.3, "ETHUSD": 0.2, "EURUSD": -0.1, "GBPUSD": 0.1,
     "USDJPY": 0.2, "AUDUSD": -0.2, "USDCAD": 0.1, "USDCHF": -0.1,
     "NZDUSD": -0.2, "XAUUSD": 0.4, "CRUDE": 0.1, "BRENT": 0.1,
+    "US30": 0.2, "SPX500": 0.15, "US500": 0.15, "NAS100": 0.25,
   };
   return trendBiases[symbol] || 0;
 }
@@ -355,6 +452,10 @@ function getBaseVolume(symbol: string, timeframe: string): number {
   const baseVolumes: Record<string, Record<string, number>> = {
     "BTCUSD": { "5m": 500, "15m": 1500, "30m": 3000 },
     "EURUSD": { "5m": 200, "15m": 600, "30m": 1200 },
+    "US30": { "5m": 150, "15m": 450, "30m": 900 },
+    "SPX500": { "5m": 180, "15m": 540, "30m": 1080 },
+    "US500": { "5m": 180, "15m": 540, "30m": 1080 },
+    "NAS100": { "5m": 200, "15m": 600, "30m": 1200 },
   };
   const symbolVolumes = baseVolumes[symbol] || { "5m": 100, "15m": 300, "30m": 600 };
   return symbolVolumes[timeframe] || symbolVolumes["5m"];

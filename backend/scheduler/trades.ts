@@ -10,6 +10,13 @@ export const checkExpiredTrades = cron("check-expired-trades", {
     console.log("Scheduler: Checking for expired trades...");
 
     try {
+      // Fetch MT5 config at the start of the cycle
+      const { config: mt5Config } = await user.getMt5Config();
+      if (!mt5Config) {
+        console.error("❌ MT5 configuration not found, skipping checkExpiredTrades cycle.");
+        return;
+      }
+
       const now = new Date();
       
       // Find trades that have expired or hit their INTRADAY time limit.
@@ -37,14 +44,7 @@ export const checkExpiredTrades = cron("check-expired-trades", {
 
         console.log(`Scheduler: Closing trade ${trade.trade_id} (Order ID: ${trade.mt5_order_id}) due to expiration...`);
         
-        // Get user's MT5 config to close the position
-        const mt5Config = await user.getMt5ConfigForUser({ userId: trade.user_id });
-        if (!mt5Config.config) {
-          console.error(`Scheduler: Could not find MT5 config for user ${trade.user_id} to close trade ${trade.trade_id}.`);
-          continue;
-        }
-
-        const result = await closeMT5Position(trade.mt5_order_id, mt5Config.config);
+        const result = await closeMT5Position(trade.mt5_order_id, mt5Config);
 
         if (result.success) {
           await analysisDB.exec`

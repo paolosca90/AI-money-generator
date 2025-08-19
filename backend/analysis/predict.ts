@@ -1,18 +1,8 @@
 import { api, APIError } from "encore.dev/api";
 import { analysisDB } from "./db";
-import { generateTradeId } from "./utils";
-import { fetchMarketData } from "./market-data";
-import { analyzeWithAI } from "./ai-engine";
-import { generateChart } from "./chart-generator";
-import { analyzeSentiment } from "./sentiment-analyzer";
-import { 
-  TradingStrategy,
-  TRADING_STRATEGIES, 
-  calculateStrategyTargets, 
-  getOptimalStrategy,
-  getStrategyRecommendation,
-  calculatePositionSize
-} from "./trading-strategies";
+import { TradingStrategy } from "./trading-strategies";
+import { TradingSignal, generateSignalForSymbol } from "./signal-generator";
+import { user } from "~encore/clients";
 
 interface PredictRequest {
   symbol: string;
@@ -39,7 +29,6 @@ export interface TradingSignal {
   institutionalAnalysis?: any; // Will contain InstitutionalAnalysis data
   enhancedConfidence?: any; // Will contain EnhancedConfidenceResult data
 }
-
 // Generates AI-powered trading predictions with automatic NY session closure.
 export const predict = api<PredictRequest, TradingSignal>(
   { 
@@ -55,35 +44,15 @@ export const predict = api<PredictRequest, TradingSignal>(
     }
 
     try {
-      // Use default values for demo purposes
-      const riskPercentage = 2.0;
-      const accountBalance = 9754.81; // Updated to match your actual MT5 balance
-      
-      // Use your actual VPS MT5 config
-      const mt5Config = {
-        host: "154.61.187.189", // Your actual VPS IP
-        port: 8080,
-        login: "6001637", // Your actual MT5 account
-        server: "PureMGlobal-MT5", // Your actual server
-        password: "demo"
-      };
+      // Fetch the MT5 configuration and user preferences from the single source of truth
+      const { config: mt5Config } = await user.getMt5Config();
+      const { preferences } = await user.getPreferences();
 
-      const tradeId = generateTradeId(symbol);
-
-      console.log(`Starting prediction for ${symbol} with trade ID ${tradeId}`);
-      const marketData = await fetchMarketData(symbol, ["1m", "5m", "15m", "30m", "1h"], mt5Config);
-      
-      const availableTimeframes = Object.keys(marketData);
-      if (availableTimeframes.length === 0) {
-        throw APIError.unavailable(`Unable to fetch market data for ${symbol}.`);
+      if (!mt5Config || !preferences) {
+        throw APIError.failedPrecondition("MT5 configuration or user preferences are not set up. Please configure them in the settings.");
       }
-      
-      const requiredTimeframes = ["5m", "15m", "30m"];
-      const completeMarketData: any = {};
-      const fallbackTimeframe = availableTimeframes.includes("5m") ? "5m" : availableTimeframes[0];
-      const fallbackData = (marketData as any)[fallbackTimeframe];
 
-      for (const tf of requiredTimeframes) {
+for (const tf of requiredTimeframes) {
         completeMarketData[tf] = (marketData as any)[tf] || fallbackData;
       }
       if ((marketData as any)["1m"]) completeMarketData["1m"] = (marketData as any)["1m"];
@@ -150,19 +119,22 @@ export const predict = api<PredictRequest, TradingSignal>(
         enhancedConfidence: aiAnalysis.enhancedConfidence,
       };
 
+      const signal = await generateSignalForSymbol(symbol, mt5Config, tradeParams, userStrategy);
+
+      // Insert the generated signal into the database
       await analysisDB.exec`
         INSERT INTO trading_signals (
           trade_id, user_id, symbol, direction, strategy, entry_price, take_profit, stop_loss, 
           confidence, risk_reward_ratio, recommended_lot_size, max_holding_hours,
           expires_at, analysis_data, created_at, status
         ) VALUES (
-          ${tradeId}, 1, ${symbol}, ${aiAnalysis.direction}, ${optimalStrategy}, 
-          ${priceTargets.entryPrice}, ${priceTargets.takeProfit}, ${priceTargets.stopLoss}, 
-          ${confidenceInt}, ${priceTargets.riskRewardRatio}, ${recommendedLotSize},
-          ${maxHoldingTimeHours}, ${expiresAt}, ${JSON.stringify(signal.analysis)}, NOW(), 'pending'
+          ${signal.tradeId}, 1, ${signal.symbol}, ${signal.direction}, ${signal.strategy}, 
+          ${signal.entryPrice}, ${signal.takeProfit}, ${signal.stopLoss}, 
+          ${signal.confidence}, ${signal.riskRewardRatio}, ${signal.recommendedLotSize},
+          ${signal.maxHoldingTime}, ${signal.expiresAt}, ${JSON.stringify(signal.analysis)}, NOW(), 'pending'
         )
       `;
-      console.log(`✅ Successfully generated ${optimalStrategy} signal ${tradeId} for ${symbol}`);
+      console.log(`✅ Successfully generated and stored ${signal.strategy} signal ${signal.tradeId} for ${symbol}`);
 
       return signal;
 
@@ -173,55 +145,3 @@ export const predict = api<PredictRequest, TradingSignal>(
     }
   }
 );
-
-function calculateExpirationTime(strategy: TradingStrategy, maxHoldingHours: number): Date {
-  const now = new Date();
-  const expiresAt = new Date(now.getTime() + maxHoldingHours * 60 * 60 * 1000);
-  
-  if (strategy === TradingStrategy.INTRADAY) {
-    const nyCloseTime = new Date(now);
-    nyCloseTime.setUTCHours(21, 30, 0, 0);
-    if (nyCloseTime <= now) {
-      nyCloseTime.setDate(nyCloseTime.getDate() + 1);
-    }
-    return expiresAt < nyCloseTime ? expiresAt : nyCloseTime;
-  }
-  
-  return expiresAt;
-}
-
-function determineRiskLevel(strategy: TradingStrategy, aiAnalysis: any, marketData: any): "LOW" | "MEDIUM" | "HIGH" {
-  const strategyConfig = TRADING_STRATEGIES[strategy];
-  const volatility = calculateMarketVolatility(marketData);
-  
-  let riskScore = 0;
-  switch (strategy) {
-    case TradingStrategy.SCALPING: riskScore = 2; break;
-    case TradingStrategy.INTRADAY: riskScore = 1; break;
-  }
-  
-  if (aiAnalysis.confidence < 75) riskScore += 1;
-  if (aiAnalysis.confidence > 90) riskScore -= 1;
-  if (volatility > strategyConfig.volatilityThreshold * 1.5) riskScore += 1;
-  if (volatility < strategyConfig.volatilityThreshold * 0.5) riskScore -= 1;
-  if (aiAnalysis.priceAction.structure === "NEUTRAL") riskScore += 1;
-  if (aiAnalysis.smartMoney.institutionalFlow === "NEUTRAL") riskScore += 1;
-  
-  if (riskScore <= 1) return "LOW";
-  if (riskScore <= 3) return "MEDIUM";
-  return "HIGH";
-}
-
-function calculateMarketVolatility(marketData: any): number {
-  const data5m = marketData["5m"];
-  const data15m = marketData["15m"];
-  const data30m = marketData["30m"];
-  
-  const volatilities = [
-    data5m.indicators.atr / data5m.close,
-    data15m.indicators.atr / data15m.close,
-    data30m.indicators.atr / data30m.close
-  ];
-  
-  return volatilities.reduce((sum, vol) => sum + vol, 0) / volatilities.length;
-}

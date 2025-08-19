@@ -1,6 +1,6 @@
 # Guida alla Connessione del VPS e MT5
 
-Questa guida ti aiuterà a collegare il tuo Virtual Private Server (VPS) e il tuo account MetaTrader 5 al nostro sistema di trading.
+Questa guida ti aiuterà a collegare il tuo Virtual Private Server (VPS) e il tuo account MetaTrader 5 ad AI Trading Boost.
 
 ## Prerequisiti
 
@@ -33,7 +33,7 @@ Questa guida ti aiuterà a collegare il tuo Virtual Private Server (VPS) e il tu
 
 ## Passo 3: Configura la Connessione nel Tuo Account Web
 
-1.  Accedi al tuo account sulla nostra piattaforma web.
+1.  Accedi al tuo account su AI Trading Boost.
 2.  Vai alla pagina **Impostazioni → Configurazione MT5**.
 3.  Inserisci i dettagli del tuo VPS e del tuo account MT5:
     *   **Host/IP del VPS**: L'indirizzo IP pubblico del tuo VPS.
