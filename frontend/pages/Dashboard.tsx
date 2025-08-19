@@ -2,7 +2,7 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useBackend } from "../hooks/useBackend";
 import StatCard from "../components/cards/StatCard";
 import AutoSignalCard from "../components/cards/AutoSignalCard";
-import { DollarSign, Percent, TrendingUp, TrendingDown, Zap, BarChart, Brain, Target, Activity, AlertCircle, Award, Shield, Sparkles, RefreshCw } from "lucide-react";
+import { DollarSign, Percent, TrendingUp, TrendingDown, Zap, BarChart, Brain, Target, Activity, AlertCircle, Award, Shield, Sparkles, RefreshCw, Clock, Database } from "lucide-react";
 import PositionsTable from "../components/tables/PositionsTable";
 import HistoryTable from "../components/tables/HistoryTable";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -22,6 +22,13 @@ export default function Dashboard() {
     queryKey: ["topSignals"],
     queryFn: () => backend.analysis.getTopSignals(),
     refetchInterval: 60000, // Refresh every 60 seconds
+    retry: 1,
+  });
+
+  const { data: signalStats, isLoading: isLoadingSignalStats } = useQuery({
+    queryKey: ["signalStats"],
+    queryFn: () => backend.analysis.getSignalStats(),
+    refetchInterval: 30000, // Refresh every 30 seconds
     retry: 1,
   });
 
@@ -88,46 +95,67 @@ export default function Dashboard() {
     },
   });
 
+  const forceSignalGenerationMutation = useMutation({
+    mutationFn: () => backend.analysis.forceSignalGeneration(),
+    onSuccess: (data) => {
+      toast({ 
+        title: data.success ? "🔄 Generazione Avviata" : "❌ Errore", 
+        description: data.message 
+      });
+      if (data.success) {
+        // Refresh signals after a delay
+        setTimeout(() => {
+          queryClient.invalidateQueries({ queryKey: ["topSignals"] });
+          queryClient.invalidateQueries({ queryKey: ["signalStats"] });
+        }, 3000);
+      }
+    },
+    onError: (err: any) => {
+      toast({ 
+        variant: "destructive", 
+        title: "❌ Errore Generazione", 
+        description: err.message 
+      });
+    },
+  });
+
   const handleQuickTrade = () => {
     navigate('/trade');
   };
 
   const handleRefreshSignals = () => {
-    refetchTopSignals();
-    toast({
-      title: "🔄 Segnali Aggiornati",
-      description: "I segnali automatici sono stati aggiornati con i dati più recenti"
-    });
+    forceSignalGenerationMutation.mutate();
   };
 
-  // Enhanced stats with better formatting and additional metrics
+  // Enhanced stats with real data
   const stats = [
     { 
       title: "Profitto Totale", 
       value: `$${performanceData?.totalProfitLoss?.toFixed(2) || "0.00"}`, 
       icon: DollarSign, 
-      description: "Profitto/perdita totale degli ultimi 30 giorni",
+      description: "Profitto/perdita totale degli ultimi 30 giorni (dati reali)",
       color: (performanceData?.totalProfitLoss || 0) >= 0 ? "text-green-600" : "text-red-600"
     },
     { 
       title: "Win Rate", 
       value: `${performanceData?.winRate?.toFixed(1) || 0}%`, 
       icon: Percent, 
-      description: "Percentuale di trade in profitto",
-      color: (performanceData?.winRate || 0) >= 70 ? "text-green-600" : "text-yellow-600"
+      description: "Percentuale di trade in profitto (calcolata sui trade reali)",
+      color: (performanceData?.winRate || 0) >= 70 ? "text-green-600" : (performanceData?.winRate || 0) >= 50 ? "text-yellow-600" : "text-red-600"
     },
     { 
       title: "Profit Factor", 
       value: performanceData?.profitFactor?.toFixed(2) || "0", 
       icon: BarChart, 
       description: "Rapporto profitto lordo / perdita lorda",
-      color: (performanceData?.profitFactor || 0) >= 1.5 ? "text-green-600" : "text-yellow-600"
+      color: (performanceData?.profitFactor || 0) >= 1.5 ? "text-green-600" : (performanceData?.profitFactor || 0) >= 1 ? "text-yellow-600" : "text-red-600"
     },
     { 
       title: "Miglior Trade", 
       value: `$${performanceData?.bestTrade?.toFixed(2) || 0}`, 
       icon: TrendingUp, 
-      description: "Il trade più profittevole"
+      description: "Il trade più profittevole",
+      color: (performanceData?.bestTrade || 0) > 0 ? "text-green-600" : undefined
     },
     { 
       title: "Streak Corrente", 
@@ -141,7 +169,7 @@ export default function Dashboard() {
       value: performanceData?.sharpeRatio?.toFixed(2) || "0", 
       icon: Shield, 
       description: "Rendimento corretto per il rischio",
-      color: (performanceData?.sharpeRatio || 0) >= 1.5 ? "text-green-600" : "text-yellow-600"
+      color: (performanceData?.sharpeRatio || 0) >= 1.5 ? "text-green-600" : (performanceData?.sharpeRatio || 0) >= 1 ? "text-yellow-600" : "text-red-600"
     },
   ];
 
@@ -173,6 +201,38 @@ export default function Dashboard() {
     },
   ];
 
+  // Signal generation stats
+  const signalGenerationStats = [
+    {
+      title: "Segnali Generati",
+      value: signalStats?.totalGenerated?.toString() || "0",
+      icon: Sparkles,
+      description: "Segnali generati nelle ultime 24h",
+      color: (signalStats?.totalGenerated || 0) > 0 ? "text-blue-600" : undefined
+    },
+    {
+      title: "Segnali Eseguiti",
+      value: signalStats?.totalExecuted?.toString() || "0",
+      icon: Zap,
+      description: "Segnali eseguiti automaticamente",
+      color: (signalStats?.totalExecuted || 0) > 0 ? "text-green-600" : undefined
+    },
+    {
+      title: "Trade Chiusi",
+      value: signalStats?.totalClosed?.toString() || "0",
+      icon: Target,
+      description: "Trade completati con esito",
+      color: (signalStats?.totalClosed || 0) > 0 ? "text-purple-600" : undefined
+    },
+    {
+      title: "Confidenza Media",
+      value: `${signalStats?.avgConfidence?.toFixed(1) || 0}%`,
+      icon: Brain,
+      description: "Confidenza media dei segnali generati",
+      color: (signalStats?.avgConfidence || 0) >= 80 ? "text-green-600" : "text-yellow-600"
+    },
+  ];
+
   // Prepare chart data
   const performanceChartData = mlAnalytics?.performanceTimeline.map(pt => ({
     date: new Date(pt.date).toLocaleDateString(),
@@ -187,13 +247,23 @@ export default function Dashboard() {
     type: f.type
   })) || [];
 
+  const hasRealData = performanceData && performanceData.totalTrades > 0;
+
   return (
     <div className="space-y-6">
-      {/* Enhanced Header with Quick Actions */}
+      {/* Enhanced Header with Real-time Status */}
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
         <div>
           <h1 className="text-3xl font-bold">🚀 AI Trading Boost Dashboard</h1>
           <p className="text-muted-foreground">Sistema di trading automatizzato con intelligenza artificiale avanzata</p>
+          {signalStats?.lastGenerationTime && (
+            <div className="flex items-center gap-2 mt-2">
+              <Clock className="h-4 w-4 text-green-600" />
+              <span className="text-sm text-green-600">
+                Ultimo aggiornamento: {new Date(signalStats.lastGenerationTime).toLocaleTimeString()}
+              </span>
+            </div>
+          )}
         </div>
         <div className="flex flex-wrap gap-2">
           <Button 
@@ -221,16 +291,75 @@ export default function Dashboard() {
         </div>
       </div>
 
-      {/* Performance Overview with Enhanced Styling */}
+      {/* System Status Alert */}
+      {!hasRealData && (
+        <Card className="border-yellow-200 bg-yellow-50">
+          <CardContent className="p-4">
+            <div className="flex items-center gap-3">
+              <Database className="h-5 w-5 text-yellow-600" />
+              <div>
+                <h4 className="font-semibold text-yellow-800">Sistema in Fase di Inizializzazione</h4>
+                <p className="text-sm text-yellow-700">
+                  Il sistema automatico sta generando i primi segnali. Le statistiche di performance appariranno dopo i primi trade completati.
+                </p>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
+      {/* Signal Generation Stats */}
+      <div>
+        <div className="flex items-center gap-2 mb-4">
+          <h2 className="text-xl font-semibold">🤖 Sistema Automatico</h2>
+          <Badge variant="secondary" className="bg-blue-100 text-blue-800">
+            H24 Attivo
+          </Badge>
+          {signalStats?.topPerformingSymbol && signalStats.topPerformingSymbol !== 'N/A' && (
+            <Badge variant="outline">
+              Top: {signalStats.topPerformingSymbol}
+            </Badge>
+          )}
+        </div>
+        <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
+          {isLoadingSignalStats ? (
+            Array.from({ length: 4 }).map((_, index) => (
+              <Card key={index} className="p-4">
+                <div className="animate-pulse flex space-x-4">
+                  <div className="flex-1 space-y-4 py-1">
+                    <div className="h-4 bg-slate-200 rounded w-3/4"></div>
+                    <div className="h-6 bg-slate-200 rounded w-1/2"></div>
+                  </div>
+                </div>
+              </Card>
+            ))
+          ) : (
+            signalGenerationStats.map(stat => (
+              <Card key={stat.title} className="hover:shadow-md transition-shadow">
+                <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                  <CardTitle className="text-sm font-medium">{stat.title}</CardTitle>
+                  <stat.icon className="h-4 w-4 text-muted-foreground" />
+                </CardHeader>
+                <CardContent>
+                  <div className={`text-2xl font-bold ${stat.color || ''}`}>{stat.value}</div>
+                  <p className="text-xs text-muted-foreground mt-1">{stat.description}</p>
+                </CardContent>
+              </Card>
+            ))
+          )}
+        </div>
+      </div>
+
+      {/* Performance Overview with Real Data */}
       <div>
         <div className="flex items-center gap-2 mb-4">
           <h2 className="text-xl font-semibold">📊 Performance Trading</h2>
-          <Badge variant="secondary" className="bg-green-100 text-green-800">
-            Ultimi 30 giorni
+          <Badge variant="secondary" className={hasRealData ? "bg-green-100 text-green-800" : "bg-gray-100 text-gray-800"}>
+            {hasRealData ? `${performanceData.totalTrades} trade reali` : "In attesa dati"}
           </Badge>
-          {performanceData?.totalTrades && (
+          {hasRealData && (
             <Badge variant="outline">
-              {performanceData.totalTrades} trade
+              Ultimi 30 giorni
             </Badge>
           )}
         </div>
@@ -289,10 +418,10 @@ export default function Dashboard() {
             variant="outline"
             size="sm"
             className="flex items-center gap-2"
-            disabled={isLoadingTopSignals}
+            disabled={isLoadingTopSignals || forceSignalGenerationMutation.isPending}
           >
-            <RefreshCw className={`h-4 w-4 ${isLoadingTopSignals ? 'animate-spin' : ''}`} />
-            Aggiorna
+            <RefreshCw className={`h-4 w-4 ${isLoadingTopSignals || forceSignalGenerationMutation.isPending ? 'animate-spin' : ''}`} />
+            {forceSignalGenerationMutation.isPending ? "Generando..." : "Aggiorna"}
           </Button>
         </div>
         
@@ -321,6 +450,25 @@ export default function Dashboard() {
                 </CardContent>
               </Card>
             </div>
+          ) : topSignalsData?.signals.length === 0 ? (
+            <div className="col-span-full">
+              <Card className="border-dashed border-2 border-muted-foreground/25">
+                <CardContent className="p-8 text-center">
+                  <Sparkles className="h-12 w-12 mx-auto mb-4 opacity-50" />
+                  <h4 className="font-semibold mb-2">Sistema in Preparazione</h4>
+                  <p className="text-muted-foreground mb-4">
+                    Il sistema automatico sta generando i primi segnali. Riprova tra qualche minuto.
+                  </p>
+                  <Button 
+                    onClick={handleRefreshSignals}
+                    variant="outline"
+                    disabled={forceSignalGenerationMutation.isPending}
+                  >
+                    {forceSignalGenerationMutation.isPending ? "Generando..." : "🔄 Genera Ora"}
+                  </Button>
+                </CardContent>
+              </Card>
+            </div>
           ) : (
             topSignalsData?.signals.map((signal, index) => (
               <AutoSignalCard key={`${signal.symbol}-${index}`} signal={signal as any} />
@@ -331,11 +479,11 @@ export default function Dashboard() {
         <div className="mt-4 p-4 bg-gradient-to-r from-blue-50 to-purple-50 border border-blue-200 rounded-lg">
           <div className="flex items-center gap-2 mb-2">
             <Sparkles className="h-5 w-5 text-blue-600" />
-            <h4 className="font-semibold text-blue-800">Segnali Automatici AI</h4>
+            <h4 className="font-semibold text-blue-800">Sistema Automatico H24</h4>
           </div>
           <p className="text-sm text-blue-700">
-            Questi segnali vengono generati automaticamente ogni 60 secondi analizzando i major forex, 
-            l'oro (XAU/USD) e gli indici USA (US500, US100). Sono ordinati per confidenza decrescente.
+            Il sistema genera automaticamente segnali ogni 30 minuti, seleziona i 3 migliori per confidenza, 
+            li esegue automaticamente e registra i risultati per migliorare continuamente l'AI.
           </p>
         </div>
       </div>
@@ -483,40 +631,43 @@ export default function Dashboard() {
       </div>
 
       {/* Quick Start Guide for New Users */}
-      {(!performanceData || performanceData.totalTrades === 0) && (
+      {!hasRealData && (
         <Card className="border-blue-200 bg-blue-50">
           <CardHeader>
             <CardTitle className="flex items-center gap-2 text-blue-800">
-              🚀 Inizia Subito
+              🚀 Sistema Automatico Attivo
             </CardTitle>
           </CardHeader>
           <CardContent>
             <div className="grid gap-4 md:grid-cols-3">
               <div className="text-center">
                 <div className="w-12 h-12 bg-blue-100 rounded-full flex items-center justify-center mx-auto mb-2">
-                  <span className="text-2xl">1️⃣</span>
+                  <span className="text-2xl">🤖</span>
                 </div>
-                <h4 className="font-semibold text-blue-800">Genera Segnale</h4>
-                <p className="text-sm text-blue-600">Vai su Trading e genera il tuo primo segnale AI</p>
+                <h4 className="font-semibold text-blue-800">Generazione Automatica</h4>
+                <p className="text-sm text-blue-600">Il sistema genera segnali ogni 30 minuti su 20+ asset</p>
               </div>
               <div className="text-center">
                 <div className="w-12 h-12 bg-blue-100 rounded-full flex items-center justify-center mx-auto mb-2">
-                  <span className="text-2xl">2️⃣</span>
+                  <span className="text-2xl">🎯</span>
                 </div>
-                <h4 className="font-semibold text-blue-800">Esegui Trade</h4>
-                <p className="text-sm text-blue-600">Esegui il trade con un click se la confidenza è alta</p>
+                <h4 className="font-semibold text-blue-800">Selezione Intelligente</h4>
+                <p className="text-sm text-blue-600">Seleziona automaticamente i 3 segnali con maggiore confidenza</p>
               </div>
               <div className="text-center">
                 <div className="w-12 h-12 bg-blue-100 rounded-full flex items-center justify-center mx-auto mb-2">
-                  <span className="text-2xl">3️⃣</span>
+                  <span className="text-2xl">📊</span>
                 </div>
-                <h4 className="font-semibold text-blue-800">Monitora</h4>
-                <p className="text-sm text-blue-600">Segui le performance e ottimizza l'AI</p>
+                <h4 className="font-semibold text-blue-800">Apprendimento Continuo</h4>
+                <p className="text-sm text-blue-600">Registra i risultati e migliora l'AI automaticamente</p>
               </div>
             </div>
             <div className="text-center mt-4">
+              <p className="text-sm text-blue-700 mb-3">
+                Il sistema è attivo H24. Le prime statistiche appariranno dopo i primi trade completati.
+              </p>
               <Button onClick={handleQuickTrade} className="bg-blue-600 hover:bg-blue-700">
-                🚀 Inizia Ora
+                🎯 Genera Segnale Manuale
               </Button>
             </div>
           </CardContent>

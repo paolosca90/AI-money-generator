@@ -16,7 +16,7 @@ interface PerformanceStats {
   sharpeRatio: number;
 }
 
-// Retrieves AI model performance statistics.
+// Retrieves AI model performance statistics based on real trading results.
 export const getPerformance = api<void, PerformanceStats>(
   { 
     expose: true, 
@@ -24,7 +24,7 @@ export const getPerformance = api<void, PerformanceStats>(
     path: "/analysis/performance"
   },
   async () => {
-    // Get comprehensive trading statistics
+    // Get comprehensive trading statistics from actual trades
     const stats = await analysisDB.queryRow`
       SELECT 
         CAST(COUNT(*) AS DOUBLE PRECISION) as total_trades,
@@ -37,27 +37,30 @@ export const getPerformance = api<void, PerformanceStats>(
         COALESCE(CAST(SUM(profit_loss) AS DOUBLE PRECISION), 0.0) as total_profit_loss
       FROM trading_signals 
       WHERE profit_loss IS NOT NULL
+      AND status IN ('auto_closed', 'closed', 'executed')
       AND created_at >= NOW() - INTERVAL '30 days'
     `;
 
-    // Calculate profit factor
+    // Calculate profit factor from actual trades
     const profitStats = await analysisDB.queryRow`
       SELECT 
         COALESCE(CAST(SUM(CASE WHEN profit_loss > 0 THEN profit_loss ELSE 0 END) AS DOUBLE PRECISION), 0.0) as total_profit,
         COALESCE(CAST(ABS(SUM(CASE WHEN profit_loss < 0 THEN profit_loss ELSE 0 END)) AS DOUBLE PRECISION), 1.0) as total_loss
       FROM trading_signals 
       WHERE profit_loss IS NOT NULL
+      AND status IN ('auto_closed', 'closed', 'executed')
       AND created_at >= NOW() - INTERVAL '30 days'
     `;
 
-    // Calculate current streak
+    // Calculate current streak from recent trades
     const recentTrades = await analysisDB.queryAll`
-      SELECT profit_loss
+      SELECT profit_loss, created_at
       FROM trading_signals 
       WHERE profit_loss IS NOT NULL
+      AND status IN ('auto_closed', 'closed', 'executed')
       AND created_at >= NOW() - INTERVAL '30 days'
       ORDER BY created_at DESC
-      LIMIT 10
+      LIMIT 20
     `;
 
     // Calculate current winning/losing streak
@@ -75,13 +78,14 @@ export const getPerformance = api<void, PerformanceStats>(
       if (!isWinning) currentStreak = -currentStreak;
     }
 
-    // Calculate max drawdown (simplified)
+    // Calculate max drawdown from actual trading results
     const drawdownData = await analysisDB.queryAll`
       SELECT 
         profit_loss,
         SUM(profit_loss) OVER (ORDER BY created_at) as running_total
       FROM trading_signals 
       WHERE profit_loss IS NOT NULL
+      AND status IN ('auto_closed', 'closed', 'executed')
       AND created_at >= NOW() - INTERVAL '30 days'
       ORDER BY created_at
     `;
@@ -99,16 +103,29 @@ export const getPerformance = api<void, PerformanceStats>(
       }
     }
 
-    // Calculate Sharpe ratio (simplified)
+    // Calculate Sharpe ratio from actual returns
     const returns = recentTrades.map(t => Number(t.profit_loss));
     const avgReturn = returns.reduce((sum, r) => sum + r, 0) / returns.length || 0;
     const variance = returns.reduce((sum, r) => sum + Math.pow(r - avgReturn, 2), 0) / returns.length || 1;
     const stdDev = Math.sqrt(variance);
     const sharpeRatio = stdDev > 0 ? avgReturn / stdDev : 0;
 
-    // If no real data, generate demo data for sales purposes
+    // If no real data, return zeros instead of demo data
     if (!stats || Number(stats.total_trades) === 0) {
-      return generateDemoPerformanceData();
+      return {
+        totalTrades: 0,
+        winRate: 0,
+        avgProfit: 0,
+        avgLoss: 0,
+        profitFactor: 0,
+        bestTrade: 0,
+        worstTrade: 0,
+        avgConfidence: 0,
+        totalProfitLoss: 0,
+        currentStreak: 0,
+        maxDrawdown: 0,
+        sharpeRatio: 0,
+      };
     }
 
     const totalProfitValue = Number(profitStats?.total_profit) || 0;
@@ -132,39 +149,196 @@ export const getPerformance = api<void, PerformanceStats>(
   }
 );
 
-function generateDemoPerformanceData(): PerformanceStats {
-  // Generate realistic demo data for sales presentations
-  const baseDate = new Date();
-  const daysBack = 30;
-  
-  // Simulate 45 trades over 30 days with realistic performance
-  const totalTrades = 45;
-  const winRate = 72.5; // 72.5% win rate
-  const avgProfit = 185.50;
-  const avgLoss = -95.25;
-  const bestTrade = 450.75;
-  const worstTrade = -180.30;
-  const avgConfidence = 82.3;
-  
-  // Calculate total P&L based on win rate
-  const winningTrades = Math.floor(totalTrades * (winRate / 100));
-  const losingTrades = totalTrades - winningTrades;
-  const totalProfitLoss = (winningTrades * avgProfit) + (losingTrades * avgLoss);
-  
-  const profitFactor = Math.abs((winningTrades * avgProfit) / (losingTrades * avgLoss));
-  
-  return {
-    totalTrades,
-    winRate,
-    avgProfit,
-    avgLoss,
-    profitFactor: Number(profitFactor.toFixed(2)),
-    bestTrade,
-    worstTrade,
-    avgConfidence,
-    totalProfitLoss: Number(totalProfitLoss.toFixed(2)),
-    currentStreak: 5, // Current winning streak
-    maxDrawdown: 285.50,
-    sharpeRatio: 1.85,
-  };
-}
+// Get detailed performance breakdown by time periods
+export const getDetailedPerformance = api<void, {
+  daily: PerformanceStats[];
+  weekly: PerformanceStats[];
+  monthly: PerformanceStats[];
+}>(
+  {
+    expose: true,
+    method: "GET",
+    path: "/analysis/performance/detailed"
+  },
+  async () => {
+    // Daily performance for last 30 days
+    const dailyPerformance = await analysisDB.queryAll`
+      SELECT 
+        DATE(created_at) as trade_date,
+        COUNT(*) as total_trades,
+        AVG(CASE WHEN profit_loss > 0 THEN 1.0 ELSE 0.0 END) * 100 as win_rate,
+        AVG(CASE WHEN profit_loss > 0 THEN profit_loss END) as avg_profit,
+        AVG(CASE WHEN profit_loss < 0 THEN profit_loss END) as avg_loss,
+        MAX(profit_loss) as best_trade,
+        MIN(profit_loss) as worst_trade,
+        AVG(confidence) as avg_confidence,
+        SUM(profit_loss) as total_profit_loss
+      FROM trading_signals 
+      WHERE profit_loss IS NOT NULL
+      AND status IN ('auto_closed', 'closed', 'executed')
+      AND created_at >= NOW() - INTERVAL '30 days'
+      GROUP BY DATE(created_at)
+      ORDER BY trade_date DESC
+    `;
+
+    // Weekly performance for last 12 weeks
+    const weeklyPerformance = await analysisDB.queryAll`
+      SELECT 
+        DATE_TRUNC('week', created_at) as trade_week,
+        COUNT(*) as total_trades,
+        AVG(CASE WHEN profit_loss > 0 THEN 1.0 ELSE 0.0 END) * 100 as win_rate,
+        AVG(CASE WHEN profit_loss > 0 THEN profit_loss END) as avg_profit,
+        AVG(CASE WHEN profit_loss < 0 THEN profit_loss END) as avg_loss,
+        MAX(profit_loss) as best_trade,
+        MIN(profit_loss) as worst_trade,
+        AVG(confidence) as avg_confidence,
+        SUM(profit_loss) as total_profit_loss
+      FROM trading_signals 
+      WHERE profit_loss IS NOT NULL
+      AND status IN ('auto_closed', 'closed', 'executed')
+      AND created_at >= NOW() - INTERVAL '12 weeks'
+      GROUP BY DATE_TRUNC('week', created_at)
+      ORDER BY trade_week DESC
+    `;
+
+    // Monthly performance for last 6 months
+    const monthlyPerformance = await analysisDB.queryAll`
+      SELECT 
+        DATE_TRUNC('month', created_at) as trade_month,
+        COUNT(*) as total_trades,
+        AVG(CASE WHEN profit_loss > 0 THEN 1.0 ELSE 0.0 END) * 100 as win_rate,
+        AVG(CASE WHEN profit_loss > 0 THEN profit_loss END) as avg_profit,
+        AVG(CASE WHEN profit_loss < 0 THEN profit_loss END) as avg_loss,
+        MAX(profit_loss) as best_trade,
+        MIN(profit_loss) as worst_trade,
+        AVG(confidence) as avg_confidence,
+        SUM(profit_loss) as total_profit_loss
+      FROM trading_signals 
+      WHERE profit_loss IS NOT NULL
+      AND status IN ('auto_closed', 'closed', 'executed')
+      AND created_at >= NOW() - INTERVAL '6 months'
+      GROUP BY DATE_TRUNC('month', created_at)
+      ORDER BY trade_month DESC
+    `;
+
+    const mapToPerformanceStats = (rows: any[]): PerformanceStats[] => {
+      return rows.map(row => {
+        const totalTrades = Number(row.total_trades) || 0;
+        const avgProfit = Number(row.avg_profit) || 0;
+        const avgLoss = Number(row.avg_loss) || 0;
+        const profitFactor = avgLoss !== 0 ? Math.abs(avgProfit / avgLoss) : 0;
+
+        return {
+          totalTrades,
+          winRate: Number(row.win_rate) || 0,
+          avgProfit,
+          avgLoss,
+          profitFactor,
+          bestTrade: Number(row.best_trade) || 0,
+          worstTrade: Number(row.worst_trade) || 0,
+          avgConfidence: Number(row.avg_confidence) || 0,
+          totalProfitLoss: Number(row.total_profit_loss) || 0,
+          currentStreak: 0, // Not calculated for historical data
+          maxDrawdown: 0, // Not calculated for historical data
+          sharpeRatio: 0, // Not calculated for historical data
+        };
+      });
+    };
+
+    return {
+      daily: mapToPerformanceStats(dailyPerformance),
+      weekly: mapToPerformanceStats(weeklyPerformance),
+      monthly: mapToPerformanceStats(monthlyPerformance),
+    };
+  }
+);
+
+// Get performance by symbol
+export const getPerformanceBySymbol = api<void, Array<{
+  symbol: string;
+  totalTrades: number;
+  winRate: number;
+  totalProfitLoss: number;
+  avgConfidence: number;
+  bestTrade: number;
+  worstTrade: number;
+}>>(
+  {
+    expose: true,
+    method: "GET",
+    path: "/analysis/performance/by-symbol"
+  },
+  async () => {
+    const symbolPerformance = await analysisDB.queryAll`
+      SELECT 
+        symbol,
+        COUNT(*) as total_trades,
+        AVG(CASE WHEN profit_loss > 0 THEN 1.0 ELSE 0.0 END) * 100 as win_rate,
+        SUM(profit_loss) as total_profit_loss,
+        AVG(confidence) as avg_confidence,
+        MAX(profit_loss) as best_trade,
+        MIN(profit_loss) as worst_trade
+      FROM trading_signals 
+      WHERE profit_loss IS NOT NULL
+      AND status IN ('auto_closed', 'closed', 'executed')
+      AND created_at >= NOW() - INTERVAL '30 days'
+      GROUP BY symbol
+      HAVING COUNT(*) >= 3
+      ORDER BY total_profit_loss DESC
+    `;
+
+    return symbolPerformance.map(row => ({
+      symbol: row.symbol,
+      totalTrades: Number(row.total_trades),
+      winRate: Number(row.win_rate),
+      totalProfitLoss: Number(row.total_profit_loss),
+      avgConfidence: Number(row.avg_confidence),
+      bestTrade: Number(row.best_trade),
+      worstTrade: Number(row.worst_trade),
+    }));
+  }
+);
+
+// Get performance by strategy
+export const getPerformanceByStrategy = api<void, Array<{
+  strategy: string;
+  totalTrades: number;
+  winRate: number;
+  totalProfitLoss: number;
+  avgConfidence: number;
+  avgHoldingTime: number;
+}>>(
+  {
+    expose: true,
+    method: "GET",
+    path: "/analysis/performance/by-strategy"
+  },
+  async () => {
+    const strategyPerformance = await analysisDB.queryAll`
+      SELECT 
+        strategy,
+        COUNT(*) as total_trades,
+        AVG(CASE WHEN profit_loss > 0 THEN 1.0 ELSE 0.0 END) * 100 as win_rate,
+        SUM(profit_loss) as total_profit_loss,
+        AVG(confidence) as avg_confidence,
+        AVG(EXTRACT(EPOCH FROM (closed_at - executed_at))/3600) as avg_holding_hours
+      FROM trading_signals 
+      WHERE profit_loss IS NOT NULL
+      AND status IN ('auto_closed', 'closed', 'executed')
+      AND executed_at IS NOT NULL
+      AND closed_at IS NOT NULL
+      AND created_at >= NOW() - INTERVAL '30 days'
+      GROUP BY strategy
+      ORDER BY total_profit_loss DESC
+    `;
+
+    return strategyPerformance.map(row => ({
+      strategy: row.strategy,
+      totalTrades: Number(row.total_trades),
+      winRate: Number(row.win_rate),
+      totalProfitLoss: Number(row.total_profit_loss),
+      avgConfidence: Number(row.avg_confidence),
+      avgHoldingTime: Number(row.avg_holding_hours) || 0,
+    }));
+  }
+);

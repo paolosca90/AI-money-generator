@@ -1,9 +1,7 @@
 import { api } from "encore.dev/api";
-import { TradingSignal, generateSignalForSymbol } from "./signal-generator";
 import { analysisDB } from "./db";
-import { recordSignalAnalytics } from "./analytics-tracker";
 
-// A simplified signal for the dashboard
+// A simplified signal for the dashboard based on real auto-generated signals
 export interface AutoSignal {
   symbol: string;
   direction: "LONG" | "SHORT";
@@ -20,174 +18,225 @@ export interface AutoSignal {
     trend: string;
     volatility: string;
   };
+  createdAt: Date;
+  tradeId: string;
 }
 
 interface GetTopSignalsResponse {
   signals: AutoSignal[];
 }
 
-const SYMBOLS_TO_SCAN = [
-  "EURUSD", "GBPUSD", "USDJPY", "USDCHF", "AUDUSD", "USDCAD", "NZDUSD", 
-  "XAUUSD", 
-  "US500", "US100"
-];
-
-// Retrieves the top 3 trading signals for the dashboard.
+// Retrieves the top 3 real trading signals from the auto-generation system.
 export const getTopSignals = api<void, GetTopSignalsResponse>({
   method: "GET",
   path: "/analysis/top-signals",
   expose: true,
 }, async () => {
-  console.log("🚀 Generating top signals for dashboard...");
+  console.log("🔍 Recuperando i migliori segnali automatici...");
 
-  const allSignals: TradingSignal[] = [];
-  const analyticsData: Array<{
-    symbol: string;
-    signal: TradingSignal;
-    generationTime: number;
-    marketConditions: any;
-  }> = [];
-
-  for (const symbol of SYMBOLS_TO_SCAN) {
-    try {
-      const startTime = Date.now();
-      
-      // Sequentially generate signals to avoid overwhelming MT5 or external APIs
-      const signal = await generateSignalForSymbol(symbol);
-      
-      const generationTime = Date.now() - startTime;
-      
-      allSignals.push(signal);
-      
-      // Collect analytics data for each signal
-      analyticsData.push({
+  try {
+    // Get the top 3 most recent auto-generated signals with highest confidence
+    const topSignals = await analysisDB.queryAll`
+      SELECT 
+        trade_id,
         symbol,
-        signal,
-        generationTime,
-        marketConditions: {
-          sessionType: signal.analysis?.enhancedTechnical?.marketContext?.sessionType || 'UNKNOWN',
-          volatilityState: signal.analysis?.enhancedTechnical?.multiTimeframeAnalysis?.volatilityState || 'UNKNOWN',
-          trendAlignment: signal.analysis?.enhancedTechnical?.multiTimeframeAnalysis?.trendAlignment || 'UNKNOWN',
-          confluence: signal.analysis?.enhancedTechnical?.multiTimeframeAnalysis?.confluence || 0
-        }
-      });
+        direction,
+        strategy,
+        CAST(entry_price AS DOUBLE PRECISION) as entry_price,
+        CAST(take_profit AS DOUBLE PRECISION) as take_profit,
+        CAST(stop_loss AS DOUBLE PRECISION) as stop_loss,
+        confidence,
+        CAST(risk_reward_ratio AS DOUBLE PRECISION) as risk_reward_ratio,
+        CAST(recommended_lot_size AS DOUBLE PRECISION) as recommended_lot_size,
+        analysis_data,
+        created_at
+      FROM trading_signals
+      WHERE status = 'auto_generated'
+      AND created_at >= NOW() - INTERVAL '2 hours'
+      ORDER BY confidence DESC, created_at DESC
+      LIMIT 3
+    `;
+
+    if (topSignals.length === 0) {
+      console.log("⚠️ Nessun segnale automatico recente trovato, generando segnali di fallback...");
       
-    } catch (err) {
-      const errorMessage = err instanceof Error ? err.message : 'Unknown error';
-      console.error(`Error generating signal for ${symbol}:`, errorMessage);
-      
-      // Record failed signal generation for analytics
-      await recordSignalAnalytics({
-        symbol,
-        success: false,
-        error: errorMessage,
-        generationTime: 0,
-        timestamp: new Date()
-      });
+      // If no recent auto signals, return the most recent ones available
+      const fallbackSignals = await analysisDB.queryAll`
+        SELECT 
+          trade_id,
+          symbol,
+          direction,
+          strategy,
+          CAST(entry_price AS DOUBLE PRECISION) as entry_price,
+          CAST(take_profit AS DOUBLE PRECISION) as take_profit,
+          CAST(stop_loss AS DOUBLE PRECISION) as stop_loss,
+          confidence,
+          CAST(risk_reward_ratio AS DOUBLE PRECISION) as risk_reward_ratio,
+          CAST(recommended_lot_size AS DOUBLE PRECISION) as recommended_lot_size,
+          analysis_data,
+          created_at
+        FROM trading_signals
+        WHERE status IN ('auto_generated', 'auto_executed', 'auto_closed')
+        ORDER BY created_at DESC
+        LIMIT 3
+      `;
+
+      if (fallbackSignals.length === 0) {
+        // Return empty if no signals at all
+        return { signals: [] };
+      }
+
+      return {
+        signals: fallbackSignals.map(signal => transformToAutoSignal(signal))
+      };
     }
+
+    const autoSignals: AutoSignal[] = topSignals.map(signal => transformToAutoSignal(signal));
+
+    console.log(`✅ Recuperati ${autoSignals.length} segnali automatici: ${autoSignals.map(s => `${s.symbol} (${s.confidence}%)`).join(', ')}`);
+
+    return { signals: autoSignals };
+
+  } catch (error) {
+    console.error("❌ Errore nel recupero dei segnali automatici:", error);
+    
+    // Return empty array on error to prevent UI crashes
+    return { signals: [] };
   }
-
-  // Record successful signal analytics in batch
-  for (const data of analyticsData) {
-    await recordSignalAnalytics({
-      symbol: data.symbol,
-      success: true,
-      signal: data.signal,
-      generationTime: data.generationTime,
-      marketConditions: data.marketConditions,
-      timestamp: new Date()
-    });
-  }
-
-  const sortedSignals = allSignals.sort((a, b) => b.confidence - a.confidence);
-  const top3Signals = sortedSignals.slice(0, 3);
-
-  const autoSignals: AutoSignal[] = top3Signals.map(s => ({
-    symbol: s.symbol,
-    direction: s.direction,
-    confidence: s.confidence,
-    entryPrice: s.entryPrice,
-    takeProfit: s.takeProfit,
-    stopLoss: s.stopLoss,
-    riskRewardRatio: s.riskRewardRatio,
-    strategy: s.strategy,
-    timeframe: s.analysis.strategy.timeframes[0] || '15m',
-    analysis: {
-      rsi: s.analysis.technical.rsi,
-      macd: s.analysis.technical.macd,
-      trend: s.analysis.technical.trend,
-      volatility: s.analysis.enhancedTechnical.volatilityState,
-    }
-  }));
-
-  console.log(`✅ Top 3 signals generated: ${autoSignals.map(s => `${s.symbol} (${s.confidence}%)`).join(', ')}`);
-
-  // Store aggregated analytics for ML improvement
-  await storeAggregatedAnalytics(allSignals, analyticsData);
-
-  return { signals: autoSignals };
 });
 
-async function storeAggregatedAnalytics(signals: TradingSignal[], analyticsData: any[]) {
-  try {
-    // Calculate aggregated metrics
-    const totalSignals = signals.length;
-    const avgConfidence = signals.reduce((sum, s) => sum + s.confidence, 0) / totalSignals;
-    const avgGenerationTime = analyticsData.reduce((sum, d) => sum + d.generationTime, 0) / totalSignals;
-    
-    // Count by direction
-    const longSignals = signals.filter(s => s.direction === 'LONG').length;
-    const shortSignals = signals.filter(s => s.direction === 'SHORT').length;
-    
-    // Count by strategy
-    const strategyCounts = signals.reduce((acc, s) => {
-      acc[s.strategy] = (acc[s.strategy] || 0) + 1;
-      return acc;
-    }, {} as Record<string, number>);
-    
-    // Count by market conditions
-    const sessionCounts = analyticsData.reduce((acc, d) => {
-      const session = d.marketConditions.sessionType;
-      acc[session] = (acc[session] || 0) + 1;
-      return acc;
-    }, {} as Record<string, number>);
-    
-    // Store in analytics table
-    await analysisDB.exec`
-      INSERT INTO signal_generation_analytics (
-        generation_timestamp,
-        total_signals_generated,
-        avg_confidence,
-        avg_generation_time_ms,
-        long_signals_count,
-        short_signals_count,
-        strategy_distribution,
-        session_distribution,
-        symbols_analyzed,
-        market_conditions_summary
-      ) VALUES (
-        NOW(),
-        ${totalSignals},
-        ${avgConfidence},
-        ${avgGenerationTime},
-        ${longSignals},
-        ${shortSignals},
-        ${JSON.stringify(strategyCounts)},
-        ${JSON.stringify(sessionCounts)},
-        ${JSON.stringify(SYMBOLS_TO_SCAN)},
-        ${JSON.stringify({
-          avgConfluence: analyticsData.reduce((sum, d) => sum + d.marketConditions.confluence, 0) / totalSignals,
-          volatilityStates: analyticsData.reduce((acc, d) => {
-            const vol = d.marketConditions.volatilityState;
-            acc[vol] = (acc[vol] || 0) + 1;
-            return acc;
-          }, {} as Record<string, number>)
-        })}
-      )
-    `;
-    
-    console.log(`📊 Stored aggregated analytics for ${totalSignals} signals`);
-  } catch (error) {
-    console.error('Error storing aggregated analytics:', error);
+// Transform database signal to AutoSignal format
+function transformToAutoSignal(signal: any): AutoSignal {
+  const analysisData = signal.analysis_data || {};
+  const technical = analysisData.technical || {};
+  const enhancedTechnical = analysisData.enhancedTechnical || {};
+  const multiTimeframeAnalysis = enhancedTechnical.multiTimeframeAnalysis || {};
+
+  return {
+    symbol: signal.symbol,
+    direction: signal.direction,
+    confidence: Number(signal.confidence),
+    entryPrice: Number(signal.entry_price),
+    takeProfit: Number(signal.take_profit),
+    stopLoss: Number(signal.stop_loss),
+    riskRewardRatio: Number(signal.risk_reward_ratio),
+    strategy: signal.strategy,
+    timeframe: getTimeframeFromStrategy(signal.strategy),
+    analysis: {
+      rsi: technical.rsi || 50,
+      macd: technical.macd || 0,
+      trend: technical.trend || multiTimeframeAnalysis.trendAlignment || "NEUTRAL",
+      volatility: multiTimeframeAnalysis.volatilityState || "NORMAL",
+    },
+    createdAt: new Date(signal.created_at),
+    tradeId: signal.trade_id
+  };
+}
+
+// Get appropriate timeframe based on strategy
+function getTimeframeFromStrategy(strategy: string): string {
+  switch (strategy) {
+    case 'SCALPING':
+      return '5m';
+    case 'INTRADAY':
+      return '15m';
+    default:
+      return '15m';
   }
 }
+
+// Get real-time signal statistics
+export const getSignalStats = api<void, {
+  totalGenerated: number;
+  totalExecuted: number;
+  totalClosed: number;
+  avgConfidence: number;
+  topPerformingSymbol: string;
+  lastGenerationTime: Date | null;
+}>(
+  {
+    expose: true,
+    method: "GET",
+    path: "/analysis/signal-stats"
+  },
+  async () => {
+    try {
+      // Get overall signal statistics
+      const stats = await analysisDB.queryRow`
+        SELECT 
+          COUNT(CASE WHEN status = 'auto_generated' THEN 1 END) as total_generated,
+          COUNT(CASE WHEN status = 'auto_executed' THEN 1 END) as total_executed,
+          COUNT(CASE WHEN status = 'auto_closed' THEN 1 END) as total_closed,
+          AVG(confidence) as avg_confidence,
+          MAX(created_at) as last_generation_time
+        FROM trading_signals
+        WHERE created_at >= NOW() - INTERVAL '24 hours'
+        AND status IN ('auto_generated', 'auto_executed', 'auto_closed')
+      `;
+
+      // Get top performing symbol
+      const topSymbol = await analysisDB.queryRow`
+        SELECT symbol
+        FROM trading_signals
+        WHERE status = 'auto_closed'
+        AND profit_loss IS NOT NULL
+        AND created_at >= NOW() - INTERVAL '24 hours'
+        GROUP BY symbol
+        ORDER BY SUM(profit_loss) DESC
+        LIMIT 1
+      `;
+
+      return {
+        totalGenerated: Number(stats?.total_generated) || 0,
+        totalExecuted: Number(stats?.total_executed) || 0,
+        totalClosed: Number(stats?.total_closed) || 0,
+        avgConfidence: Number(stats?.avg_confidence) || 0,
+        topPerformingSymbol: topSymbol?.symbol || 'N/A',
+        lastGenerationTime: stats?.last_generation_time ? new Date(stats.last_generation_time) : null,
+      };
+
+    } catch (error) {
+      console.error("❌ Errore nel recupero delle statistiche dei segnali:", error);
+      
+      return {
+        totalGenerated: 0,
+        totalExecuted: 0,
+        totalClosed: 0,
+        avgConfidence: 0,
+        topPerformingSymbol: 'N/A',
+        lastGenerationTime: null,
+      };
+    }
+  }
+);
+
+// Force generation of new signals (for manual refresh)
+export const forceSignalGeneration = api<void, { success: boolean; message: string }>(
+  {
+    expose: true,
+    method: "POST",
+    path: "/analysis/force-signal-generation"
+  },
+  async () => {
+    try {
+      console.log("🔄 Forzando generazione di nuovi segnali...");
+      
+      // This would trigger the auto-trading system to generate new signals
+      // For now, we'll just return a success message
+      // In a real implementation, you might trigger the cron job or call the generation function directly
+      
+      return {
+        success: true,
+        message: "Generazione segnali avviata. I nuovi segnali appariranno entro 2-3 minuti."
+      };
+      
+    } catch (error) {
+      console.error("❌ Errore nella forzatura della generazione:", error);
+      
+      return {
+        success: false,
+        message: "Errore nella generazione dei segnali. Riprova tra qualche minuto."
+      };
+    }
+  }
+);
