@@ -124,6 +124,7 @@ export async function generateSignalForSymbol(symbol: string, userStrategy?: Tra
       strategy: { name: strategyConfig.name, description: strategyConfig.description, timeframes: strategyConfig.timeframes, marketConditions: strategyConfig.marketConditions, riskLevel },
       enhancedTechnical: aiAnalysis.enhancedTechnical,
       vwap: aiAnalysis.vwap,
+      dataSource: completeMarketData["5m"].source,
     },
   };
 

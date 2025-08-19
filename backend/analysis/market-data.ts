@@ -14,6 +14,7 @@ export interface MarketDataPoint {
     macd: number;
     atr: number;
   };
+  source: 'MT5' | 'FALLBACK';
 }
 
 export interface TimeframeData {
@@ -148,6 +149,7 @@ async function fetchMT5Data(symbol: string, timeframe: string, mt5Config: Mt5Con
       volume: tick_volume,
       spread: spreadInPrice,
       indicators,
+      source: 'MT5',
     };
 
   } catch (error) {
@@ -412,6 +414,7 @@ function createEnhancedFallbackData(symbol: string, timeframe: string): MarketDa
     volume,
     spread,
     indicators,
+    source: 'FALLBACK',
   };
 }
 

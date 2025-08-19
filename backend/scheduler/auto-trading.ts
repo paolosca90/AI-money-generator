@@ -31,6 +31,20 @@ export const generateAutoSignals = cron("generate-auto-signals", {
           const signal = await generateSignalForSymbol(symbol);
           const generationTime = Date.now() - signalStartTime;
 
+          // Check if the signal was generated with real data
+          if (signal.analysis.dataSource !== 'MT5') {
+            const errorMessage = `Signal for ${symbol} was generated using fallback data. Discarding.`;
+            console.log(`❌ ${errorMessage}`);
+            await recordSignalAnalytics({
+              symbol,
+              success: false,
+              error: errorMessage,
+              generationTime,
+              timestamp: new Date()
+            });
+            continue; // Skip to the next symbol
+          }
+
           signals.push({
             signal,
             generationTime,
@@ -480,6 +494,12 @@ export const ensureVisibleSignals = cron("ensure-visible-signals", {
           try {
             const signal = await generateSignalForSymbol(symbol);
             
+            // Check if the signal was generated with real data
+            if (signal.analysis.dataSource !== 'MT5') {
+              console.log(`❌ Backup signal for ${symbol} used fallback data. Discarding.`);
+              continue;
+            }
+
             await analysisDB.exec`
               INSERT INTO trading_signals (
                 trade_id, user_id, symbol, direction, strategy, entry_price, take_profit, stop_loss, 
