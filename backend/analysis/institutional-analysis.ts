@@ -571,7 +571,28 @@ function analyzeStructurePoints(swingHighs: number[], swingLows: number[]): Arra
 }
 
 function determineTrend(structurePoints: any[]): "UPTREND" | "DOWNTREND" | "RANGING" {
-  // Simplified trend determination
+  // Basic trend determination based on last structure points
+  if (!structurePoints || structurePoints.length < 2) {
+    return "RANGING";
+  }
+  // Get last two structure points
+  const last = structurePoints[structurePoints.length - 1];
+  const prev = structurePoints[structurePoints.length - 2];
+  // Uptrend: sequence of HH and HL
+  if (
+    (prev.type === "HL" && last.type === "HH") ||
+    (prev.type === "HH" && last.type === "HL")
+  ) {
+    return "UPTREND";
+  }
+  // Downtrend: sequence of LL and LH
+  if (
+    (prev.type === "LH" && last.type === "LL") ||
+    (prev.type === "LL" && last.type === "LH")
+  ) {
+    return "DOWNTREND";
+  }
+  // Otherwise, ranging
   return "RANGING";
 }
 
