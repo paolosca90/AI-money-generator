@@ -19,7 +19,7 @@ export async function analyzeSentiment(symbol: string): Promise<SentimentAnalysi
       return {
         score: 0,
         sources: ["No recent news"],
-        summary: "No significant news found for sentiment analysis. Market sentiment appears neutral."
+        summary: "Nessuna notizia significativa trovata per l'analisi del sentiment. Il sentiment di mercato appare neutrale."
       };
     }
 
@@ -36,7 +36,7 @@ export async function analyzeSentiment(symbol: string): Promise<SentimentAnalysi
     return {
       score: 0,
       sources: ["Error"],
-      summary: "Unable to perform sentiment analysis due to an internal error."
+      summary: "Impossibile eseguire l'analisi del sentiment a causa di un errore interno."
     };
   }
 }
@@ -200,8 +200,8 @@ ${newsText}
 Provide a consolidated sentiment analysis. Your response must be a valid JSON object with the following structure:
 {
   "sentiment_score": number, // A score from -1.0 (very bearish) to 1.0 (very bullish)
-  "key_takeaways": string[], // An array of 3-5 bullet points summarizing the most critical information.
-  "overall_summary": string // A concise paragraph (2-3 sentences) summarizing the market sentiment for ${symbol}.
+  "key_takeaways": string[], // An array of 3-5 bullet points summarizing the most critical information, IN ITALIAN.
+  "overall_summary": string // A concise paragraph (2-3 sentences) summarizing the market sentiment for ${symbol}, IN ITALIAN.
 }
 
 Analyze the nuances. Distinguish between factual news, opinions, and technical analysis. Weigh the sources based on their likely impact. Provide only the JSON object in your response.
@@ -258,13 +258,13 @@ function generateFallbackSentiment(news: Array<{ title: string; description: str
     score = (positiveKeywords - negativeKeywords) / totalKeywords;
   }
 
-  let summary = `Fallback sentiment analysis for ${symbol}. `;
+  let summary = `Analisi di sentiment di fallback per ${symbol}. `;
   if (score > 0.3) {
-    summary += `Overall sentiment appears positive based on keyword analysis. Found ${positiveKeywords} bullish vs ${negativeKeywords} bearish keywords.`;
+    summary += `Il sentiment generale appare positivo basato sull'analisi delle parole chiave. Trovate ${positiveKeywords} parole rialziste contro ${negativeKeywords} ribassiste.`;
   } else if (score < -0.3) {
-    summary += `Overall sentiment appears negative based on keyword analysis. Found ${negativeKeywords} bearish vs ${positiveKeywords} bullish keywords.`;
+    summary += `Il sentiment generale appare negativo basato sull'analisi delle parole chiave. Trovate ${negativeKeywords} parole ribassiste contro ${positiveKeywords} rialziste.`;
   } else {
-    summary += `Market sentiment is mixed or neutral. Found ${positiveKeywords} bullish and ${negativeKeywords} bearish keywords.`;
+    summary += `Il sentiment di mercato è misto o neutrale. Trovate ${positiveKeywords} parole rialziste e ${negativeKeywords} ribassiste.`;
   }
 
   return {
