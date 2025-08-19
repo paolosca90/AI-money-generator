@@ -7,6 +7,7 @@
  */
 
 import { MultiTimeframeAnalysis, MarketConditionContext, EnhancedIndicators } from "./enhanced-technical-analysis";
+import { InstitutionalAnalysis } from "./institutional-analysis";
 
 export interface ConfidenceFactors {
   technicalAlignment: number; // 0-100
@@ -17,17 +18,23 @@ export interface ConfidenceFactors {
   riskAdjustment: number; // 0-100
   momentumStrength: number; // 0-100
   volatilityFilter: number; // 0-100
+  institutionalAlignment: number; // 0-100 NEW: Institutional factors
+  orderBlockConfirmation: number; // 0-100 NEW: Order block alignment
+  liquidityZoneConfirmation: number; // 0-100 NEW: Supply/Demand zones
+  marketMakerConfidence: number; // 0-100 NEW: Market maker model
 }
 
 export interface EnhancedConfidenceResult {
   finalConfidence: number;
   confidenceGrade: "A+" | "A" | "B+" | "B" | "C" | "D" | "F";
   factors: ConfidenceFactors;
+  institutionalScore: number; // NEW: Overall institutional confidence
   recommendations: {
     shouldTrade: boolean;
     suggestedLotSizeMultiplier: number; // 0.1 to 2.0
     riskAdjustment: "REDUCE" | "NORMAL" | "INCREASE";
     timeframeRecommendation: "SHORT_TERM" | "MEDIUM_TERM" | "LONG_TERM";
+    institutionalBias: "STRONG_BULLISH" | "BULLISH" | "NEUTRAL" | "BEARISH" | "STRONG_BEARISH"; // NEW
   };
   warnings: string[];
 }
@@ -43,7 +50,8 @@ export function calculateEnhancedConfidence(
   marketContext: MarketConditionContext,
   direction: "LONG" | "SHORT",
   symbol: string,
-  historicalWinRate?: number
+  historicalWinRate?: number,
+  institutionalAnalysis?: InstitutionalAnalysis
 ): EnhancedConfidenceResult {
   
   const factors: ConfidenceFactors = {
@@ -54,11 +62,19 @@ export function calculateEnhancedConfidence(
     historicalPerformance: calculateHistoricalPerformanceScore(historicalWinRate, symbol),
     riskAdjustment: calculateRiskAdjustmentScore(multiTimeframeAnalysis, marketContext),
     momentumStrength: calculateMomentumStrength(indicators5m, indicators15m, direction),
-    volatilityFilter: calculateVolatilityFilterScore(multiTimeframeAnalysis, marketContext)
+    volatilityFilter: calculateVolatilityFilterScore(multiTimeframeAnalysis, marketContext),
+    // NEW: Institutional factors
+    institutionalAlignment: calculateInstitutionalAlignment(institutionalAnalysis, direction),
+    orderBlockConfirmation: calculateOrderBlockConfirmation(institutionalAnalysis, direction),
+    liquidityZoneConfirmation: calculateLiquidityZoneConfirmation(institutionalAnalysis, direction),
+    marketMakerConfidence: calculateMarketMakerConfidence(institutionalAnalysis)
   };
 
   // Calculate weighted confidence score
   const weightedConfidence = calculateWeightedConfidence(factors);
+  
+  // Calculate institutional score separately
+  const institutionalScore = calculateInstitutionalScore(factors);
   
   // Apply dynamic thresholds based on market conditions
   const finalConfidence = applyDynamicThresholds(weightedConfidence, marketContext, multiTimeframeAnalysis);
@@ -67,7 +83,7 @@ export function calculateEnhancedConfidence(
   const confidenceGrade = getConfidenceGrade(finalConfidence);
   
   // Generate recommendations
-  const recommendations = generateRecommendations(finalConfidence, factors, marketContext);
+  const recommendations = generateRecommendations(finalConfidence, factors, marketContext, institutionalAnalysis);
   
   // Generate warnings
   const warnings = generateWarnings(factors, marketContext, multiTimeframeAnalysis);
@@ -76,6 +92,7 @@ export function calculateEnhancedConfidence(
     finalConfidence,
     confidenceGrade,
     factors,
+    institutionalScore,
     recommendations,
     warnings
   };
@@ -351,14 +368,19 @@ function calculateVolatilityFilterScore(
  */
 function calculateWeightedConfidence(factors: ConfidenceFactors): number {
   const weights = {
-    technicalAlignment: 0.25,
-    multiTimeframeConfluence: 0.20,
-    volumeConfirmation: 0.10,
-    marketConditions: 0.15,
-    historicalPerformance: 0.10,
-    riskAdjustment: 0.10,
-    momentumStrength: 0.05,
-    volatilityFilter: 0.05
+    technicalAlignment: 0.15,        // Reduced to make room for institutional
+    multiTimeframeConfluence: 0.15,  // Reduced
+    volumeConfirmation: 0.08,        // Reduced
+    marketConditions: 0.12,          // Reduced
+    historicalPerformance: 0.08,     // Reduced
+    riskAdjustment: 0.08,            // Reduced
+    momentumStrength: 0.04,          // Reduced
+    volatilityFilter: 0.05,          // Reduced
+    // NEW: Institutional factors (30% total weight)
+    institutionalAlignment: 0.10,    // High weight for institutional alignment
+    orderBlockConfirmation: 0.08,    // Order blocks are crucial
+    liquidityZoneConfirmation: 0.07, // Supply/Demand zones
+    marketMakerConfidence: 0.05      // Market maker model
   };
 
   let weightedScore = 0;
@@ -415,45 +437,6 @@ function getConfidenceGrade(confidence: number): EnhancedConfidenceResult["confi
 }
 
 /**
- * Generate trading recommendations
- */
-function generateRecommendations(
-  confidence: number,
-  factors: ConfidenceFactors,
-  marketContext: MarketConditionContext
-): EnhancedConfidenceResult["recommendations"] {
-  const shouldTrade = confidence >= 60; // Minimum threshold
-  
-  let suggestedLotSizeMultiplier = 1.0;
-  
-  // Adjust lot size based on confidence
-  if (confidence >= 85) suggestedLotSizeMultiplier = 1.5;
-  else if (confidence >= 75) suggestedLotSizeMultiplier = 1.2;
-  else if (confidence >= 60) suggestedLotSizeMultiplier = 1.0;
-  else if (confidence >= 45) suggestedLotSizeMultiplier = 0.5;
-  else suggestedLotSizeMultiplier = 0.1;
-  
-  // Risk adjustment recommendation
-  let riskAdjustment: EnhancedConfidenceResult["recommendations"]["riskAdjustment"];
-  if (factors.riskAdjustment >= 80) riskAdjustment = "INCREASE";
-  else if (factors.riskAdjustment >= 60) riskAdjustment = "NORMAL";
-  else riskAdjustment = "REDUCE";
-  
-  // Timeframe recommendation
-  let timeframeRecommendation: EnhancedConfidenceResult["recommendations"]["timeframeRecommendation"];
-  if (factors.momentumStrength >= 80) timeframeRecommendation = "SHORT_TERM";
-  else if (factors.multiTimeframeConfluence >= 75) timeframeRecommendation = "MEDIUM_TERM";
-  else timeframeRecommendation = "LONG_TERM";
-
-  return {
-    shouldTrade,
-    suggestedLotSizeMultiplier,
-    riskAdjustment,
-    timeframeRecommendation
-  };
-}
-
-/**
  * Generate warnings based on analysis
  */
 function generateWarnings(
@@ -491,5 +474,270 @@ function generateWarnings(
     warnings.push("🚨 High-risk market conditions - consider reducing position size");
   }
 
+  // NEW: Institutional warnings
+  if (factors.institutionalAlignment < 40) {
+    warnings.push("⚠️ Institutional flow conflicts with trade direction");
+  }
+
+  if (factors.orderBlockConfirmation < 30) {
+    warnings.push("⚠️ No supporting order blocks found for this direction");
+  }
+
+  if (factors.liquidityZoneConfirmation < 30) {
+    warnings.push("⚠️ Price not near significant supply/demand zones");
+  }
+
   return warnings;
+}
+
+/**
+ * Calculate institutional alignment score
+ */
+function calculateInstitutionalAlignment(
+  institutionalAnalysis: InstitutionalAnalysis | undefined,
+  direction: "LONG" | "SHORT"
+): number {
+  if (!institutionalAnalysis) return 50; // Neutral if no analysis
+
+  let score = 50; // Base score
+  
+  // Smart money direction alignment
+  const { smartMoneyDirection } = institutionalAnalysis.marketMakerModel;
+  if ((direction === "LONG" && smartMoneyDirection === "LONG") ||
+      (direction === "SHORT" && smartMoneyDirection === "SHORT")) {
+    score += 20;
+  } else if (smartMoneyDirection === "SIDEWAYS") {
+    score -= 10;
+  } else {
+    score -= 25; // Conflicting direction
+  }
+  
+  // Institutional flow alignment
+  const { institutionalFlow } = institutionalAnalysis.marketMakerModel;
+  if ((direction === "LONG" && institutionalFlow === "BUYING") ||
+      (direction === "SHORT" && institutionalFlow === "SELLING")) {
+    score += 15;
+  } else if (institutionalFlow === "NEUTRAL") {
+    score -= 5;
+  } else {
+    score -= 20; // Conflicting flow
+  }
+  
+  // Active session boost
+  const hasHighVolatilitySession = institutionalAnalysis.activeSessions.some(
+    session => session.volatilityMultiplier >= 1.2
+  );
+  if (hasHighVolatilitySession) {
+    score += 10;
+  }
+  
+  // Kill zone alignment
+  const activeKillZone = institutionalAnalysis.killZones.find(kz => kz.isActive);
+  if (activeKillZone && activeKillZone.volatilityExpected === "HIGH") {
+    score += 10;
+  }
+  
+  return Math.min(100, Math.max(0, score));
+}
+
+/**
+ * Calculate order block confirmation score
+ */
+function calculateOrderBlockConfirmation(
+  institutionalAnalysis: InstitutionalAnalysis | undefined,
+  direction: "LONG" | "SHORT"
+): number {
+  if (!institutionalAnalysis) return 30; // Low if no analysis
+  
+  const { orderBlocks } = institutionalAnalysis;
+  
+  if (orderBlocks.length === 0) return 20;
+  
+  // Filter order blocks by direction
+  const relevantOBs = orderBlocks.filter(ob => 
+    (direction === "LONG" && ob.type === "BULLISH") ||
+    (direction === "SHORT" && ob.type === "BEARISH")
+  );
+  
+  if (relevantOBs.length === 0) return 25;
+  
+  let score = 40; // Base score for having relevant OBs
+  
+  // Boost score based on order block strength
+  const strengthBonus = relevantOBs.reduce((sum, ob) => {
+    const strengthScore = { "EXTREME": 20, "STRONG": 15, "MODERATE": 10, "WEAK": 5 };
+    return sum + strengthScore[ob.strength];
+  }, 0);
+  
+  score += Math.min(40, strengthBonus);
+  
+  // Boost score for fresh order blocks
+  const freshOBs = relevantOBs.filter(ob => ob.status === "FRESH");
+  score += freshOBs.length * 5;
+  
+  // Boost score for nearby order blocks
+  const nearbyOBs = relevantOBs.filter(ob => ob.distance < 0.02); // Within 2%
+  score += nearbyOBs.length * 10;
+  
+  return Math.min(100, Math.max(0, score));
+}
+
+/**
+ * Calculate liquidity zone confirmation score
+ */
+function calculateLiquidityZoneConfirmation(
+  institutionalAnalysis: InstitutionalAnalysis | undefined,
+  direction: "LONG" | "SHORT"
+): number {
+  if (!institutionalAnalysis) return 30; // Low if no analysis
+  
+  const { supplyDemandZones } = institutionalAnalysis;
+  
+  if (supplyDemandZones.length === 0) return 25;
+  
+  // Filter zones by direction
+  const relevantZones = supplyDemandZones.filter(zone => 
+    (direction === "LONG" && zone.type === "DEMAND") ||
+    (direction === "SHORT" && zone.type === "SUPPLY")
+  );
+  
+  if (relevantZones.length === 0) return 30;
+  
+  let score = 45; // Base score for having relevant zones
+  
+  // Boost score based on zone strength
+  const strengthBonus = relevantZones.reduce((sum, zone) => {
+    const strengthScore = { "EXTREME": 20, "STRONG": 15, "MODERATE": 10, "WEAK": 5 };
+    return sum + strengthScore[zone.strength];
+  }, 0);
+  
+  score += Math.min(35, strengthBonus);
+  
+  // Boost score for fresh zones
+  const freshZones = relevantZones.filter(zone => zone.status === "FRESH");
+  score += freshZones.length * 8;
+  
+  // Boost score for untested zones
+  const untestedZones = relevantZones.filter(zone => zone.touches === 0);
+  score += untestedZones.length * 10;
+  
+  return Math.min(100, Math.max(0, score));
+}
+
+/**
+ * Calculate market maker confidence score
+ */
+function calculateMarketMakerConfidence(
+  institutionalAnalysis: InstitutionalAnalysis | undefined
+): number {
+  if (!institutionalAnalysis) return 40; // Neutral if no analysis
+  
+  const { marketMakerModel } = institutionalAnalysis;
+  
+  let score = marketMakerModel.confidence; // Base score from MM model
+  
+  // Boost score based on phase clarity
+  switch (marketMakerModel.phase) {
+    case "ACCUMULATION":
+    case "DISTRIBUTION":
+      score += 10; // Clear phases are good
+      break;
+    case "MANIPULATION":
+      score += 15; // Manipulation phase often leads to strong moves
+      break;
+    case "REACCUMULATION":
+      score += 5; // Moderate boost
+      break;
+  }
+  
+  // Adjust based on liquidity sweep probability
+  if (marketMakerModel.liquiditySweepProbability > 70) {
+    score -= 10; // High probability of false moves
+  } else if (marketMakerModel.liquiditySweepProbability < 30) {
+    score += 10; // Low probability of manipulation
+  }
+  
+  return Math.min(100, Math.max(0, score));
+}
+
+/**
+ * Calculate overall institutional score
+ */
+function calculateInstitutionalScore(factors: ConfidenceFactors): number {
+  const institutionalFactors = [
+    factors.institutionalAlignment,
+    factors.orderBlockConfirmation,
+    factors.liquidityZoneConfirmation,
+    factors.marketMakerConfidence
+  ];
+  
+  return institutionalFactors.reduce((sum, score) => sum + score, 0) / institutionalFactors.length;
+}
+
+/**
+ * Updated recommendations with institutional bias
+ */
+function generateRecommendations(
+  confidence: number,
+  factors: ConfidenceFactors,
+  marketContext: MarketConditionContext,
+  institutionalAnalysis?: InstitutionalAnalysis
+): EnhancedConfidenceResult["recommendations"] {
+  // Determine if trade should be taken
+  const shouldTrade = confidence >= 65 && 
+                     factors.technicalAlignment >= 50 && 
+                     factors.institutionalAlignment >= 40; // NEW: institutional requirement
+  
+  // Adjust lot size with institutional factors
+  let suggestedLotSizeMultiplier = 1.0;
+  
+  const institutionalScore = calculateInstitutionalScore(factors);
+  
+  if (confidence >= 85 && institutionalScore >= 80) suggestedLotSizeMultiplier = 2.0; // Max size
+  else if (confidence >= 75 && institutionalScore >= 70) suggestedLotSizeMultiplier = 1.5;
+  else if (confidence >= 65 && institutionalScore >= 60) suggestedLotSizeMultiplier = 1.2;
+  else if (confidence >= 55 && institutionalScore >= 50) suggestedLotSizeMultiplier = 1.0;
+  else if (confidence >= 45 && institutionalScore >= 40) suggestedLotSizeMultiplier = 0.5;
+  else suggestedLotSizeMultiplier = 0.1;
+  
+  // Risk adjustment with institutional considerations
+  let riskAdjustment: EnhancedConfidenceResult["recommendations"]["riskAdjustment"];
+  if (factors.riskAdjustment >= 80 && institutionalScore >= 70) riskAdjustment = "INCREASE";
+  else if (factors.riskAdjustment >= 60 && institutionalScore >= 50) riskAdjustment = "NORMAL";
+  else riskAdjustment = "REDUCE";
+  
+  // Timeframe recommendation with institutional timing
+  let timeframeRecommendation: EnhancedConfidenceResult["recommendations"]["timeframeRecommendation"];
+  const hasActiveKillZone = institutionalAnalysis?.killZones.some(kz => kz.isActive) || false;
+  
+  if (factors.momentumStrength >= 80 && hasActiveKillZone) {
+    timeframeRecommendation = "SHORT_TERM";
+  } else if (factors.multiTimeframeConfluence >= 75 && institutionalScore >= 60) {
+    timeframeRecommendation = "MEDIUM_TERM";
+  } else {
+    timeframeRecommendation = "LONG_TERM";
+  }
+  
+  // NEW: Institutional bias
+  let institutionalBias: EnhancedConfidenceResult["recommendations"]["institutionalBias"];
+  if (institutionalScore >= 85) {
+    institutionalBias = institutionalAnalysis?.marketMakerModel.smartMoneyDirection === "LONG" 
+      ? "STRONG_BULLISH" : "STRONG_BEARISH";
+  } else if (institutionalScore >= 70) {
+    institutionalBias = institutionalAnalysis?.marketMakerModel.smartMoneyDirection === "LONG" 
+      ? "BULLISH" : "BEARISH";
+  } else if (institutionalScore >= 30) {
+    institutionalBias = "NEUTRAL";
+  } else {
+    institutionalBias = institutionalAnalysis?.marketMakerModel.smartMoneyDirection === "LONG" 
+      ? "BEARISH" : "BULLISH"; // Contrarian when institutional score is very low
+  }
+
+  return {
+    shouldTrade,
+    suggestedLotSizeMultiplier,
+    riskAdjustment,
+    timeframeRecommendation,
+    institutionalBias
+  };
 }
