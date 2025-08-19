@@ -92,9 +92,9 @@ CREATE INDEX idx_signal_generation_timestamp ON signal_generation_analytics(gene
 CREATE INDEX idx_ml_performance_model_date ON ml_model_performance_detailed(model_version, evaluation_date);
 CREATE INDEX idx_signal_quality_symbol_timestamp ON signal_quality_metrics(symbol, measurement_timestamp);
 
--- Partial indexes for better performance on common queries
+-- Partial indexes for better performance on common queries (without NOW() function)
 CREATE INDEX idx_signal_analytics_successful_recent ON signal_analytics(symbol, created_at) 
-WHERE success = true AND created_at >= NOW() - INTERVAL '7 days';
+WHERE success = true;
 
 CREATE INDEX idx_signal_performance_completed ON signal_performance_tracking(symbol, close_time, actual_profit_loss) 
 WHERE close_time IS NOT NULL AND actual_profit_loss IS NOT NULL;

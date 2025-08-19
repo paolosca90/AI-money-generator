@@ -91,10 +91,19 @@ import { execute as api_analysis_execute_execute } from "~backend/analysis/execu
 import { recordFeedback as api_analysis_feedback_recordFeedback } from "~backend/analysis/feedback";
 import { listHistory as api_analysis_history_listHistory } from "~backend/analysis/history";
 import { getMarketOverview as api_analysis_market_overview_getMarketOverview } from "~backend/analysis/market-overview";
-import { getPerformance as api_analysis_performance_getPerformance } from "~backend/analysis/performance";
+import {
+    getDetailedPerformance as api_analysis_performance_getDetailedPerformance,
+    getPerformance as api_analysis_performance_getPerformance,
+    getPerformanceByStrategy as api_analysis_performance_getPerformanceByStrategy,
+    getPerformanceBySymbol as api_analysis_performance_getPerformanceBySymbol
+} from "~backend/analysis/performance";
 import { listPositions as api_analysis_positions_listPositions } from "~backend/analysis/positions";
 import { predict as api_analysis_predict_predict } from "~backend/analysis/predict";
-import { getTopSignals as api_analysis_top_signals_getTopSignals } from "~backend/analysis/top-signals";
+import {
+    forceSignalGeneration as api_analysis_top_signals_forceSignalGeneration,
+    getSignalStats as api_analysis_top_signals_getSignalStats,
+    getTopSignals as api_analysis_top_signals_getTopSignals
+} from "~backend/analysis/top-signals";
 
 export namespace analysis {
 
@@ -105,8 +114,13 @@ export namespace analysis {
             this.baseClient = baseClient
             this.closePosition = this.closePosition.bind(this)
             this.execute = this.execute.bind(this)
+            this.forceSignalGeneration = this.forceSignalGeneration.bind(this)
+            this.getDetailedPerformance = this.getDetailedPerformance.bind(this)
             this.getMarketOverview = this.getMarketOverview.bind(this)
             this.getPerformance = this.getPerformance.bind(this)
+            this.getPerformanceByStrategy = this.getPerformanceByStrategy.bind(this)
+            this.getPerformanceBySymbol = this.getPerformanceBySymbol.bind(this)
+            this.getSignalStats = this.getSignalStats.bind(this)
             this.getTopSignals = this.getTopSignals.bind(this)
             this.listHistory = this.listHistory.bind(this)
             this.listPositions = this.listPositions.bind(this)
@@ -124,12 +138,30 @@ export namespace analysis {
         }
 
         /**
-         * Executes a trading signal on MetaTrader 5 with strategy-specific parameters.
+         * Executes a trading signal in SIMULATION mode for data collection.
          */
         public async execute(params: RequestType<typeof api_analysis_execute_execute>): Promise<ResponseType<typeof api_analysis_execute_execute>> {
             // Now make the actual call to the API
             const resp = await this.baseClient.callTypedAPI(`/analysis/execute`, {method: "POST", body: JSON.stringify(params)})
             return JSON.parse(await resp.text(), dateReviver) as ResponseType<typeof api_analysis_execute_execute>
+        }
+
+        /**
+         * Force generation of new signals (for manual refresh)
+         */
+        public async forceSignalGeneration(): Promise<ResponseType<typeof api_analysis_top_signals_forceSignalGeneration>> {
+            // Now make the actual call to the API
+            const resp = await this.baseClient.callTypedAPI(`/analysis/force-signal-generation`, {method: "POST", body: undefined})
+            return JSON.parse(await resp.text(), dateReviver) as ResponseType<typeof api_analysis_top_signals_forceSignalGeneration>
+        }
+
+        /**
+         * Get detailed performance breakdown by time periods
+         */
+        public async getDetailedPerformance(): Promise<ResponseType<typeof api_analysis_performance_getDetailedPerformance>> {
+            // Now make the actual call to the API
+            const resp = await this.baseClient.callTypedAPI(`/analysis/performance/detailed`, {method: "GET", body: undefined})
+            return JSON.parse(await resp.text(), dateReviver) as ResponseType<typeof api_analysis_performance_getDetailedPerformance>
         }
 
         /**
@@ -142,7 +174,7 @@ export namespace analysis {
         }
 
         /**
-         * Retrieves AI model performance statistics.
+         * Retrieves AI model performance statistics based on real trading results.
          */
         public async getPerformance(): Promise<ResponseType<typeof api_analysis_performance_getPerformance>> {
             // Now make the actual call to the API
@@ -151,7 +183,34 @@ export namespace analysis {
         }
 
         /**
-         * Retrieves the top 3 trading signals for the dashboard.
+         * Get performance by strategy
+         */
+        public async getPerformanceByStrategy(): Promise<ResponseType<typeof api_analysis_performance_getPerformanceByStrategy>> {
+            // Now make the actual call to the API
+            const resp = await this.baseClient.callTypedAPI(`/analysis/performance/by-strategy`, {method: "GET", body: undefined})
+            return JSON.parse(await resp.text(), dateReviver) as ResponseType<typeof api_analysis_performance_getPerformanceByStrategy>
+        }
+
+        /**
+         * Get performance by symbol
+         */
+        public async getPerformanceBySymbol(): Promise<ResponseType<typeof api_analysis_performance_getPerformanceBySymbol>> {
+            // Now make the actual call to the API
+            const resp = await this.baseClient.callTypedAPI(`/analysis/performance/by-symbol`, {method: "GET", body: undefined})
+            return JSON.parse(await resp.text(), dateReviver) as ResponseType<typeof api_analysis_performance_getPerformanceBySymbol>
+        }
+
+        /**
+         * Get real-time signal statistics
+         */
+        public async getSignalStats(): Promise<ResponseType<typeof api_analysis_top_signals_getSignalStats>> {
+            // Now make the actual call to the API
+            const resp = await this.baseClient.callTypedAPI(`/analysis/signal-stats`, {method: "GET", body: undefined})
+            return JSON.parse(await resp.text(), dateReviver) as ResponseType<typeof api_analysis_top_signals_getSignalStats>
+        }
+
+        /**
+         * Retrieves the top 3 real trading signals from the auto-generation system.
          */
         public async getTopSignals(): Promise<ResponseType<typeof api_analysis_top_signals_getTopSignals>> {
             // Now make the actual call to the API
@@ -200,7 +259,10 @@ export namespace analysis {
 /**
  * Import the endpoint handlers to derive the types for the client.
  */
-import { getMLAnalytics as api_ml_analytics_getMLAnalytics } from "~backend/ml/analytics";
+import {
+    getMLAnalytics as api_ml_analytics_getMLAnalytics,
+    getMLTrainingAnalytics as api_ml_analytics_getMLTrainingAnalytics
+} from "~backend/ml/analytics";
 import {
     detectPatterns as api_ml_training_detectPatterns,
     getRecommendations as api_ml_training_getRecommendations,
@@ -216,6 +278,7 @@ export namespace ml {
             this.baseClient = baseClient
             this.detectPatterns = this.detectPatterns.bind(this)
             this.getMLAnalytics = this.getMLAnalytics.bind(this)
+            this.getMLTrainingAnalytics = this.getMLTrainingAnalytics.bind(this)
             this.getRecommendations = this.getRecommendations.bind(this)
             this.trainModel = this.trainModel.bind(this)
         }
@@ -236,6 +299,15 @@ export namespace ml {
             // Now make the actual call to the API
             const resp = await this.baseClient.callTypedAPI(`/ml/analytics`, {method: "GET", body: undefined})
             return JSON.parse(await resp.text(), dateReviver) as ResponseType<typeof api_ml_analytics_getMLAnalytics>
+        }
+
+        /**
+         * Get comprehensive analytics for ML model improvement
+         */
+        public async getMLTrainingAnalytics(): Promise<ResponseType<typeof api_ml_analytics_getMLTrainingAnalytics>> {
+            // Now make the actual call to the API
+            const resp = await this.baseClient.callTypedAPI(`/ml/training-analytics`, {method: "GET", body: undefined})
+            return JSON.parse(await resp.text(), dateReviver) as ResponseType<typeof api_ml_analytics_getMLTrainingAnalytics>
         }
 
         /**
