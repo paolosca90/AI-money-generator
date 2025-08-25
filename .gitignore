@@ -4,3 +4,11 @@ encore.gen.cue
 /.encore
 node_modules
 /encore.gen
+
+# Build artifacts
+*.d.ts
+*.js
+*.js.map
+dist/
+backend/frontend/dist/
+tsconfig.tsbuildinfo
