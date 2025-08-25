@@ -1,13 +1,10 @@
-FROM node:18-alpine
+FROM node:20-alpine
 
-WORKDIR /app
+WORKDIR /app/backend
 
-COPY backend/package*.json ./backend/
-RUN npm ci --prefix backend
-
-COPY backend/ ./backend/
-RUN npm run build --prefix backend
+# Copy the server script
+COPY server.js ./server.js
 
 EXPOSE 3000
 
-CMD ["node", "backend/dist/server.js"]
+CMD ["node", "server.js"]
