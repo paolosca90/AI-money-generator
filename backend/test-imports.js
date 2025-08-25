@@ -1,0 +1,7 @@
+import "./analysis/predict.ts";
+import "./analysis/config-helper.ts";
+import "./scheduler/auto-trading.ts";
+import "./analysis/top-signals.ts";
+import "./analysis/market-data.ts";
+import "./analysis/signal-generator.ts";
+//# sourceMappingURL=test-imports.js.map
