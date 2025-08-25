@@ -8,6 +8,7 @@
     "frontend"
   ],
   "dependencies": {
-    "bun": "^1.2.21"
+    "bun": "^1.2.21",
+    "express": "^4.18.2"
   }
 }
